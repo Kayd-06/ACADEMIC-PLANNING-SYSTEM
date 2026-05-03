@@ -1,0 +1,179 @@
+'use client'
+import { motion } from 'framer-motion'
+import { Building2, Zap, FileText, TrendingUp, Plus, Filter, Download, ChevronRight, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+
+const fadeUp = (delay = 0) => ({
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  transition: { delay, type: 'spring' as const, stiffness: 320, damping: 28 },
+})
+
+const STATUS_STYLES: Record<string, string> = {
+  'In Progress': 'bg-blue-50 text-blue-700 border border-blue-100',
+  'Completed': 'bg-green-50 text-green-700 border border-green-100',
+  'Delayed': 'bg-red-50 text-red-600 border border-red-100',
+}
+
+const auditRows = [
+  { dept: 'Mathematics', cycle: 'Q1 2024', coordinator: 'Dr. Sarah Jenkins', initials: 'SJ', status: 'In Progress' },
+  { dept: 'Sciences (Physics/Chem)', cycle: 'Q4 2023', coordinator: 'Prof. Alan Turing', initials: 'AT', status: 'Completed' },
+  { dept: 'Humanities', cycle: 'Q2 2024', coordinator: 'Ms. Maria Bauer', initials: 'MB', status: 'Delayed' },
+]
+
+const protocols = [
+  { label: 'Child Safety Policy', sub: 'Reviewed: Oct 2023', done: true },
+  { label: 'Emergency Response Drill', sub: 'Overdue by 5 days', done: false, urgent: true },
+  { label: 'Data Privacy Agreement', sub: 'Signed & Active', done: true },
+]
+
+export default function InstitutionalDashboard() {
+  return (
+    <div className="flex-1 p-6 overflow-auto">
+      {/* Page title */}
+      <motion.div {...fadeUp(0)} className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Institutional Dashboard</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Overview of academic background, protocols, and ongoing management tasks.</p>
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+        >
+          <Plus className="w-4 h-4" /> New Recruitment
+        </motion.button>
+      </motion.div>
+
+      {/* Top grid: School Background + Quick Actions + Protocols */}
+      <div className="grid grid-cols-12 gap-4 mb-4">
+        {/* School Background — 7 cols */}
+        <motion.div {...fadeUp(0.04)} className="col-span-7 bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 font-medium text-gray-900 text-sm">
+              <Building2 className="w-4 h-4 text-gray-400" /> School Background
+            </div>
+            <button className="text-xs text-indigo-600 hover:text-indigo-700 transition-colors">View Details</button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: 'CURRENT BOARD', value: 'CBSE Affiliated' },
+              { label: 'ACTIVE CLASSES', value: 'Nursery – XII' },
+              { label: 'PROGRAMS', value: 'STEM, Humanities, Arts' },
+              { label: 'MOU STATUS', value: 'Active (2025)', green: true },
+            ].map(item => (
+              <div key={item.label} className="bg-gray-50 rounded-lg p-3.5">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{item.label}</p>
+                <p className={`text-sm font-medium ${item.green ? 'text-green-700' : 'text-gray-900'}`}>{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Quick Actions — 3 cols */}
+        <motion.div {...fadeUp(0.08)} className="col-span-3 bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center gap-2 font-medium text-gray-900 text-sm mb-4">
+            <Zap className="w-4 h-4 text-gray-400" /> Quick Actions
+          </div>
+          <div className="space-y-2.5">
+            {[
+              { label: 'Initiate Recruitment', icon: <Plus className="w-3.5 h-3.5" /> },
+              { label: 'Update Macro Plan', icon: <Clock className="w-3.5 h-3.5" /> },
+              { label: 'Upload Compliance Doc', icon: <FileText className="w-3.5 h-3.5" /> },
+            ].map(action => (
+              <button key={action.label} className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/40 transition-all group text-left">
+                <div className="flex items-center gap-2 text-xs font-medium text-gray-700 group-hover:text-indigo-700">
+                  <span className="text-gray-400 group-hover:text-indigo-500">{action.icon}</span>
+                  {action.label}
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-indigo-400" />
+              </button>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Protocols — 2 cols */}
+        <motion.div {...fadeUp(0.12)} className="col-span-2 bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center gap-2 font-medium text-gray-900 text-sm mb-4">
+            <FileText className="w-4 h-4 text-gray-400" /> Protocols
+          </div>
+          <div className="space-y-3">
+            {protocols.map(p => (
+              <div key={p.label} className="flex gap-2.5">
+                <div className="mt-0.5 shrink-0">
+                  {p.done
+                    ? <CheckCircle className="w-4 h-4 text-green-500" />
+                    : <AlertCircle className="w-4 h-4 text-amber-500" />
+                  }
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-800 leading-tight">{p.label}</p>
+                  <p className={`text-[11px] mt-0.5 ${p.urgent ? 'text-red-500' : 'text-gray-400'}`}>{p.sub}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button className="text-xs text-indigo-600 hover:text-indigo-700 mt-4 transition-colors">View All Protocols</button>
+        </motion.div>
+      </div>
+
+      {/* Academic Quality Monitoring table */}
+      <motion.div {...fadeUp(0.16)} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2 font-medium text-gray-900 text-sm">
+            <TrendingUp className="w-4 h-4 text-gray-400" /> Academic Quality Monitoring
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
+              <Filter className="w-3.5 h-3.5" />
+            </button>
+            <button className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-50">
+              {['Department', 'Audit Cycle', 'Lead Coordinator', 'Status', 'Action'].map(h => (
+                <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {auditRows.map((row, i) => (
+              <motion.tr
+                key={row.dept}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 + i * 0.05 }}
+                className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors"
+              >
+                <td className="px-5 py-3.5 text-sm text-gray-800">{row.dept}</td>
+                <td className="px-5 py-3.5 text-sm text-gray-500">{row.cycle}</td>
+                <td className="px-5 py-3.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-semibold text-gray-600">{row.initials}</div>
+                    <span className="text-sm text-gray-800">{row.coordinator}</span>
+                  </div>
+                </td>
+                <td className="px-5 py-3.5">
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_STYLES[row.status]}`}>
+                    {row.status}
+                  </span>
+                </td>
+                <td className="px-5 py-3.5">
+                  <button className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="px-5 py-3 border-t border-gray-50 text-center">
+          <p className="text-xs text-gray-400">© 2024 EduAdmin Management System. Institutional Grade Security.</p>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
