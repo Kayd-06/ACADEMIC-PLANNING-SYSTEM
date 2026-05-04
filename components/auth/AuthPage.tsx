@@ -189,10 +189,10 @@ function TeacherForm({ onBack }: { onBack: () => void }) {
 
 // ─── Management signup ────────────────────────────────────────────────────────
 
-function ManagementForm({ onBack }: { onBack: () => void }) {
-  const router = useRouter()
+function ManagementForm({ onBack, onSuccess }: { onBack: () => void, onSuccess: () => void }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', employeeId: '', inviteCode: '' })
   const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, [k]: e.target.value }))
 
@@ -201,7 +201,10 @@ function ManagementForm({ onBack }: { onBack: () => void }) {
     const res = await fetch('/api/auth/register/management', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
     const data = await res.json(); setLoading(false)
     if (!res.ok) { setError(data.error || 'Registration failed.'); return }
-    setTimeout(() => router.push('/login'), 1500)
+    setDone(true)
+    setTimeout(() => {
+      onSuccess()
+    }, 2000)
   }
 
   return (
@@ -209,14 +212,24 @@ function ManagementForm({ onBack }: { onBack: () => void }) {
       <button onClick={onBack} className="text-xs text-gray-400 hover:text-gray-600 mb-3 block transition-colors">← Back</button>
       <h2 className="text-xl font-bold text-gray-800 mb-4">Administration Sign Up</h2>
       <ErrorMsg msg={error} />
-      <form onSubmit={submit} className="space-y-2.5">
-        <FieldInput icon={<User className="w-4 h-4" />} type="text" value={form.name} onChange={set('name')} required placeholder="Full name" />
-        <FieldInput icon={<Mail className="w-4 h-4" />} type="email" value={form.email} onChange={set('email')} required placeholder="Email" />
-        <FieldInput icon={<Lock className="w-4 h-4" />} type="password" value={form.password} onChange={set('password')} required placeholder="Password (min. 8 chars)" minLength={8} />
-        <FieldInput icon={<Building2 className="w-4 h-4" />} type="text" value={form.employeeId} onChange={set('employeeId')} placeholder="Employee ID (optional)" />
-        <FieldInput icon={<Lock className="w-4 h-4" />} type="text" value={form.inviteCode} onChange={set('inviteCode')} required placeholder="Invite code" />
-        <div className="pt-1"><PrimaryBtn loading={loading}>Create Account</PrimaryBtn></div>
-      </form>
+      {done ? (
+        <div className="text-center py-3">
+          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          </div>
+          <p className="text-sm font-medium text-gray-800">Account Created Successfully!</p>
+          <p className="text-xs text-gray-400 mt-1">Redirecting to login page...</p>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="space-y-2.5">
+          <FieldInput icon={<User className="w-4 h-4" />} type="text" value={form.name} onChange={set('name')} required placeholder="Full name" />
+          <FieldInput icon={<Mail className="w-4 h-4" />} type="email" value={form.email} onChange={set('email')} required placeholder="Email" />
+          <FieldInput icon={<Lock className="w-4 h-4" />} type="password" value={form.password} onChange={set('password')} required placeholder="Password (min. 8 chars)" minLength={8} />
+          <FieldInput icon={<Building2 className="w-4 h-4" />} type="text" value={form.employeeId} onChange={set('employeeId')} placeholder="Employee ID (optional)" />
+          <FieldInput icon={<Lock className="w-4 h-4" />} type="text" value={form.inviteCode} onChange={set('inviteCode')} required placeholder="Invite code" />
+          <div className="pt-1"><PrimaryBtn loading={loading}>Create Account</PrimaryBtn></div>
+        </form>
+      )}
     </motion.div>
   )
 }
@@ -241,7 +254,7 @@ export default function AuthPage() {
           <AnimatePresence mode="wait">
             {step === 'select'     && <RoleSelect      key="select"  onSelect={s => setStep(s)} />}
             {step === 'teacher'    && <TeacherForm     key="teacher" onBack={() => setStep('select')} />}
-            {step === 'management' && <ManagementForm  key="mgmt"    onBack={() => setStep('select')} />}
+            {step === 'management' && <ManagementForm  key="mgmt"    onBack={() => setStep('select')} onSuccess={() => { setMode('login'); setStep('select') }} />}
           </AnimatePresence>
         </div>
 
