@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, FileText, CheckCircle, AlertCircle } from 'lucide-react'
+import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, Megaphone, Bell } from 'lucide-react'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -22,7 +22,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function TeacherDashboard({ firstName }: { firstName: string }) {
   const [schoolData, setSchoolData] = useState<any>(null)
-  const [protocols, setProtocols] = useState<any[]>([])
+  const [announcements, setAnnouncements] = useState<any[]>([])
 
   useEffect(() => {
     fetch('/api/school')
@@ -30,10 +30,10 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
       .then(data => {
         if (!data.error) setSchoolData(data)
       })
-    fetch('/api/protocols')
+    fetch('/api/announcements')
       .then(res => res.json())
       .then(data => {
-        if (!data.error) setProtocols(data)
+        if (!data.error) setAnnouncements(data)
       })
   }, [])
 
@@ -81,22 +81,25 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
           </div>
         </motion.div>
 
-        {/* Protocols Card — 4 cols */}
+        {/* Announcements Card — 4 cols */}
         <motion.div {...fadeUp(0.08)} className="col-span-4 bg-white border border-gray-100 rounded-xl p-5 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Active Protocols</p>
-            <FileText className="w-3.5 h-3.5 text-gray-300" />
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Recent Announcements</p>
+            <Megaphone className="w-3.5 h-3.5 text-gray-300" />
           </div>
           <div className="space-y-2.5">
-            {protocols.length === 0 && <p className="text-[11px] text-gray-400 italic">No protocols defined.</p>}
-            {protocols.slice(0, 2).map(p => (
-              <div key={p._id} className="flex gap-2">
+            {announcements.length === 0 && <p className="text-[11px] text-gray-400 italic">No announcements.</p>}
+            {announcements.slice(0, 2).map(a => (
+              <div key={a._id} className="flex gap-2">
                 <div className="mt-0.5 shrink-0">
-                  {p.done ? <CheckCircle className="w-3.5 h-3.5 text-green-500" /> : <AlertCircle className={`w-3.5 h-3.5 ${p.urgent ? 'text-red-500' : 'text-amber-500'}`} />}
+                  {a.urgent 
+                    ? <Bell className="w-3.5 h-3.5 text-red-500 animate-pulse" /> 
+                    : <Megaphone className="w-3.5 h-3.5 text-indigo-400" />
+                  }
                 </div>
                 <div>
-                  <p className="text-[11px] font-medium text-gray-800 leading-tight">{p.label}</p>
-                  <p className={`text-[10px] ${p.urgent ? 'text-red-500' : 'text-gray-400'}`}>{p.sub}</p>
+                  <p className="text-[11px] font-medium text-gray-800 leading-tight">{a.label}</p>
+                  <p className={`text-[10px] ${a.urgent ? 'text-red-500' : 'text-gray-400'}`}>{a.sub}</p>
                 </div>
               </div>
             ))}

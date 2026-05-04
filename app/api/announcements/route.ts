@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
-import Protocol from '@/models/Protocol'
+import Announcement from '@/models/Announcement'
 import { auth } from '@/lib/auth'
 
 export async function GET() {
   try {
     await connectDB()
-    const protocols = await Protocol.find().sort({ updatedAt: -1 })
-    return NextResponse.json(protocols)
+    const announcements = await Announcement.find().sort({ updatedAt: -1 })
+    return NextResponse.json(announcements)
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch protocols' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to fetch announcements' }, { status: 500 })
   }
 }
 
@@ -22,9 +22,9 @@ export async function POST(req: Request) {
 
     const data = await req.json()
     await connectDB()
-    const protocol = await Protocol.create(data)
-    return NextResponse.json(protocol)
+    const announcement = await Announcement.create(data)
+    return NextResponse.json(announcement)
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to create protocol' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to create announcement' }, { status: 500 })
   }
 }

@@ -1,9 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Building2, Zap, FileText, TrendingUp, Plus, Filter, Download, ChevronRight, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import { Building2, Zap, FileText, TrendingUp, Plus, Filter, Download, ChevronRight, CheckCircle, Clock, AlertCircle, Megaphone, Bell } from 'lucide-react'
 import SchoolDetailsModal from './SchoolDetailsModal'
-import ProtocolsModal from './ProtocolsModal'
+import AnnouncementsModal from './AnnouncementsModal'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -23,22 +23,17 @@ const auditRows = [
   { dept: 'Humanities', cycle: 'Q2 2024', coordinator: 'Ms. Maria Bauer', initials: 'MB', status: 'Delayed' },
 ]
 
-const protocols = [
-  { label: 'Child Safety Policy', sub: 'Reviewed: Oct 2023', done: true },
-  { label: 'Emergency Response Drill', sub: 'Overdue by 5 days', done: false, urgent: true },
-  { label: 'Data Privacy Agreement', sub: 'Signed & Active', done: true },
-]
 
 export default function InstitutionalDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isProtocolsModalOpen, setIsProtocolsModalOpen] = useState(false)
+  const [isAnnouncementsModalOpen, setIsAnnouncementsModalOpen] = useState(false)
   const [schoolData, setSchoolData] = useState({
     board: 'CBSE Affiliated',
     classes: 'Nursery – XII',
     programs: 'STEM, Humanities, Arts',
     mouStatus: 'Active (2025)'
   })
-  const [liveProtocols, setLiveProtocols] = useState<any[]>([])
+  const [liveAnnouncements, setLiveAnnouncements] = useState<any[]>([])
 
   useEffect(() => {
     fetch('/api/school')
@@ -46,13 +41,13 @@ export default function InstitutionalDashboard() {
       .then(data => {
         if (!data.error) setSchoolData(data)
       })
-    fetchProtocols()
+    fetchAnnouncements()
   }, [])
 
-  async function fetchProtocols() {
-    const res = await fetch('/api/protocols')
+  async function fetchAnnouncements() {
+    const res = await fetch('/api/announcements')
     const data = await res.json()
-    if (!data.error) setLiveProtocols(data)
+    if (!data.error) setLiveAnnouncements(data)
   }
 
   async function handleSave(newData: any) {
@@ -73,16 +68,16 @@ export default function InstitutionalDashboard() {
         initialData={schoolData} 
         onSave={handleSave}
       />
-      <ProtocolsModal 
-        isOpen={isProtocolsModalOpen}
-        onClose={() => setIsProtocolsModalOpen(false)}
-        onUpdate={fetchProtocols}
+      <AnnouncementsModal 
+        isOpen={isAnnouncementsModalOpen}
+        onClose={() => setIsAnnouncementsModalOpen(false)}
+        onUpdate={fetchAnnouncements}
       />
       {/* Page title */}
       <motion.div {...fadeUp(0)} className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Institutional Dashboard</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Overview of academic background, protocols, and ongoing management tasks.</p>
+          <p className="text-sm text-gray-400 mt-0.5">Overview of academic background, announcements, and ongoing management tasks.</p>
         </div>
         <motion.button
           whileHover={{ scale: 1.02 }}
@@ -145,33 +140,33 @@ export default function InstitutionalDashboard() {
           </div>
         </motion.div>
 
-        {/* Protocols — 2 cols */}
+        {/* Announcements — 2 cols */}
         <motion.div {...fadeUp(0.12)} className="col-span-2 bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
           <div className="flex items-center gap-2 font-medium text-gray-900 text-sm mb-4">
-            <FileText className="w-4 h-4 text-gray-400" /> Protocols
+            <Bell className="w-4 h-4 text-gray-400" /> Announcements
           </div>
           <div className="space-y-3">
-            {liveProtocols.length === 0 && <p className="text-[11px] text-gray-400">No active protocols.</p>}
-            {liveProtocols.slice(0, 3).map(p => (
-              <div key={p._id} className="flex gap-2.5">
+            {liveAnnouncements.length === 0 && <p className="text-[11px] text-gray-400 italic">No new announcements.</p>}
+            {liveAnnouncements.slice(0, 3).map(a => (
+              <div key={a._id} className="flex gap-2.5">
                 <div className="mt-0.5 shrink-0">
-                  {p.done
-                    ? <CheckCircle className="w-4 h-4 text-green-500" />
-                    : <AlertCircle className={`w-4 h-4 ${p.urgent ? 'text-red-500' : 'text-amber-500'}`} />
+                  {a.urgent 
+                    ? <Bell className="w-4 h-4 text-red-500 animate-pulse" />
+                    : <Megaphone className="w-4 h-4 text-indigo-400" />
                   }
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-800 leading-tight">{p.label}</p>
-                  <p className={`text-[11px] mt-0.5 ${p.urgent ? 'text-red-500' : 'text-gray-400'}`}>{p.sub}</p>
+                  <p className="text-xs font-medium text-gray-800 leading-tight">{a.label}</p>
+                  <p className={`text-[11px] mt-0.5 ${a.urgent ? 'text-red-500' : 'text-gray-400'}`}>{a.sub}</p>
                 </div>
               </div>
             ))}
           </div>
           <button 
-            onClick={() => setIsProtocolsModalOpen(true)}
+            onClick={() => setIsAnnouncementsModalOpen(true)}
             className="text-xs text-indigo-600 hover:text-indigo-700 mt-4 transition-colors"
           >
-            View All Protocols
+            Manage All
           </button>
         </motion.div>
       </div>
