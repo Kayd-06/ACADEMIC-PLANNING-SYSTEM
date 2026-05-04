@@ -1,6 +1,7 @@
 'use client'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter } from 'lucide-react'
+import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, FileText, CheckCircle, AlertCircle } from 'lucide-react'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -20,6 +21,22 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 export default function TeacherDashboard({ firstName }: { firstName: string }) {
+  const [schoolData, setSchoolData] = useState<any>(null)
+  const [protocols, setProtocols] = useState<any[]>([])
+
+  useEffect(() => {
+    fetch('/api/school')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) setSchoolData(data)
+      })
+    fetch('/api/protocols')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) setProtocols(data)
+      })
+  }, [])
+
   return (
     <div className="flex-1 p-6 overflow-auto">
       <motion.div {...fadeUp(0)} className="flex items-start justify-between mb-6">
@@ -35,6 +52,57 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
           <Plus className="w-4 h-4" /> Add Class Note
         </motion.button>
       </motion.div>
+
+      <div className="grid grid-cols-12 gap-4 mb-6">
+        {/* Institutional Info Card — 8 cols */}
+        <motion.div {...fadeUp(0.05)} className="col-span-8 bg-indigo-50/50 border border-indigo-100 rounded-xl p-5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Institution Information</p>
+              <p className="text-sm font-medium text-gray-900">{schoolData?.name || 'Academic Planning System'}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-8">
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Board</p>
+              <p className="text-xs font-medium text-gray-700">{schoolData?.board || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Active Classes</p>
+              <p className="text-xs font-medium text-gray-700">{schoolData?.classes || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">MOU Status</p>
+              <p className="text-xs font-medium text-green-700">{schoolData?.mouStatus || '—'}</p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Protocols Card — 4 cols */}
+        <motion.div {...fadeUp(0.08)} className="col-span-4 bg-white border border-gray-100 rounded-xl p-5 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Active Protocols</p>
+            <FileText className="w-3.5 h-3.5 text-gray-300" />
+          </div>
+          <div className="space-y-2.5">
+            {protocols.length === 0 && <p className="text-[11px] text-gray-400 italic">No protocols defined.</p>}
+            {protocols.slice(0, 2).map(p => (
+              <div key={p._id} className="flex gap-2">
+                <div className="mt-0.5 shrink-0">
+                  {p.done ? <CheckCircle className="w-3.5 h-3.5 text-green-500" /> : <AlertCircle className={`w-3.5 h-3.5 ${p.urgent ? 'text-red-500' : 'text-amber-500'}`} />}
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-gray-800 leading-tight">{p.label}</p>
+                  <p className={`text-[10px] ${p.urgent ? 'text-red-500' : 'text-gray-400'}`}>{p.sub}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </div>
 
       {/* Stats row */}
       <div className="grid grid-cols-4 gap-4 mb-4">

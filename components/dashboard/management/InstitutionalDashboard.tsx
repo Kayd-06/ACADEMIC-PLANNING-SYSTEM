@@ -1,6 +1,9 @@
 'use client'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Building2, Zap, FileText, TrendingUp, Plus, Filter, Download, ChevronRight, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import SchoolDetailsModal from './SchoolDetailsModal'
+import ProtocolsModal from './ProtocolsModal'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -27,8 +30,54 @@ const protocols = [
 ]
 
 export default function InstitutionalDashboard() {
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isProtocolsModalOpen, setIsProtocolsModalOpen] = useState(false)
+  const [schoolData, setSchoolData] = useState({
+    board: 'CBSE Affiliated',
+    classes: 'Nursery – XII',
+    programs: 'STEM, Humanities, Arts',
+    mouStatus: 'Active (2025)'
+  })
+  const [liveProtocols, setLiveProtocols] = useState<any[]>([])
+
+  useEffect(() => {
+    fetch('/api/school')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) setSchoolData(data)
+      })
+    fetchProtocols()
+  }, [])
+
+  async function fetchProtocols() {
+    const res = await fetch('/api/protocols')
+    const data = await res.json()
+    if (!data.error) setLiveProtocols(data)
+  }
+
+  async function handleSave(newData: any) {
+    const res = await fetch('/api/school', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newData)
+    })
+    const data = await res.json()
+    if (!data.error) setSchoolData(data)
+  }
+
   return (
     <div className="flex-1 p-6 overflow-auto">
+      <SchoolDetailsModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        initialData={schoolData} 
+        onSave={handleSave}
+      />
+      <ProtocolsModal 
+        isOpen={isProtocolsModalOpen}
+        onClose={() => setIsProtocolsModalOpen(false)}
+        onUpdate={fetchProtocols}
+      />
       {/* Page title */}
       <motion.div {...fadeUp(0)} className="flex items-start justify-between mb-6">
         <div>
@@ -52,14 +101,19 @@ export default function InstitutionalDashboard() {
             <div className="flex items-center gap-2 font-medium text-gray-900 text-sm">
               <Building2 className="w-4 h-4 text-gray-400" /> School Background
             </div>
-            <button className="text-xs text-indigo-600 hover:text-indigo-700 transition-colors">View Details</button>
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="text-xs text-indigo-600 hover:text-indigo-700 transition-colors"
+            >
+              View Details
+            </button>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'CURRENT BOARD', value: 'CBSE Affiliated' },
-              { label: 'ACTIVE CLASSES', value: 'Nursery – XII' },
-              { label: 'PROGRAMS', value: 'STEM, Humanities, Arts' },
-              { label: 'MOU STATUS', value: 'Active (2025)', green: true },
+              { label: 'CURRENT BOARD', value: schoolData.board },
+              { label: 'ACTIVE CLASSES', value: schoolData.classes },
+              { label: 'PROGRAMS', value: schoolData.programs },
+              { label: 'MOU STATUS', value: schoolData.mouStatus, green: true },
             ].map(item => (
               <div key={item.label} className="bg-gray-50 rounded-lg p-3.5">
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{item.label}</p>
@@ -97,12 +151,13 @@ export default function InstitutionalDashboard() {
             <FileText className="w-4 h-4 text-gray-400" /> Protocols
           </div>
           <div className="space-y-3">
-            {protocols.map(p => (
-              <div key={p.label} className="flex gap-2.5">
+            {liveProtocols.length === 0 && <p className="text-[11px] text-gray-400">No active protocols.</p>}
+            {liveProtocols.slice(0, 3).map(p => (
+              <div key={p._id} className="flex gap-2.5">
                 <div className="mt-0.5 shrink-0">
                   {p.done
                     ? <CheckCircle className="w-4 h-4 text-green-500" />
-                    : <AlertCircle className="w-4 h-4 text-amber-500" />
+                    : <AlertCircle className={`w-4 h-4 ${p.urgent ? 'text-red-500' : 'text-amber-500'}`} />
                   }
                 </div>
                 <div>
@@ -112,7 +167,12 @@ export default function InstitutionalDashboard() {
               </div>
             ))}
           </div>
-          <button className="text-xs text-indigo-600 hover:text-indigo-700 mt-4 transition-colors">View All Protocols</button>
+          <button 
+            onClick={() => setIsProtocolsModalOpen(true)}
+            className="text-xs text-indigo-600 hover:text-indigo-700 mt-4 transition-colors"
+          >
+            View All Protocols
+          </button>
         </motion.div>
       </div>
 
