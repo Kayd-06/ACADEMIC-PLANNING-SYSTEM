@@ -228,8 +228,13 @@ export default function AuthPage() {
   const [step, setStep] = useState<SignupStep>('select')
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="relative w-full max-w-4xl h-[560px] bg-white rounded-2xl shadow-2xl overflow-hidden flex">
+    <div className="min-h-screen gradient-mesh flex items-center justify-center p-6 font-sans">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="relative w-full max-w-4xl h-[600px] bg-white/80 backdrop-blur-xl rounded-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] overflow-hidden flex border border-white/50"
+      >
 
         {/* Left half — signup forms */}
         <div className="w-1/2 flex items-center justify-center px-12 py-10 z-10">
@@ -247,39 +252,56 @@ export default function AuthPage() {
 
         {/* Sliding indigo panel */}
         <motion.div
-          className="absolute top-0 left-0 w-1/2 h-full z-20 flex flex-col items-center justify-center px-12 text-white"
-          style={{ backgroundColor: '#6366f1' }}
+          className="absolute top-0 left-0 w-1/2 h-full z-20 flex flex-col items-center justify-center px-12 text-white shadow-2xl"
+          style={{ 
+            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+          }}
           animate={{
             x: mode === 'login' ? '0%' : '100%',
-            borderRadius: mode === 'login' ? '16px 72px 72px 16px' : '72px 16px 16px 72px',
+            borderRadius: mode === 'login' ? '0 80px 80px 0' : '80px 0 0 80px',
           }}
-          transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+          transition={{ type: 'spring', stiffness: 200, damping: 25 }}
         >
+          <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
+            <div className="absolute -top-24 -left-24 w-64 h-64 bg-white rounded-full blur-3xl" />
+            <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-indigo-400 rounded-full blur-3xl" />
+          </div>
+
           <AnimatePresence mode="wait">
             {mode === 'login' ? (
-              <motion.div key="panel-l" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18, delay: 0.12 }} className="text-center">
-                <h2 className="text-3xl font-bold mb-2">Hello, Welcome!</h2>
-                <p className="text-indigo-200 text-sm mb-8">Don&apos;t have an account?</p>
-                <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+              <motion.div key="panel-l" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.3 }} className="text-center relative z-10">
+                <h2 className="text-4xl font-extrabold mb-4 tracking-tight">New Here?</h2>
+                <p className="text-indigo-100 text-base mb-10 font-medium leading-relaxed">
+                  Join the most advanced academic <br/> planning ecosystem today.
+                </p>
+                <motion.button 
+                  whileHover={{ scale: 1.05, boxShadow: '0 10px 20px -5px rgba(0,0,0,0.2)' }} 
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => { setStep('select'); setMode('signup') }}
-                  className="border-2 border-white text-white font-semibold px-8 py-2.5 rounded-lg hover:bg-white hover:text-indigo-600 transition-colors text-sm">
-                  Register
+                  className="bg-white/10 backdrop-blur-md border border-white/30 text-white font-bold px-10 py-3.5 rounded-xl hover:bg-white hover:text-indigo-600 transition-all text-sm uppercase tracking-wider"
+                >
+                  Create Account
                 </motion.button>
               </motion.div>
             ) : (
-              <motion.div key="panel-r" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18, delay: 0.12 }} className="text-center">
-                <h2 className="text-3xl font-bold mb-2">Welcome Back!</h2>
-                <p className="text-indigo-200 text-sm mb-8">Already have an account?</p>
-                <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+              <motion.div key="panel-r" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="text-center relative z-10">
+                <h2 className="text-4xl font-extrabold mb-4 tracking-tight">Welcome Back!</h2>
+                <p className="text-indigo-100 text-base mb-10 font-medium leading-relaxed">
+                  To stay connected with your <br/> institution, please login.
+                </p>
+                <motion.button 
+                  whileHover={{ scale: 1.05, boxShadow: '0 10px 20px -5px rgba(0,0,0,0.2)' }} 
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setMode('login')}
-                  className="border-2 border-white text-white font-semibold px-8 py-2.5 rounded-lg hover:bg-white hover:text-indigo-600 transition-colors text-sm">
-                  Login
+                  className="bg-white/10 backdrop-blur-md border border-white/30 text-white font-bold px-10 py-3.5 rounded-xl hover:bg-white hover:text-indigo-600 transition-all text-sm uppercase tracking-wider"
+                >
+                  Sign In
                 </motion.button>
               </motion.div>
             )}
           </AnimatePresence>
         </motion.div>
-      </div>
+      </motion.div>
     </div>
   )
 }
