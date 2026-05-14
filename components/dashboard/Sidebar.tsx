@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { HelpCircle, LogOut } from 'lucide-react'
+import { HelpCircle, LogOut, Plus } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 interface NavItem {
@@ -38,7 +38,7 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
             {initials}
           </motion.div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-gray-900 truncate">Academic System</p>
+            <p className="text-sm font-bold text-gray-900 truncate">EduAdmin Pro</p>
             <p className="text-[11px] font-medium text-indigo-500 uppercase tracking-wider truncate">{userRole}</p>
           </div>
         </div>
@@ -68,16 +68,26 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
       </nav>
 
       {/* Bottom */}
-      <div className="px-4 py-6 border-t border-gray-100/50 space-y-1">
+      <div className="px-4 py-6 border-t border-gray-100/50 space-y-2">
+        <Link href="/management/recruitment">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#0a192f] text-white text-[13px] font-bold shadow-lg shadow-gray-200 transition-all mb-4"
+          >
+            <Plus className="w-4 h-4" />
+            New Recruitment
+          </motion.button>
+        </Link>
         <Link href="/support">
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
             <HelpCircle className="w-4 h-4 shrink-0 text-gray-400" />
-            Support Center
+            Support
           </div>
         </Link>
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-medium text-red-500 hover:bg-red-50 transition-all"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-medium text-gray-500 hover:bg-red-50 hover:text-red-500 transition-all"
         >
           <LogOut className="w-4 h-4 shrink-0" />
           Sign Out
