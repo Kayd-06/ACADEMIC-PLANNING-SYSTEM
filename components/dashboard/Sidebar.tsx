@@ -1,9 +1,11 @@
 'use client'
+import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { HelpCircle, LogOut, Plus } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { HelpCircle, LogOut, Plus, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface NavItem {
   label: string
@@ -20,13 +22,14 @@ interface SidebarProps {
 
 export default function Sidebar({ userName, userRole, navItems, initials }: SidebarProps) {
   const pathname = usePathname()
+  const [showRecruitmentModal, setShowRecruitmentModal] = useState(false)
 
   return (
     <motion.aside
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 260, damping: 25 }}
-      className="w-64 shrink-0 bg-slate-50 border-r border-slate-200 min-h-screen flex flex-col"
+      className="w-64 shrink-0 bg-slate-50 border-r border-slate-200 h-screen sticky top-0 flex flex-col"
     >
       {/* Identity */}
       <div className="px-6 pb-6 pt-6 mb-2 border-b border-slate-200 flex items-center gap-3">
@@ -69,16 +72,15 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
       {/* Bottom */}
       <div className="px-4 py-6 border-t border-slate-200 space-y-1">
         {userRole !== 'Faculty' && (
-          <Link href="/management/recruitment">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-[#002045] hover:bg-[#1a365d] text-white text-[13px] font-bold shadow-sm transition-all mb-3"
-            >
-              <Plus className="w-4 h-4" />
-              New Recruitment
-            </motion.button>
-          </Link>
+          <motion.button
+            onClick={() => setShowRecruitmentModal(true)}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-[#002045] hover:bg-[#1a365d] text-white text-[13px] font-bold shadow-sm transition-all mb-3"
+          >
+            <Plus className="w-4 h-4" />
+            New Recruitment
+          </motion.button>
         )}
         <Link href="/support">
           <div className="flex items-center gap-3 px-4 py-2 mx-2 rounded-md text-[13px] font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all">
@@ -94,6 +96,46 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
           Sign Out
         </button>
       </div>
+
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showRecruitmentModal && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-md border border-slate-100"
+              >
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-bold text-slate-900">New Requirement Announcement</h3>
+                  <button onClick={() => setShowRecruitmentModal(false)} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Role Title</label>
+                    <input placeholder="e.g. Associate Professor" className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Department</label>
+                    <input placeholder="e.g. Computer Science" className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Open Positions</label>
+                    <input type="number" defaultValue={1} className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                  </div>
+                  <button onClick={() => setShowRecruitmentModal(false)} className="w-full bg-[#002045] text-white font-bold py-2.5 rounded-xl hover:bg-[#1a365d] transition-colors mt-2">
+                    Create Announcement
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </motion.aside>
   )
 }

@@ -18,7 +18,9 @@ import {
   CalendarCheck,
   Plus,
   X,
-  Save
+  Save,
+  Trash2,
+  Pencil
 } from 'lucide-react'
 
 const fadeUp = (delay = 0) => ({
@@ -57,9 +59,15 @@ export default function RecruitmentDashboard() {
     facultyName: '', department: '', reviewType: '', rating: 'Satisfactory',
     notes: '', scheduledDate: '', scheduledTime: '', isCompleted: false, avatarInitials: ''
   })
+  const [showCandidateForm, setShowCandidateForm] = useState(false)
+  const [candidateForm, setCandidateForm] = useState<any>({
+    name: '', roleApplied: '', department: '', status: 'Under Review', nextStep: 'Initial Review'
+  })
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { 
+    fetchData() 
+  }, [])
 
   async function fetchData() {
     try {
@@ -95,6 +103,45 @@ export default function RecruitmentDashboard() {
     setShowAppraisalForm(false)
     await fetchData()
     setSubmitting(false)
+  }
+
+  async function handleAddCandidate(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
+    
+    if (candidateForm.id) {
+      await fetch('/api/recruitment/candidates', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(candidateForm)
+      })
+    } else {
+      await fetch('/api/recruitment/candidates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(candidateForm)
+      })
+    }
+    
+    setCandidateForm({ name: '', roleApplied: '', department: '', status: 'Under Review', nextStep: 'Initial Review' })
+    setShowCandidateForm(false)
+    await fetchData()
+    setSubmitting(false)
+  }
+
+  async function handleDeleteCandidate(id: string) {
+    if (!confirm('Are you sure you want to delete this candidate?')) return
+    await fetch(`/api/recruitment/candidates?id=${id}`, { method: 'DELETE' })
+    await fetchData()
+  }
+
+  async function handleStatusChange(id: string, newStatus: string) {
+    await fetch('/api/recruitment/candidates', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status: newStatus })
+    })
+    await fetchData()
   }
 
   async function handleDeleteAppraisal(id: string) {
@@ -205,8 +252,44 @@ export default function RecruitmentDashboard() {
             <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
               <Download className="w-4 h-4" /> Export
             </button>
+            <button onClick={() => setShowCandidateForm(!showCandidateForm)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#002045] text-white text-sm font-bold shadow-sm hover:bg-[#1a365d] transition-colors">
+              <Plus className="w-4 h-4" /> Add Candidate
+            </button>
           </div>
         </div>
+        
+        <AnimatePresence>
+          {showCandidateForm && (
+            <motion.form
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              onSubmit={handleAddCandidate}
+              className="px-6 py-4 border-b border-gray-100 bg-[#002045]/5 overflow-hidden"
+            >
+              <div className="grid grid-cols-5 gap-3 mb-3">
+                <input required value={candidateForm.name} onChange={e => setCandidateForm(f => ({ ...f, name: e.target.value }))} placeholder="Candidate Name" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                <input required value={candidateForm.roleApplied} onChange={e => setCandidateForm(f => ({ ...f, roleApplied: e.target.value }))} placeholder="Role Applied" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                <input required value={candidateForm.department} onChange={e => setCandidateForm(f => ({ ...f, department: e.target.value }))} placeholder="Department" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                <select value={candidateForm.status} onChange={e => setCandidateForm(f => ({ ...f, status: e.target.value }))} className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20">
+                  <option>Requirement Announcement</option>
+                  <option>Shortlisted</option>
+                  <option>Interview Scheduled</option>
+                  <option>Offer Extended</option>
+                  <option>Under Review</option>
+                  <option>Pending</option>
+                </select>
+                <input required value={candidateForm.nextStep} onChange={e => setCandidateForm(f => ({ ...f, nextStep: e.target.value }))} placeholder="Next Step" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowCandidateForm(false)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Cancel</button>
+                <button type="submit" disabled={submitting} className="px-4 py-2 text-sm font-bold bg-[#002045] text-white rounded-lg hover:bg-[#1a365d] transition-colors flex items-center gap-2">
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
+                </button>
+              </div>
+            </motion.form>
+          )}
+        </AnimatePresence>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -223,12 +306,33 @@ export default function RecruitmentDashboard() {
                   <td className="px-6 py-4 text-sm text-gray-600">{candidate.roleApplied}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{candidate.department}</td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${getStatusColor(candidate.status)}`}>{candidate.status}</span>
+                    <select
+                      value={candidate.status}
+                      onChange={(e) => handleStatusChange(candidate._id, e.target.value)}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold appearance-none cursor-pointer outline-none border border-transparent hover:border-gray-300 ${getStatusColor(candidate.status)}`}
+                    >
+                      <option>Requirement Announcement</option>
+                      <option>Shortlisted</option>
+                      <option>Interview Scheduled</option>
+                      <option>Offer Extended</option>
+                      <option>Under Review</option>
+                      <option>Pending</option>
+                    </select>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{candidate.nextStep}</td>
-                  <td className="px-6 py-4">
-                    <button className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-                      <MoreHorizontal className="w-5 h-5" />
+                  <td className="px-6 py-4 flex items-center gap-1">
+                    <button 
+                      onClick={() => {
+                        setCandidateForm({ ...candidate, id: candidate._id })
+                        setShowCandidateForm(true)
+                      }} 
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-[#002045] hover:bg-gray-100 transition-colors" 
+                      title="Edit Candidate"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDeleteCandidate(candidate._id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete Candidate">
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
                 </tr>
@@ -237,7 +341,9 @@ export default function RecruitmentDashboard() {
           </table>
         </div>
         <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-          <p className="text-xs text-gray-500">Showing 1 to {candidates.length} of 45 entries</p>
+          <p className="text-xs text-gray-500">
+            Showing {candidates.length > 0 ? 1 : 0} to {candidates.length} of {candidates.length} entries
+          </p>
           <div className="flex items-center gap-1">
             <button className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-50" disabled>
               <ChevronLeft className="w-4 h-4" />
