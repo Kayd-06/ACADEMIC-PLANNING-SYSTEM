@@ -53,6 +53,7 @@ export default function RecruitmentDashboard() {
   const [candidates, setCandidates] = useState<any[]>([])
   const [orientations, setOrientations] = useState<any[]>([])
   const [appraisals, setAppraisals] = useState<any[]>([])
+  const [requirements, setRequirements] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showAppraisalForm, setShowAppraisalForm] = useState(false)
   const [appraisalForm, setAppraisalForm] = useState({
@@ -67,21 +68,28 @@ export default function RecruitmentDashboard() {
 
   useEffect(() => { 
     fetchData() 
+    const handleReqUpdate = () => fetchData()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('requirementsUpdated', handleReqUpdate)
+      return () => window.removeEventListener('requirementsUpdated', handleReqUpdate)
+    }
   }, [])
 
   async function fetchData() {
     try {
-      const [candRes, orientRes, apprRes] = await Promise.all([
+      const [candRes, orientRes, apprRes, reqRes] = await Promise.all([
         fetch('/api/recruitment/candidates'),
         fetch('/api/recruitment/orientations'),
         fetch('/api/recruitment/appraisals'),
+        fetch('/api/recruitment/requirements')
       ])
-      const [candData, orientData, apprData] = await Promise.all([
-        candRes.json(), orientRes.json(), apprRes.json()
+      const [candData, orientData, apprData, reqData] = await Promise.all([
+        candRes.json(), orientRes.json(), apprRes.json(), reqRes.json()
       ])
       if (!candData.error) setCandidates(candData)
       if (!orientData.error) setOrientations(orientData)
       if (!apprData.error) setAppraisals(apprData)
+      if (!reqData.error) setRequirements(reqData)
     } catch (err) {
       console.error('Failed to fetch recruitment data:', err)
     } finally {
@@ -149,8 +157,10 @@ export default function RecruitmentDashboard() {
     await fetchData()
   }
 
+  const totalOpenRoles = requirements.reduce((sum, req) => sum + (req.openPositions || 1), 0).toString()
+
   const pipelineStats = [
-    { label: 'REQUIREMENT ANNOUNCEMENT', icon: <Megaphone className="w-5 h-5" />, count: '12', sub: 'Open Roles', color: 'bg-[#002045]/5', iconColor: 'text-[#002045]', tagColor: 'bg-[#002045]/10' },
+    { label: 'REQUIREMENT ANNOUNCEMENT', icon: <Megaphone className="w-5 h-5" />, count: totalOpenRoles, sub: 'Open Roles', color: 'bg-[#002045]/5', iconColor: 'text-[#002045]', tagColor: 'bg-[#002045]/10' },
     { label: 'SHORTLISTING', icon: <Filter className="w-5 h-5" />, count: candidates.filter(c => c.status === 'Shortlisted').length.toString().padStart(2, '0'), sub: 'Candidates', color: 'bg-amber-50', iconColor: 'text-amber-600', tagColor: 'bg-amber-100' },
     { label: 'INTERVIEWS', icon: <Users className="w-5 h-5" />, count: candidates.filter(c => c.status === 'Interview Scheduled').length.toString().padStart(2, '0'), sub: 'Scheduled', color: 'bg-blue-50', iconColor: 'text-blue-600', tagColor: 'bg-blue-100' },
     { label: 'JOINING PROCESS', icon: <UserCheck className="w-5 h-5" />, count: candidates.filter(c => c.status === 'Offer Extended' || c.status === 'Pending').length.toString().padStart(2, '0'), sub: 'Pending', color: 'bg-slate-50', iconColor: 'text-slate-600', tagColor: 'bg-slate-100' },

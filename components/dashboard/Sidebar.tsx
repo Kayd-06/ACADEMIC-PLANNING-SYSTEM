@@ -23,6 +23,22 @@ interface SidebarProps {
 export default function Sidebar({ userName, userRole, navItems, initials }: SidebarProps) {
   const pathname = usePathname()
   const [showRecruitmentModal, setShowRecruitmentModal] = useState(false)
+  const [requirementForm, setRequirementForm] = useState({ title: '', department: '', openPositions: 1 })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  async function handleCreateRequirement() {
+    if (!requirementForm.title || !requirementForm.department) return
+    setIsSubmitting(true)
+    await fetch('/api/recruitment/requirements', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requirementForm)
+    })
+    setRequirementForm({ title: '', department: '', openPositions: 1 })
+    setShowRecruitmentModal(false)
+    setIsSubmitting(false)
+    window.dispatchEvent(new Event('requirementsUpdated'))
+  }
 
   return (
     <motion.aside
@@ -116,18 +132,38 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
                 <div className="space-y-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Role Title</label>
-                    <input placeholder="e.g. Associate Professor" className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                    <input 
+                      value={requirementForm.title}
+                      onChange={(e) => setRequirementForm({...requirementForm, title: e.target.value})}
+                      placeholder="e.g. Associate Professor" 
+                      className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" 
+                    />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Department</label>
-                    <input placeholder="e.g. Computer Science" className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                    <input 
+                      value={requirementForm.department}
+                      onChange={(e) => setRequirementForm({...requirementForm, department: e.target.value})}
+                      placeholder="e.g. Computer Science" 
+                      className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" 
+                    />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Open Positions</label>
-                    <input type="number" defaultValue={1} className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                    <input 
+                      type="number" 
+                      value={requirementForm.openPositions}
+                      onChange={(e) => setRequirementForm({...requirementForm, openPositions: parseInt(e.target.value) || 1})}
+                      min={1}
+                      className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" 
+                    />
                   </div>
-                  <button onClick={() => setShowRecruitmentModal(false)} className="w-full bg-[#002045] text-white font-bold py-2.5 rounded-xl hover:bg-[#1a365d] transition-colors mt-2">
-                    Create Announcement
+                  <button 
+                    onClick={handleCreateRequirement} 
+                    disabled={isSubmitting}
+                    className="w-full bg-[#002045] text-white font-bold py-2.5 rounded-xl hover:bg-[#1a365d] transition-colors mt-2 disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Creating...' : 'Create Announcement'}
                   </button>
                 </div>
               </motion.div>
