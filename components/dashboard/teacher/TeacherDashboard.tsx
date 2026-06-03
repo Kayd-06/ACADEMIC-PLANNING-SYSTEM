@@ -9,27 +9,17 @@ const fadeUp = (delay = 0) => ({
   transition: { delay, type: 'spring' as const, stiffness: 320, damping: 28 },
 })
 
-const scheduleRows = [
-  { subject: 'Mathematics — Grade X', time: '09:00 AM', room: 'Room 204', students: 32, status: 'Upcoming' },
-  { subject: 'Physics — Grade XI', time: '11:00 AM', room: 'Room 108', students: 28, status: 'Upcoming' },
-  { subject: 'Mathematics — Grade IX', time: '02:00 PM', room: 'Room 204', students: 35, status: 'Scheduled' },
-]
-
 const STATUS_STYLES: Record<string, string> = {
   Upcoming: 'bg-blue-50 text-blue-700 border-blue-200',
   Scheduled: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  Pending: 'bg-amber-50 text-amber-700 border-amber-200',
+  Completed: 'bg-gray-50 text-gray-700 border-gray-200',
 }
-
-const initialSchedule = [
-  { subject: 'Mathematics — Grade X', time: '09:00 AM', room: 'Room 204', students: 32, status: 'Upcoming' },
-  { subject: 'Physics — Grade XI', time: '11:00 AM', room: 'Room 108', students: 28, status: 'Upcoming' },
-  { subject: 'Mathematics — Grade IX', time: '02:00 PM', room: 'Room 204', students: 35, status: 'Scheduled' },
-]
 
 export default function TeacherDashboard({ firstName }: { firstName: string }) {
   const [schoolData, setSchoolData] = useState<any>(null)
   const [protocols, setProtocols] = useState<any[]>([])
-  const [schedules, setSchedules] = useState(initialSchedule)
+  const [schedules, setSchedules] = useState<any[]>([])
 
   useEffect(() => {
     fetch('/api/school')
@@ -42,7 +32,28 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
       .then(data => {
         if (!data.error) setProtocols(data)
       })
+    fetch('/api/teacher-portal')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error && data.schedule) setSchedules(data.schedule)
+      })
   }, [])
+
+  async function handleStatusChange(id: string, newStatus: string) {
+    const original = [...schedules]
+    setSchedules(schedules.map(s => s._id === id ? { ...s, status: newStatus } : s))
+    try {
+      const res = await fetch(`/api/teacher-portal/schedule?id=${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      })
+      if (!res.ok) throw new Error('Failed to update status')
+    } catch (err) {
+      console.error(err)
+      setSchedules(original)
+    }
+  }
 
   return (
     <div className="flex-1 p-6 overflow-auto">
@@ -144,7 +155,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-50">
-              {['Subject', 'Time', 'Room', 'Students', 'Status', ''].map(h => (
+              {['Activity', 'Time', 'Batch', 'Location', 'Status', ''].map(h => (
                 <th key={h} className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -152,33 +163,28 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
           <tbody>
             {schedules.map((row, i) => (
               <motion.tr
-                key={row.subject + row.time}
+                key={row._id || i}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.28 + i * 0.05 }}
                 className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors"
               >
-                <td className="px-5 py-3.5 text-sm font-bold text-gray-800">{row.subject}</td>
+                <td className="px-5 py-3.5 text-sm font-bold text-gray-800">{row.activity}</td>
                 <td className="px-5 py-3.5 text-sm text-gray-500">{row.time}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-500">{row.room}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-500">{row.students}</td>
+                <td className="px-5 py-3.5 text-sm text-gray-500">{row.batch}</td>
+                <td className="px-5 py-3.5 text-sm text-gray-500">{row.location}</td>
                 <td className="px-5 py-3.5">
                   <select
                     value={row.status}
-                    onChange={(e) => {
-                      const newScheds = [...schedules]
-                      newScheds[i].status = e.target.value
-                      setSchedules(newScheds)
-                    }}
+                    onChange={(e) => handleStatusChange(row._id, e.target.value)}
                     className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-full border cursor-pointer outline-none appearance-none text-center transition-colors ${STATUS_STYLES[row.status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}
                   >
                     <option value="Upcoming">Upcoming</option>
-                    <option value="Scheduled">Scheduled</option>
+                    <option value="Pending">Pending</option>
                     <option value="Completed">Completed</option>
-                    <option value="Cancelled">Cancelled</option>
                   </select>
                 </td>
-                <td className="px-5 py-3.5">
+                <td className="px-5 py-3.5 text-right">
                   <button className="p-1.5 rounded-lg text-gray-400 hover:text-[#002045] hover:bg-gray-100 transition-colors">
                     <ChevronRight className="w-4 h-4" />
                   </button>

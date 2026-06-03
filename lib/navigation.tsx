@@ -3,8 +3,7 @@ import { LayoutDashboard, Users, BookOpen, ShieldCheck, UserCircle, Calendar, Gr
 export const MANAGEMENT_NAV = [
   { label: 'Dashboard', href: '/management', icon: <LayoutDashboard className="w-4 h-4" /> },
   { label: 'Recruitment', href: '/management/recruitment', icon: <Users className="w-4 h-4" /> },
-  { label: 'Academic Planning', href: '/management/academic-planning', icon: <BookOpen className="w-4 h-4" /> },
-  { label: 'Quality Monitoring', href: '/management/quality', icon: <ShieldCheck className="w-4 h-4" /> },
+  { label: 'Academic & Quality', href: '/management/academic-planning', icon: <BookOpen className="w-4 h-4" /> },
   { label: 'Teacher Portal', href: '/management/teacher-portal', icon: <UserCircle className="w-4 h-4" /> },
   { label: 'Student Reports', href: '/management/student-reports', icon: <BarChart2 className="w-4 h-4" /> },
 ]

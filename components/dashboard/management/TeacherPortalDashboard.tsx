@@ -13,7 +13,8 @@ import {
   MapPin,
   Upload,
   User,
-  GraduationCap
+  GraduationCap,
+  Trash
 } from 'lucide-react'
 
 const fadeUp = (delay = 0) => ({
@@ -24,12 +25,14 @@ const fadeUp = (delay = 0) => ({
 
 import LogEntryModal from './LogEntryModal'
 import UploadMaterialModal from './UploadMaterialModal'
+import ScheduleModal from './ScheduleModal'
 
 export default function TeacherPortalDashboard() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [isLogModalOpen, setIsLogModalOpen] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -40,6 +43,16 @@ export default function TeacherPortalDashboard() {
     const d = await res.json()
     if (!d.error) setData(d)
     setLoading(false)
+  }
+
+  async function handleDeleteSchedule(id: string) {
+    if (!confirm('Are you sure you want to delete this schedule?')) return
+    try {
+      await fetch(`/api/teacher-portal/schedule?id=${id}`, { method: 'DELETE' })
+      fetchData()
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   if (loading) {
@@ -60,6 +73,11 @@ export default function TeacherPortalDashboard() {
       <UploadMaterialModal 
         isOpen={isUploadModalOpen} 
         onClose={() => setIsUploadModalOpen(false)} 
+        onSuccess={fetchData} 
+      />
+      <ScheduleModal 
+        isOpen={isScheduleModalOpen} 
+        onClose={() => setIsScheduleModalOpen(false)} 
         onSuccess={fetchData} 
       />
       
@@ -87,7 +105,12 @@ export default function TeacherPortalDashboard() {
               <Calendar className="w-5 h-5 text-indigo-500" />
               Upcoming Schedule
             </div>
-            <button className="text-sm font-medium text-indigo-600 hover:text-indigo-700">View Full</button>
+            <div className="flex gap-4">
+              <button onClick={() => setIsScheduleModalOpen(true)} className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                <Plus className="w-4 h-4" /> Add Schedule
+              </button>
+              <button className="text-sm font-medium text-gray-500 hover:text-gray-700">View Full</button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-x-auto">
@@ -107,12 +130,20 @@ export default function TeacherPortalDashboard() {
                     <td className="py-4 text-sm text-gray-600">{row.activity}</td>
                     <td className="py-4 text-sm text-gray-500">{row.batch} • {row.location}</td>
                     <td className="py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                        row.status === 'Upcoming' ? 'bg-indigo-50 text-indigo-600 flex items-center gap-1.5 w-fit' : 'bg-gray-50 text-gray-500'
-                      }`}>
-                        {row.status === 'Upcoming' && <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-pulse" />}
-                        {row.status}
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                          row.status === 'Upcoming' ? 'bg-indigo-50 text-indigo-600 flex items-center gap-1.5 w-fit' : 'bg-gray-50 text-gray-500'
+                        }`}>
+                          {row.status === 'Upcoming' && <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-pulse" />}
+                          {row.status}
+                        </span>
+                        <button 
+                          onClick={() => handleDeleteSchedule(row._id)}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <Trash className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
