@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose'
 
 export interface ITeacherSchedule extends Document {
+  date: string
   time: string
   activity: string
   batch: string
@@ -10,6 +11,7 @@ export interface ITeacherSchedule extends Document {
 
 const TeacherScheduleSchema = new Schema<ITeacherSchedule>(
   {
+    date: { type: String, required: true },
     time: { type: String, required: true },
     activity: { type: String, required: true },
     batch: { type: String, required: true },
@@ -19,4 +21,8 @@ const TeacherScheduleSchema = new Schema<ITeacherSchedule>(
   { timestamps: true }
 )
 
-export default mongoose.models.TeacherSchedule || mongoose.model<ITeacherSchedule>('TeacherSchedule', TeacherScheduleSchema)
+if (mongoose.models.TeacherSchedule) {
+  delete mongoose.models.TeacherSchedule
+}
+
+export default mongoose.model<ITeacherSchedule>('TeacherSchedule', TeacherScheduleSchema)

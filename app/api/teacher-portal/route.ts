@@ -9,6 +9,10 @@ export async function GET() {
   try {
     await connectDB()
     
+    const d = new Date()
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    const today = d.toISOString().split('T')[0]
+
     const [schedule, counseling, materials, feedback] = await Promise.all([
       TeacherSchedule.find().sort({ createdAt: 1 }),
       StudentCounseling.find().sort({ createdAt: -1 }),
@@ -19,9 +23,9 @@ export async function GET() {
     // Seed if empty
     if (schedule.length === 0) {
       await TeacherSchedule.insertMany([
-        { time: '09:00 AM', activity: 'Test Conduction: Physics Mid-Term', batch: 'Batch A1', location: 'Hall B', status: 'Upcoming' },
-        { time: '11:30 AM', activity: 'Periodic Visit: Study Hall Supervision', batch: 'Library Wing C', location: 'Library', status: 'Pending' },
-        { time: '02:00 PM', activity: 'Doubt Clearing Session', batch: 'Batch B2', location: 'Room 405', status: 'Pending' }
+        { date: today, time: '09:00 AM', activity: 'Test Conduction: Physics Mid-Term', batch: 'Batch A1', location: 'Hall B', status: 'Upcoming' },
+        { date: today, time: '11:30 AM', activity: 'Periodic Visit: Study Hall Supervision', batch: 'Library Wing C', location: 'Library', status: 'Pending' },
+        { date: today, time: '02:00 PM', activity: 'Doubt Clearing Session', batch: 'Batch B2', location: 'Room 405', status: 'Pending' }
       ])
     }
     if (counseling.length === 0) {
@@ -45,7 +49,7 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      schedule: await TeacherSchedule.find().sort({ createdAt: 1 }),
+      schedule: await TeacherSchedule.find({ date: today }).sort({ time: 1 }),
       counseling: await StudentCounseling.find().sort({ createdAt: -1 }),
       materials: await StudyMaterial.find().sort({ createdAt: 1 }),
       feedback: await TeacherFeedback.find().sort({ createdAt: -1 })
