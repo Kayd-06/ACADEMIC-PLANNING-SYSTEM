@@ -30,6 +30,7 @@ import ScheduleModal from './ScheduleModal'
 export default function TeacherPortalDashboard() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isLogModalOpen, setIsLogModalOpen] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
@@ -39,10 +40,19 @@ export default function TeacherPortalDashboard() {
   }, [])
 
   async function fetchData() {
-    const res = await fetch('/api/teacher-portal')
-    const d = await res.json()
-    if (!d.error) setData(d)
-    setLoading(false)
+    try {
+      const res = await fetch('/api/teacher-portal')
+      const d = await res.json()
+      if (d.error) {
+        setError(d.error)
+      } else {
+        setData(d)
+      }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleDeleteSchedule(id: string) {
@@ -59,6 +69,20 @@ export default function TeacherPortalDashboard() {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50/50">
         <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+      </div>
+    )
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-50/50 p-8">
+        <div className="bg-red-50 text-red-600 p-6 rounded-2xl max-w-lg border border-red-100 text-center">
+          <h3 className="font-bold text-lg mb-2">Failed to load dashboard</h3>
+          <p className="text-sm opacity-80">{error || 'Unknown error occurred. Have you whitelisted your IP in MongoDB Atlas?'}</p>
+          <button onClick={fetchData} className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 rounded-lg text-sm font-semibold transition-colors">
+            Try Again
+          </button>
+        </div>
       </div>
     )
   }
