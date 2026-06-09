@@ -61,31 +61,38 @@ function BarChart({ data }: { data: { label: string; value: number; color?: stri
   const BAR_WIDTH = 36
   const GAP = 16
   const HEIGHT = 140
-  const svgW = data.length * (BAR_WIDTH + GAP)
+  const PADDING_LEFT = 24
+  const svgW = PADDING_LEFT + data.length * (BAR_WIDTH + GAP) + 12
 
   return (
     <div className="overflow-x-auto">
       <svg width={Math.max(svgW, 300)} height={HEIGHT + 40} style={{ display: 'block' }}>
+        <defs>
+          <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#6366f1" />
+            <stop offset="100%" stopColor="#818cf8" />
+          </linearGradient>
+        </defs>
         {/* Grid lines */}
         {[0, 25, 50, 75, 100].map(v => (
           <g key={v}>
             <line
               x1={0} y1={HEIGHT - (v / 100) * HEIGHT}
-              x2={svgW} y2={HEIGHT - (v / 100) * HEIGHT}
-              stroke="#f3f4f6" strokeWidth={1}
+              x2={Math.max(svgW, 300)} y2={HEIGHT - (v / 100) * HEIGHT}
+              stroke="#f1f5f9" strokeWidth={1} strokeDasharray="3 3"
             />
-            <text x={svgW - 2} y={HEIGHT - (v / 100) * HEIGHT - 3} textAnchor="end" fontSize={9} fill="#9ca3af">{v}%</text>
+            <text x={Math.max(svgW, 300) - 2} y={HEIGHT - (v / 100) * HEIGHT - 3} textAnchor="end" fontSize={8} fill="#cbd5e1">{v}%</text>
           </g>
         ))}
         {data.map((d, i) => {
           const barH = Math.round((d.value / max) * HEIGHT * (max / 100))
-          const x = i * (BAR_WIDTH + GAP)
+          const x = PADDING_LEFT + i * (BAR_WIDTH + GAP)
           const y = HEIGHT - barH
-          const color = d.color || '#6366f1'
+          const fillUrl = d.color === '#6366f1' || !d.color ? 'url(#barGrad)' : d.color
           return (
             <g key={i}>
-              <rect x={x} y={y} width={BAR_WIDTH} height={barH} rx={6} fill={color} fillOpacity={0.9} />
-              <text x={x + BAR_WIDTH / 2} y={y - 5} textAnchor="middle" fontSize={10} fontWeight="600" fill={color}>
+              <rect x={x} y={y} width={BAR_WIDTH} height={barH} rx={6} fill={fillUrl} fillOpacity={0.9} />
+              <text x={x + BAR_WIDTH / 2} y={y - 5} textAnchor="middle" fontSize={10} fontWeight="600" fill={d.color || '#6366f1'}>
                 {d.value.toFixed(0)}%
               </text>
               <text x={x + BAR_WIDTH / 2} y={HEIGHT + 14} textAnchor="middle" fontSize={9} fill="#6b7280">
@@ -148,20 +155,28 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
 
 // ── SVG Line Chart ──────────────────────────────────────────────────────────
 function LineChart({ data }: { data: { label: string; value: number }[] }) {
-  if (data.length < 2) return (
+  if (data.length < 1) return (
     <div className="text-xs text-gray-400 text-center py-8">Upload reports for multiple terms to see trends.</div>
   )
   const max = Math.max(...data.map(d => d.value), 1)
   const W = 320
   const H = 100
-  const pts = data.map((d, i) => ({
-    x: (i / (data.length - 1)) * W,
-    y: H - (d.value / 100) * H,
-    label: d.label,
-    value: d.value,
-  }))
-  const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-  const areaD = `${pathD} L ${pts[pts.length - 1].x} ${H} L 0 ${H} Z`
+  const pts = data.map((d, i) => {
+    const x = data.length > 1 ? (i / (data.length - 1)) * W : W / 2
+    return {
+      x,
+      y: H - (d.value / 100) * H,
+      label: d.label,
+      value: d.value,
+    }
+  })
+  
+  const pathD = pts.length > 1 
+    ? pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+    : pts.length === 1 
+      ? `M ${pts[0].x} ${pts[0].y} L ${pts[0].x} ${pts[0].y}`
+      : ''
+  const areaD = pts.length > 0 ? `${pathD} L ${pts[pts.length - 1].x} ${H} L ${pts[0].x} ${H} Z` : ''
 
   return (
     <div className="overflow-x-auto">
@@ -172,8 +187,20 @@ function LineChart({ data }: { data: { label: string; value: number }[] }) {
             <stop offset="100%" stopColor="#6366f1" stopOpacity="0.01" />
           </linearGradient>
         </defs>
-        <path d={areaD} fill="url(#lineGrad)" />
-        <path d={pathD} fill="none" stroke="#6366f1" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+        {/* Grid lines */}
+        {[0, 25, 50, 75, 100].map(v => (
+          <g key={v}>
+            <line
+              x1={0} y1={H - (v / 100) * H}
+              x2={W} y2={H - (v / 100) * H}
+              stroke="#f1f5f9" strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+            <text x={W - 2} y={H - (v / 100) * H - 3} textAnchor="end" fontSize={8} fill="#cbd5e1">{v}%</text>
+          </g>
+        ))}
+        {pts.length > 0 && <path d={areaD} fill="url(#lineGrad)" />}
+        {pts.length > 0 && <path d={pathD} fill="none" stroke="#6366f1" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />}
         {pts.map((p, i) => (
           <g key={i}>
             <circle cx={p.x} cy={p.y} r={4} fill="#6366f1" stroke="white" strokeWidth={2} />
@@ -275,7 +302,8 @@ export default function StudentReportsAnalytics() {
   const fetchReports = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/student-reports')
+      // Add timestamp to prevent browser client route caches
+      const res = await fetch(`/api/student-reports?t=${Date.now()}`)
       const data = await res.json()
       if (!data.error) setReports(data)
     } finally {
@@ -289,9 +317,10 @@ export default function StudentReportsAnalytics() {
   const allSubjects = ['All', ...Array.from(new Set(reports.map(r => r.subject)))]
 
   const filtered = reports.filter(r => {
-    const matchSearch = r.className.toLowerCase().includes(search.toLowerCase()) ||
-      r.subject.toLowerCase().includes(search.toLowerCase()) ||
-      r.teacherName.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = 
+      (r.className || '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.subject || '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.teacherName || '').toLowerCase().includes(search.toLowerCase())
     const matchSubject = filterSubject === 'All' || r.subject === filterSubject
     return matchSearch && matchSubject
   })
@@ -336,10 +365,18 @@ export default function StudentReportsAnalytics() {
     const avg = r.students.reduce((s, st) => s + (st.marks / st.maxMarks) * 100, 0) / (r.students.length || 1)
     termMap[r.term].push(avg)
   })
+  const termOrder = ['Term 1 2024', 'Unit Test 1', 'Mid-Term', 'Unit Test 2', 'Pre-Board', 'Finals', 'Mid-Year 2025']
   const lineData = Object.entries(termMap).map(([label, vals]) => ({
     label,
     value: vals.reduce((s, v) => s + v, 0) / vals.length,
-  }))
+  })).sort((a, b) => {
+    const idxA = termOrder.indexOf(a.label)
+    const idxB = termOrder.indexOf(b.label)
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB
+    if (idxA !== -1) return -1
+    if (idxB !== -1) return 1
+    return a.label.localeCompare(b.label)
+  })
 
   // Avg attendance per class
   const attendanceMap: Record<string, number[]> = {}
@@ -367,16 +404,26 @@ export default function StudentReportsAnalytics() {
       {/* KPI Cards */}
       <motion.div {...fadeUp(0.04)} className="grid grid-cols-4 gap-4 mb-6">
         {[
-          { icon: <ClipboardList className="w-4 h-4" />, label: 'Total Reports', value: reports.length, color: 'text-indigo-600 bg-indigo-50', suffix: '' },
-          { icon: <Users className="w-4 h-4" />, label: 'Students Tracked', value: totalStudents, color: 'text-violet-600 bg-violet-50', suffix: '' },
-          { icon: <TrendingUp className="w-4 h-4" />, label: 'Institution Avg', value: overallAvg.toFixed(1), color: 'text-blue-600 bg-blue-50', suffix: '%' },
-          { icon: <Award className="w-4 h-4" />, label: 'Pass Rate', value: passRate.toFixed(1), color: 'text-emerald-600 bg-emerald-50', suffix: '%' },
+          { icon: <ClipboardList className="w-4 h-4 text-indigo-500" />, label: 'Total Reports', value: reports.length, color: 'from-indigo-500/10 to-indigo-500/5', border: 'border-indigo-500/20', suffix: '' },
+          { icon: <Users className="w-4 h-4 text-violet-500" />, label: 'Students Tracked', value: totalStudents, color: 'from-violet-500/10 to-violet-500/5', border: 'border-violet-500/20', suffix: '' },
+          { icon: <TrendingUp className="w-4 h-4 text-blue-500" />, label: 'Institution Avg', value: overallAvg.toFixed(1), color: 'from-blue-500/10 to-blue-500/5', border: 'border-blue-500/20', suffix: '%' },
+          { icon: <Award className="w-4 h-4 text-emerald-500" />, label: 'Pass Rate', value: passRate.toFixed(1), color: 'from-emerald-500/10 to-emerald-500/5', border: 'border-emerald-500/20', suffix: '%' },
         ].map((kpi, i) => (
-          <motion.div key={kpi.label} {...fadeUp(0.06 + i * 0.04)} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center gap-4">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${kpi.color}`}>{kpi.icon}</div>
+          <motion.div 
+            key={kpi.label} 
+            {...fadeUp(0.06 + i * 0.04)} 
+            whileHover={{ y: -3, transition: { duration: 0.2 } }}
+            className="bg-white border border-slate-200/80 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 relative overflow-hidden"
+          >
+            {/* Background glowing accent */}
+            <div className={`absolute -right-6 -bottom-6 w-20 h-20 rounded-full bg-gradient-to-br ${kpi.color} opacity-20 blur-xl`} />
+            
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-slate-50 border ${kpi.border}`}>
+              {kpi.icon}
+            </div>
             <div>
-              <p className="text-xl font-semibold text-gray-900">{kpi.value}{kpi.suffix}</p>
-              <p className="text-xs text-gray-400">{kpi.label}</p>
+              <p className="text-2xl font-bold text-slate-800 tracking-tight leading-none mb-1">{kpi.value}{kpi.suffix}</p>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{kpi.label}</p>
             </div>
           </motion.div>
         ))}
@@ -502,65 +549,67 @@ export default function StudentReportsAnalytics() {
                 <p className="text-sm text-gray-400">No matching reports found.</p>
               </div>
             ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-50">
-                    {['Class', 'Subject', 'Term', 'Teacher', 'Students', 'Avg Score', 'Pass Rate', 'Uploaded', ''].map(h => (
-                      <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r, i) => {
-                    const avg = r.students.length
-                      ? (r.students.reduce((s, st) => s + (st.marks / st.maxMarks) * 100, 0) / r.students.length)
-                      : 0
-                    const pass = r.students.filter(s => s.grade !== 'F').length
-                    const passRt = r.students.length ? Math.round((pass / r.students.length) * 100) : 0
-                    return (
-                      <motion.tr
-                        key={r._id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: i * 0.03 }}
-                        className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors"
-                      >
-                        <td className="px-5 py-3.5 text-sm font-medium text-gray-800">{r.className}</td>
-                        <td className="px-5 py-3.5 text-sm text-gray-600">{r.subject}</td>
-                        <td className="px-5 py-3.5">
-                          <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-100 font-medium">{r.term}</span>
-                        </td>
-                        <td className="px-5 py-3.5 text-sm text-gray-600">{r.teacherName}</td>
-                        <td className="px-5 py-3.5 text-sm text-gray-700">{r.students.length}</td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full bg-indigo-500" style={{ width: `${avg}%` }} />
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-50">
+                      {['Class', 'Subject', 'Term', 'Teacher', 'Students', 'Avg Score', 'Pass Rate', 'Uploaded', ''].map(h => (
+                        <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((r, i) => {
+                      const avg = r.students.length
+                        ? (r.students.reduce((s, st) => s + (st.marks / st.maxMarks) * 100, 0) / r.students.length)
+                        : 0
+                      const pass = r.students.filter(s => s.grade !== 'F').length
+                      const passRt = r.students.length ? Math.round((pass / r.students.length) * 100) : 0
+                      return (
+                        <motion.tr
+                          key={r._id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: i * 0.03 }}
+                          className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors"
+                        >
+                          <td className="px-5 py-3.5 text-sm font-medium text-gray-800">{r.className}</td>
+                          <td className="px-5 py-3.5 text-sm text-gray-600">{r.subject}</td>
+                          <td className="px-5 py-3.5">
+                            <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-100 font-medium">{r.term}</span>
+                          </td>
+                          <td className="px-5 py-3.5 text-sm text-gray-600">{r.teacherName}</td>
+                          <td className="px-5 py-3.5 text-sm text-gray-700">{r.students.length}</td>
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full bg-indigo-500" style={{ width: `${avg}%` }} />
+                              </div>
+                              <span className="text-sm font-semibold text-gray-800">{avg.toFixed(1)}%</span>
                             </div>
-                            <span className="text-sm font-semibold text-gray-800">{avg.toFixed(1)}%</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${passRt >= 80 ? 'bg-emerald-50 text-emerald-700' : passRt >= 60 ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-700'}`}>
-                            {passRt}%
-                          </span>
-                        </td>
-                        <td className="px-5 py-3.5 text-xs text-gray-400">
-                          {new Date(r.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <button
-                            onClick={() => setDetailReport(r)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 border border-indigo-100 rounded-lg hover:bg-indigo-50 transition-colors"
-                          >
-                            <Eye className="w-3 h-3" /> View
-                          </button>
-                        </td>
-                      </motion.tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${passRt >= 80 ? 'bg-emerald-50 text-emerald-700' : passRt >= 60 ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-700'}`}>
+                              {passRt}%
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 text-xs text-gray-400">
+                            {new Date(r.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <button
+                              onClick={() => setDetailReport(r)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 border border-indigo-100 rounded-lg hover:bg-indigo-50 transition-colors"
+                            >
+                              <Eye className="w-3 h-3" /> View
+                            </button>
+                          </td>
+                        </motion.tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </motion.div>
         </>

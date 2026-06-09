@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import TeacherSchedule from '@/models/TeacherSchedule'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
@@ -12,7 +14,11 @@ export async function GET(req: Request) {
     if (date) query = { date }
 
     const schedules = await TeacherSchedule.find(query).sort({ date: 1, time: 1 })
-    return NextResponse.json(schedules)
+    return NextResponse.json(schedules, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0, must-revalidate'
+      }
+    })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

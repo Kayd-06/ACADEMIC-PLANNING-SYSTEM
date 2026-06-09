@@ -19,7 +19,7 @@ export default async function TeacherPortalPage() {
       <Sidebar userName={session.user.name ?? ''} userRole="Academic Administration" navItems={MANAGEMENT_NAV} initials={initials} />
       <div className="flex-1 flex flex-col min-w-0">
         <TopHeader initials={initials} />
-        <TeacherPortalDashboard />
+        <TeacherPortalDashboard teacherName={session.user.name ?? 'Administrator'} />
       </div>
     </div>
   )

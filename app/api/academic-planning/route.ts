@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { Milestone, PlanningLog, AcademicMetric } from '@/models/AcademicPlanning'
 import mongoose from 'mongoose'
 
+export const dynamic = 'force-dynamic'
+
 async function connectDB() {
   if (mongoose.connection.readyState >= 1) return
   if (!process.env.MONGODB_URI) {
@@ -47,7 +49,11 @@ export async function GET(request: Request) {
     const logs = await PlanningLog.find({ role }).sort({ createdAt: -1 })
     const metrics = await AcademicMetric.find({ role })
 
-    return NextResponse.json({ milestones, logs, metrics })
+    return NextResponse.json({ milestones, logs, metrics }, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0, must-revalidate'
+      }
+    })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

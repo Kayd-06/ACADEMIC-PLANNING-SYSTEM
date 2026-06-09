@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Calendar, Clock, MapPin, Activity } from 'lucide-react'
 
@@ -7,11 +7,19 @@ interface ScheduleModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  initialData?: any
 }
 
-export default function ScheduleModal({ isOpen, onClose, onSuccess }: ScheduleModalProps) {
+function getLocalToday() {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().split('T')[0]
+}
+
+export default function ScheduleModal({ isOpen, onClose, onSuccess, initialData }: ScheduleModalProps) {
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
+    date: getLocalToday(),
     time: '',
     activity: '',
     batch: '',
@@ -19,19 +27,45 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess }: ScheduleMo
     status: 'Upcoming'
   })
 
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        date: initialData.date || getLocalToday(),
+        time: initialData.time || '',
+        activity: initialData.activity || '',
+        batch: initialData.batch || '',
+        location: initialData.location || '',
+        status: initialData.status || 'Upcoming'
+      })
+    } else {
+      setFormData({
+        date: getLocalToday(),
+        time: '',
+        activity: '',
+        batch: '',
+        location: '',
+        status: 'Upcoming'
+      })
+    }
+  }, [initialData, isOpen])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     try {
-      const res = await fetch('/api/teacher-portal/schedule', {
-        method: 'POST',
+      const url = initialData 
+        ? `/api/teacher-portal/schedule?id=${initialData._id}`
+        : '/api/teacher-portal/schedule'
+      const method = initialData ? 'PATCH' : 'POST'
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       })
       if (res.ok) {
         onSuccess()
         onClose()
-        setFormData({ time: '', activity: '', batch: '', location: '', status: 'Upcoming' })
       }
     } catch (err) {
       console.error(err)
@@ -59,7 +93,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess }: ScheduleMo
           >
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-indigo-600" /> Create Schedule
+                <Calendar className="w-5 h-5 text-indigo-600" /> {initialData ? 'Edit Schedule' : 'Create Schedule'}
               </h2>
               <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
                 <X className="w-5 h-5 text-gray-400" />
@@ -69,9 +103,21 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess }: ScheduleMo
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Date</label>
+                  <div className="relative">
+                    <input
+                      required
+                      type="date"
+                      value={formData.date}
+                      onChange={e => setFormData({ ...formData, date: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Time</label>
                   <div className="relative">
-                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     <input
                       required
                       type="text"
@@ -82,40 +128,40 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess }: ScheduleMo
                     />
                   </div>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Batch</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.batch}
+                    onChange={e => setFormData({ ...formData, batch: e.target.value })}
+                    placeholder="e.g. Batch A1"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Location</label>
                   <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     <input
                       required
                       type="text"
-                      value={formData.batch}
-                      onChange={e => setFormData({ ...formData, batch: e.target.value })}
-                      placeholder="e.g. Batch A1"
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all text-sm"
+                      value={formData.location}
+                      onChange={e => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="e.g. Hall B"
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all text-sm"
                     />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Location</label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    required
-                    type="text"
-                    value={formData.location}
-                    onChange={e => setFormData({ ...formData, location: e.target.value })}
-                    placeholder="e.g. Hall B"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Activity</label>
                 <div className="relative">
-                  <Activity className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Activity className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   <input
                     required
                     type="text"
@@ -160,7 +206,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess }: ScheduleMo
                   disabled={loading}
                   className="flex-1 py-3 rounded-2xl bg-[#0a192f] text-white text-sm font-bold shadow-lg shadow-gray-200 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  {loading ? 'Creating...' : 'Create'}
+                  {loading ? 'Saving...' : initialData ? 'Save Changes' : 'Create'}
                 </button>
               </div>
             </form>

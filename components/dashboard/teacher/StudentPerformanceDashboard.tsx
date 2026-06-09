@@ -17,55 +17,108 @@ const trendData = [
   { label: 'Finals', physics: 97, chemistry: 91, math: 100 },
 ]
 
-function MultiLineChart({ data }: { data: any[] }) {
+const SUBJECT_COLORS = [
+  '#6366f1', // Indigo
+  '#d97706', // Amber
+  '#10b981', // Emerald
+  '#ec4899', // Pink
+  '#3b82f6', // Blue
+  '#8b5cf6', // Purple
+  '#06b6d4', // Cyan
+  '#f43f5e', // Rose
+]
+
+function MultiLineChart({ data, subjects }: { data: any[], subjects: string[] }) {
   const W = 500
   const H = 220
   const max = 100
   
-  const getPts = (key: string) => data.map((d, i) => ({
-    x: (i / (data.length - 1)) * W,
-    y: H - (d[key] / max) * H
-  }))
+  const getSubjectColor = (idx: number) => SUBJECT_COLORS[idx % SUBJECT_COLORS.length]
 
-  const phys = getPts('physics')
-  const chem = getPts('chemistry')
-  const math = getPts('math')
+  const toPath = (pts: {x: number, y: number}[]) => {
+    if (pts.length === 0) return ''
+    if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y} L ${pts[0].x} ${pts[0].y}`
+    return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  }
 
-  const toPath = (pts: {x: number, y: number}[]) => 
-    pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  // Pre-calculate points for each subject
+  const subjectLines = useMemo(() => {
+    return subjects.map((subj, idx) => {
+      const pts = data.map((d, i) => {
+        const val = d.scores?.[subj]
+        if (val === undefined || val === null) return null
+        const x = data.length > 1 ? (i / (data.length - 1)) * W : W / 2
+        return { x, y: H - (val / max) * H, val }
+      }).filter((p): p is { x: number; y: number; val: number } => p !== null)
+
+      return {
+        subject: subj,
+        pts,
+        color: getSubjectColor(idx),
+        path: toPath(pts)
+      }
+    })
+  }, [data, subjects])
 
   return (
     <div className="overflow-x-auto w-full pt-4">
-      <svg width="100%" viewBox={`-10 -10 ${W + 20} ${H + 40}`} style={{ minWidth: 400 }}>
+      <svg width="100%" viewBox={`-35 -10 ${W + 45} ${H + 40}`} style={{ minWidth: 400 }}>
         {/* Grid */}
         {[0, 20, 40, 60, 80, 100].map(v => (
           <g key={v}>
             <line x1={0} y1={H - (v / 100) * H} x2={W} y2={H - (v / 100) * H} stroke="#f1f5f9" strokeWidth={1} strokeDasharray="4 4" />
-            <text x={-5} y={H - (v / 100) * H + 3} textAnchor="end" fontSize={10} fill="#94a3b8">{v}</text>
+            <text x={-8} y={H - (v / 100) * H + 3} textAnchor="end" fontSize={10} fill="#94a3b8">{v}%</text>
           </g>
         ))}
+        
         {/* Lines */}
-        {phys.length > 0 && <path d={toPath(phys)} fill="none" stroke="#0f172a" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />}
-        {chem.length > 0 && <path d={toPath(chem)} fill="none" stroke="#93c5fd" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />}
-        {math.length > 0 && <path d={toPath(math)} fill="none" stroke="#d97706" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />}
+        {subjectLines.map(line => (
+          line.pts.length > 0 && (
+            <path
+              key={line.subject}
+              d={line.path}
+              fill="none"
+              stroke={line.color}
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )
+        ))}
         
         {/* Points */}
-        {phys.map((p, i) => <circle key={`p${i}`} cx={p.x} cy={p.y} r={4} fill="#0f172a" />)}
-        {chem.map((p, i) => <circle key={`c${i}`} cx={p.x} cy={p.y} r={4} fill="#93c5fd" />)}
-        {math.map((p, i) => <circle key={`m${i}`} cx={p.x} cy={p.y} r={4} fill="#d97706" />)}
-        
-        {/* Labels */}
-        {data.map((d, i) => (
-          <text key={d.label} x={(i / (data.length - 1)) * W} y={H + 20} textAnchor="middle" fontSize={10} fill="#64748b">
-            {d.label}
-          </text>
+        {subjectLines.map(line => (
+          line.pts.map((p, i) => (
+            <circle
+              key={`${line.subject}-${i}`}
+              cx={p.x}
+              cy={p.y}
+              r={4}
+              fill={line.color}
+              stroke="white"
+              strokeWidth={1.5}
+            />
+          ))
         ))}
+        
+        {/* X Labels */}
+        {data.map((d, i) => {
+          const x = data.length > 1 ? (i / (data.length - 1)) * W : W / 2
+          return (
+            <text key={d.label} x={x} y={H + 20} textAnchor="middle" fontSize={10} fill="#64748b">
+              {d.label}
+            </text>
+          )
+        })}
       </svg>
       {/* Legend */}
-      <div className="flex items-center justify-center gap-6 mt-4 pb-2">
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm bg-slate-900"/> <span className="text-xs font-semibold text-slate-600">Physics</span></div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm bg-blue-300"/> <span className="text-xs font-semibold text-slate-600">Chemistry</span></div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm bg-amber-600"/> <span className="text-xs font-semibold text-slate-600">Mathematics</span></div>
+      <div className="flex flex-wrap items-center justify-center gap-6 mt-4 pb-2">
+        {subjectLines.map(line => (
+          <div key={line.subject} className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-sm animate-pulse" style={{ backgroundColor: line.color }} />
+            <span className="text-xs font-semibold text-slate-600">{line.subject}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -120,6 +173,7 @@ function Heatmap({ averageAttendance }: { averageAttendance: number }) {
 export default function StudentPerformanceDashboard() {
   const [reports, setReports] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedClassName, setSelectedClassName] = useState<string>('')
   const [selectedStudentName, setSelectedStudentName] = useState<string>('')
 
   useEffect(() => {
@@ -128,15 +182,47 @@ export default function StudentPerformanceDashboard() {
       .then(data => {
         if (!data.error) {
           setReports(data)
-          // Extract unique students to pick a default
-          const students = new Set<string>()
-          data.forEach((r: any) => r.students.forEach((s: any) => students.add(s.name)))
-          const arr = Array.from(students)
-          if (arr.length > 0) setSelectedStudentName(arr[0])
+          // Extract unique classes
+          const classes = Array.from(new Set(data.map((r: any) => r.className))).sort() as string[]
+          if (classes.length > 0) {
+            setSelectedClassName(classes[0])
+            
+            // Get students of this class
+            const classReports = data.filter((r: any) => r.className === classes[0])
+            const classStudents = new Set<string>()
+            classReports.forEach((r: any) => r.students.forEach((s: any) => classStudents.add(s.name)))
+            const arr = Array.from(classStudents).sort()
+            if (arr.length > 0) setSelectedStudentName(arr[0])
+          }
         }
       })
       .finally(() => setLoading(false))
   }, [])
+
+  const uniqueClasses = useMemo(() => {
+    return Array.from(new Set(reports.map(r => r.className))).sort()
+  }, [reports])
+
+  const studentsInSelectedClass = useMemo(() => {
+    if (!selectedClassName) return []
+    const classReports = reports.filter(r => r.className === selectedClassName)
+    const set = new Set<string>()
+    classReports.forEach(r => r.students.forEach((s: any) => set.add(s.name)))
+    return Array.from(set).sort()
+  }, [reports, selectedClassName])
+
+  const handleClassChange = (newClassName: string) => {
+    setSelectedClassName(newClassName)
+    const classReports = reports.filter(r => r.className === newClassName)
+    const set = new Set<string>()
+    classReports.forEach(r => r.students.forEach((s: any) => set.add(s.name)))
+    const arr = Array.from(set).sort()
+    if (arr.length > 0) {
+      setSelectedStudentName(arr[0])
+    } else {
+      setSelectedStudentName('')
+    }
+  }
 
   // Aggregate data for the selected student
   const studentData = useMemo(() => {
@@ -158,7 +244,6 @@ export default function StudentPerformanceDashboard() {
       const classAvg = r.students.length ? r.students.reduce((acc: number, st: any) => acc + (st.marks/st.maxMarks)*100, 0) / r.students.length : 0
       
       // If we haven't recorded this subject yet, or if this report is newer, update it
-      // (Assuming reports are processed chronologically, but we sorted descending, so we should reverse or just take first)
       if (!subjectsMap.has(r.subject)) {
         subjectsMap.set(r.subject, {
           sub: r.subject,
@@ -186,29 +271,64 @@ export default function StudentPerformanceDashboard() {
     })
     const averageAttendance = allAttendance.length ? allAttendance.reduce((a,b)=>a+b,0) / allAttendance.length : 0
 
-    // Trend Data (Group by term for Math, Physics, Chemistry)
+    // Trend Data (Group by term for all dynamic subjects)
     const termsMap = new Map<string, any>()
+    const studentSubjectsSet = new Set<string>()
     studentReports.forEach(r => {
-      if (!termsMap.has(r.term)) termsMap.set(r.term, { label: r.term, physics: null, chemistry: null, math: null })
+      studentSubjectsSet.add(r.subject)
+      if (!termsMap.has(r.term)) {
+        termsMap.set(r.term, { label: r.term, scores: {} })
+      }
       const termData = termsMap.get(r.term)
       const s = r.students.find((s: any) => s.name === selectedStudentName)
       if (s) {
-        const score = (s.marks / s.maxMarks) * 100
-        if (r.subject.toLowerCase().includes('phys')) termData.physics = score
-        if (r.subject.toLowerCase().includes('chem')) termData.chemistry = score
-        if (r.subject.toLowerCase().includes('math')) termData.math = score
+        termData.scores[r.subject] = (s.marks / s.maxMarks) * 100
       }
     })
+    
+    const studentSubjects = Array.from(studentSubjectsSet).sort()
+
+    const termOrder = ['Term 1 2024', 'Unit Test 1', 'Mid-Term', 'Unit Test 2', 'Pre-Board', 'Finals', 'Mid-Year 2025']
     const trend = Array.from(termsMap.values()).map(t => ({
       label: t.label,
-      physics: t.physics || 0,
-      chemistry: t.chemistry || 0,
-      math: t.math || 0
-    }))
+      scores: t.scores
+    })).sort((a, b) => {
+      const idxA = termOrder.indexOf(a.label)
+      const idxB = termOrder.indexOf(b.label)
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB
+      if (idxA !== -1) return -1
+      if (idxB !== -1) return 1
+      return a.label.localeCompare(b.label)
+    })
 
-    // Get all unique students for dropdown
+    // Calculate Class Rank dynamically
     const allStudentsSet = new Set<string>()
     reports.forEach(r => r.students.forEach((s: any) => allStudentsSet.add(s.name)))
+    const studentNames = Array.from(allStudentsSet)
+    
+    const studentAverages = studentNames.map(name => {
+      const sReports = reports.filter(r => r.students.some((s: any) => s.name === name))
+      const scores = sReports.map(r => {
+        const s = r.students.find((s: any) => s.name === name)
+        return s ? (s.marks / s.maxMarks) * 100 : 0
+      }).filter(s => s > 0)
+      const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0
+      return { name, avg }
+    })
+    
+    studentAverages.sort((a, b) => b.avg - a.avg)
+    const rankIndex = studentAverages.findIndex(s => s.name === selectedStudentName)
+    const rank = rankIndex !== -1 ? rankIndex + 1 : 1
+    const totalStudents = studentAverages.length
+
+    // Gather teacher remarks from reports
+    const observations = studentReports
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+      .map(r => {
+        const s = r.students.find((s: any) => s.name === selectedStudentName)
+        return s?.remarks ? { subject: r.subject, term: r.term, text: s.remarks } : null
+      })
+      .filter(obs => obs !== null) as any[]
 
     return {
       name: selectedStudentName,
@@ -219,7 +339,11 @@ export default function StudentPerformanceDashboard() {
       averageAttendance,
       subjectProficiency,
       trend,
-      allStudents: Array.from(allStudentsSet).sort()
+      subjects: studentSubjects,
+      rank,
+      totalStudents,
+      observations,
+      allStudents: studentNames.sort()
     }
   }, [reports, selectedStudentName])
 
@@ -227,18 +351,39 @@ export default function StudentPerformanceDashboard() {
   if (!studentData) return <div className="p-8 text-slate-500">No student data available. Please upload reports first.</div>
 
   return (
-    <div className="flex-1 p-6 overflow-auto bg-slate-50 min-h-screen">
+    <div className="flex-1 p-6 overflow-auto bg-slate-50">
       {/* Breadcrumb & Selector */}
       <motion.div {...fadeUp(0)} className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2 text-sm text-slate-500">
-          <span className="hover:text-slate-900 cursor-pointer transition-colors">Students</span>
+          <span 
+            onClick={() => {
+              if (uniqueClasses.length > 0) handleClassChange(uniqueClasses[0])
+            }}
+            className="hover:text-slate-900 cursor-pointer transition-colors"
+          >
+            Students
+          </span>
           <ChevronRight className="w-4 h-4" />
-          <span className="hover:text-slate-900 cursor-pointer transition-colors">{studentData.className}</span>
+          
+          <div className="relative inline-block print:hidden bg-slate-100 hover:bg-slate-200/80 px-2.5 py-1 rounded-lg transition-all border border-slate-200/50 shadow-sm">
+            <select
+              value={selectedClassName}
+              onChange={(e) => handleClassChange(e.target.value)}
+              className="appearance-none bg-transparent hover:text-slate-900 cursor-pointer font-extrabold text-slate-800 transition-colors focus:outline-none pr-5 text-xs tracking-wide uppercase"
+            >
+              {uniqueClasses.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+            </select>
+            <ChevronDown className="w-3 h-3 text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+          
+          {/* For printing: show class name statically */}
+          <span className="hidden print:inline font-bold text-slate-800">{selectedClassName}</span>
+          
           <ChevronRight className="w-4 h-4" />
           <span className="font-semibold text-slate-900">{studentData.name}</span>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 print:hidden">
           <span className="text-sm font-semibold text-slate-500">Select Student:</span>
           <div className="relative">
             <select
@@ -246,7 +391,7 @@ export default function StudentPerformanceDashboard() {
               onChange={(e) => setSelectedStudentName(e.target.value)}
               className="appearance-none pl-4 pr-10 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              {studentData.allStudents.map(name => <option key={name} value={name}>{name}</option>)}
+              {studentsInSelectedClass.map(name => <option key={name} value={name}>{name}</option>)}
             </select>
             <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
@@ -256,11 +401,17 @@ export default function StudentPerformanceDashboard() {
       {/* Header */}
       <motion.div {...fadeUp(0.05)} className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Student Performance Report</h1>
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
+        <div className="flex items-center gap-3 print:hidden">
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
+          >
             <Printer className="w-4 h-4" /> Print
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-[#0f172a] text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm">
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-[#0f172a] text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm"
+          >
             <Download className="w-4 h-4" /> Export PDF
           </button>
         </div>
@@ -316,8 +467,8 @@ export default function StudentPerformanceDashboard() {
                 <Award className="w-4 h-4 text-amber-500" /> Class Rank
               </div>
               <div className="flex items-end gap-1">
-                <span className="text-3xl font-bold text-slate-900 leading-none">--</span>
-                <span className="text-sm font-semibold text-slate-400 mb-1">/ --</span>
+                <span className="text-3xl font-bold text-slate-900 leading-none">{studentData.rank}</span>
+                <span className="text-sm font-semibold text-slate-400 mb-1">/ {studentData.totalStudents}</span>
               </div>
             </div>
           </div>
@@ -348,7 +499,7 @@ export default function StudentPerformanceDashboard() {
                 Academic Year 2023-24 <ChevronDown className="w-3 h-3" />
               </button>
             </div>
-            <MultiLineChart data={studentData.trend.length ? studentData.trend : trendData} />
+            <MultiLineChart data={studentData.trend} subjects={studentData.subjects} />
           </motion.div>
 
           {/* Counselor Observations */}
@@ -360,13 +511,29 @@ export default function StudentPerformanceDashboard() {
             
             <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Academic Strengths</span>
+                <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Academic Strengths & Feedback</span>
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               </div>
-              <p className="text-sm text-slate-700 leading-relaxed">
+              <p className="text-sm text-slate-700 leading-relaxed mb-3">
                 {studentData.name} demonstrates strong academic potential and actively participates in subjects. 
                 {studentData.averageScore > 85 ? ` ${studentData.name.split(' ')[0]} is performing exceptionally well across the board.` : ''}
               </p>
+              {studentData.observations && studentData.observations.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-emerald-100 space-y-2">
+                  <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block mb-1">Teacher Remarks</span>
+                  <div className="grid gap-2">
+                    {studentData.observations.map((obs: any, idx: number) => (
+                      <div key={idx} className="text-xs text-slate-600 bg-white/40 p-2 rounded border border-emerald-50/50">
+                        <div className="flex justify-between items-center mb-0.5">
+                          <span className="font-bold text-slate-800 text-[10px]">{obs.subject}</span>
+                          <span className="text-[10px] text-slate-400 font-medium">{obs.term}</span>
+                        </div>
+                        <p className="italic text-slate-600 font-medium">"{obs.text}"</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         </div>

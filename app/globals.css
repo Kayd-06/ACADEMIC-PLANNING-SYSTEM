@@ -36,3 +36,54 @@ body {
     radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
     radial-gradient(at 0% 100%, rgba(168, 85, 247, 0.1) 0px, transparent 50%);
 }
+
+/* Dynamic Accent Theme Overrides */
+:root {
+  --accent-primary: #002045;
+  --accent-hover: #1a365d;
+  --accent-light: #eff6ff;
+  --accent-primary-rgb: 0, 32, 69;
+}
+
+/* Override utility classes matching #002045 */
+.bg-\[\#002045\] {
+  background-color: var(--accent-primary) !important;
+}
+.hover\:bg-\[\#1a365d\]:hover {
+  background-color: var(--accent-hover) !important;
+}
+.text-\[\#002045\] {
+  color: var(--accent-primary) !important;
+}
+.border-\[\#002045\] {
+  border-color: var(--accent-primary) !important;
+}
+.bg-blue-50 {
+  background-color: var(--accent-light) !important;
+}
+.hover\:bg-blue-50:hover {
+  background-color: var(--accent-light) !important;
+}
+.text-indigo-600 {
+  color: var(--accent-primary) !important;
+}
+.bg-indigo-500 {
+  background-color: var(--accent-primary) !important;
+}
+.hover\:bg-indigo-600:hover {
+  background-color: var(--accent-hover) !important;
+}
+.bg-indigo-50 {
+  background-color: var(--accent-light) !important;
+}
+.border-indigo-100 {
+  border-color: var(--accent-light) !important;
+}
+.border-indigo-200 {
+  border-color: var(--accent-light) !important;
+}
+.focus\:ring-\[\#002045\]\/20:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(var(--accent-primary-rgb), 0.2) !important;
+}
+

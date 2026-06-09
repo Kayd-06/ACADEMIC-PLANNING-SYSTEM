@@ -45,7 +45,7 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 260, damping: 25 }}
-      className="w-64 shrink-0 bg-slate-50 border-r border-slate-200 h-screen sticky top-0 flex flex-col"
+      className="w-64 shrink-0 bg-slate-50 border-r border-slate-200 h-screen sticky top-0 flex flex-col print:hidden"
     >
       {/* Identity */}
       <div className="px-6 pb-6 pt-6 mb-2 border-b border-slate-200 flex items-center gap-3">

@@ -5,6 +5,8 @@ import StudentCounseling from '@/models/StudentCounseling'
 import StudyMaterial from '@/models/StudyMaterial'
 import TeacherFeedback from '@/models/TeacherFeedback'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     await connectDB()
@@ -20,13 +22,15 @@ export async function GET() {
       TeacherFeedback.find().sort({ createdAt: -1 })
     ])
 
-    // Seed if empty
-    if (schedule.length === 0) {
+    // Seed if empty for today
+    let todaySchedules = await TeacherSchedule.find({ date: today }).sort({ time: 1 })
+    if (todaySchedules.length === 0) {
       await TeacherSchedule.insertMany([
         { date: today, time: '09:00 AM', activity: 'Test Conduction: Physics Mid-Term', batch: 'Batch A1', location: 'Hall B', status: 'Upcoming' },
         { date: today, time: '11:30 AM', activity: 'Periodic Visit: Study Hall Supervision', batch: 'Library Wing C', location: 'Library', status: 'Pending' },
         { date: today, time: '02:00 PM', activity: 'Doubt Clearing Session', batch: 'Batch B2', location: 'Room 405', status: 'Pending' }
       ])
+      todaySchedules = await TeacherSchedule.find({ date: today }).sort({ time: 1 })
     }
     if (counseling.length === 0) {
       await StudentCounseling.insertMany([
@@ -49,10 +53,14 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      schedule: await TeacherSchedule.find({ date: today }).sort({ time: 1 }),
+      schedule: todaySchedules,
       counseling: await StudentCounseling.find().sort({ createdAt: -1 }),
       materials: await StudyMaterial.find().sort({ createdAt: 1 }),
       feedback: await TeacherFeedback.find().sort({ createdAt: -1 })
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0, must-revalidate'
+      }
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

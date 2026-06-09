@@ -3,6 +3,8 @@ import { connectDB } from '@/lib/mongodb'
 import School from '@/models/School'
 import { auth } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     await connectDB()
@@ -10,7 +12,11 @@ export async function GET() {
     if (!school) {
       school = await School.create({})
     }
-    return NextResponse.json(school)
+    return NextResponse.json(school, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0, must-revalidate'
+      }
+    })
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch school details' }, { status: 500 })
   }

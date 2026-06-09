@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import Protocol from '@/models/Protocol'
 
+export const dynamic = 'force-dynamic'
+
 const DEFAULT_PROTOCOLS = [
   { label: 'Child Safety Policy', sub: 'Reviewed: Oct 2023', status: 'completed', reviewedAt: 'Oct 2023' },
   { label: 'Emergency Response Drill', sub: 'Overdue by 5 days', status: 'overdue', overdueDays: 5 },
@@ -16,7 +18,11 @@ export async function GET() {
       await Protocol.insertMany(DEFAULT_PROTOCOLS)
       protocols = await Protocol.find().sort({ createdAt: 1 })
     }
-    return NextResponse.json(protocols)
+    return NextResponse.json(protocols, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0, must-revalidate'
+      }
+    })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
