@@ -6,6 +6,7 @@ export const MANAGEMENT_NAV = [
   { label: 'Academic & Quality', href: '/management/academic-planning', icon: <BookOpen className="w-4 h-4" /> },
   { label: 'Teacher Portal', href: '/management/teacher-portal', icon: <UserCircle className="w-4 h-4" /> },
   { label: 'Student Reports', href: '/management/student-reports', icon: <BarChart2 className="w-4 h-4" /> },
+  { label: 'Student Roster', href: '/management/students', icon: <GraduationCap className="w-4 h-4" /> },
   { label: 'Daily Reports', href: '/management/daily-reports', icon: <ClipboardCheck className="w-4 h-4" /> },
 ]
 

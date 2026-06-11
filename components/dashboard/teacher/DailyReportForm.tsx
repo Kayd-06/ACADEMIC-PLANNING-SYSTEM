@@ -77,6 +77,21 @@ export default function DailyReportForm({ firstName }: { firstName: string }) {
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [expandedReport, setExpandedReport] = useState<string | null>(null)
 
+  // Roster: distinct class+section combos
+  const [rosterClasses, setRosterClasses] = useState<string[]>([])
+
+  useEffect(() => {
+    fetch('/api/students?activeOnly=true')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.error && Array.isArray(data)) {
+          const combos = [...new Set<string>(data.map((s: any) => `${s.class} – ${s.section}`))].sort()
+          setRosterClasses(combos)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   // Load report for the selected date + recent history
   useEffect(() => {
     fetchHistory()
@@ -243,12 +258,20 @@ export default function DailyReportForm({ firstName }: { firstName: string }) {
                     exit={{ opacity: 0, y: -6 }}
                     className="grid grid-cols-12 gap-2 items-center group"
                   >
-                    <input
-                      value={row.className}
-                      onChange={e => updateClass(idx, 'className', e.target.value)}
-                      placeholder="e.g. Class 10-A"
-                      className="col-span-3 px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20 focus:border-[#002045]/40 transition-all"
-                    />
+                    <div className="col-span-3 relative">
+                      <input
+                        list={`roster-classes-${idx}`}
+                        value={row.className}
+                        onChange={e => updateClass(idx, 'className', e.target.value)}
+                        placeholder={rosterClasses.length ? 'Select or type a class…' : 'e.g. Class 10-A'}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20 focus:border-[#002045]/40 transition-all"
+                      />
+                      {rosterClasses.length > 0 && (
+                        <datalist id={`roster-classes-${idx}`}>
+                          {rosterClasses.map(c => <option key={c} value={c} />)}
+                        </datalist>
+                      )}
+                    </div>
                     <input
                       value={row.subject}
                       onChange={e => updateClass(idx, 'subject', e.target.value)}

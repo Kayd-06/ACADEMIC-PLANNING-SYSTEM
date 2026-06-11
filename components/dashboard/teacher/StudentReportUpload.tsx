@@ -196,7 +196,51 @@ export default function StudentReportUpload({ firstName }: { firstName: string }
     }
   }, [])
 
-  useEffect(() => { fetchReports() }, [fetchReports])
+  // Roster integration: fetch all active students grouped by class+section
+  const [rosterData, setRosterData] = useState<{ class: string; section: string; name: string; rollNo: string }[]>([])
+  const [loadingRoster, setLoadingRoster] = useState(false)
+
+  const fetchRoster = useCallback(async () => {
+    setLoadingRoster(true)
+    try {
+      const res = await fetch('/api/students?activeOnly=true')
+      const data = await res.json()
+      if (!data.error && Array.isArray(data)) setRosterData(data)
+    } finally {
+      setLoadingRoster(false)
+    }
+  }, [])
+
+  // Distinct class+section labels from roster
+  const rosterClassOptions = [
+    ...new Set<string>(rosterData.map(s => `${s.class} – ${s.section}`))
+  ].sort()
+
+  // When a roster class is selected, auto-populate student rows
+  function handleClassNameChange(value: string) {
+    setClassName(value)
+    // Try to match a roster class
+    const parts = value.split(' – ')
+    if (parts.length === 2) {
+      const [cls, sec] = parts
+      const matched = rosterData.filter(s => s.class === cls && s.section === sec)
+      if (matched.length > 0) {
+        setStudents(
+          matched.map(s => ({
+            name: s.name,
+            rollNo: s.rollNo,
+            marks: '',
+            maxMarks: '100',
+            grade: 'A',
+            attendance: '',
+            remarks: '',
+          }))
+        )
+      }
+    }
+  }
+
+  useEffect(() => { fetchReports(); fetchRoster() }, [fetchReports, fetchRoster])
 
   function updateRow(i: number, field: keyof StudentRow, value: string) {
     setStudents(prev => prev.map((r, idx) => idx === i ? { ...r, [field]: value } : r))
@@ -325,13 +369,33 @@ export default function StudentReportUpload({ firstName }: { firstName: string }
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1.5">Class Name *</label>
-                    <input
-                      type="text"
-                      value={className}
-                      onChange={e => setClassName(e.target.value)}
-                      placeholder="e.g. Grade 10-A"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all"
-                    />
+                    {rosterClassOptions.length > 0 ? (
+                      <div className="relative">
+                        <select
+                          value={className}
+                          onChange={e => handleClassNameChange(e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 appearance-none transition-all"
+                        >
+                          <option value="">Select class…</option>
+                          {rosterClassOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={className}
+                        onChange={e => setClassName(e.target.value)}
+                        placeholder="e.g. Grade 10-A"
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all"
+                      />
+                    )}
+                    {loadingRoster && <p className="text-[10px] text-gray-400 mt-1">Loading roster…</p>}
+                    {rosterClassOptions.length > 0 && className && (
+                      <p className="text-[10px] text-indigo-600 mt-1 font-medium">
+                        ✓ Student rows auto-populated from roster
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1.5">Subject *</label>
