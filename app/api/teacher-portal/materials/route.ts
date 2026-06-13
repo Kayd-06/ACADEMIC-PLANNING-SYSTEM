@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import StudyMaterial from '@/models/StudyMaterial'
+import { writeFile, mkdir } from 'fs/promises'
+import path from 'path'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,11 +23,38 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     await connectDB()
-    const body = await req.json()
-    // Auto-generate initials if not provided
+    const formData = await req.formData()
+    
+    const body: any = {
+      provider: formData.get('provider'),
+      subject: formData.get('subject'),
+      type: formData.get('type'),
+      count: parseInt(formData.get('count') as string || '1'),
+      fileName: formData.get('fileName'),
+      fileSize: formData.get('fileSize')
+    }
+
+    const file = formData.get('file') as File | null
+    if (file && file.name) {
+      const bytes = await file.arrayBuffer()
+      const buffer = Buffer.from(bytes)
+      
+      const uploadDir = path.join(process.cwd(), 'public/uploads')
+      try {
+        await mkdir(uploadDir, { recursive: true })
+      } catch (e) {}
+      
+      const uniqueName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+      const filePath = path.join(uploadDir, uniqueName)
+      await writeFile(filePath, buffer)
+      
+      body.fileUrl = `/uploads/${uniqueName}`
+    }
+
     if (!body.initials && body.provider) {
       body.initials = body.provider.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     }
+
     const material = await StudyMaterial.create(body)
     return NextResponse.json(material)
   } catch (error: any) {

@@ -14,9 +14,13 @@ const StudyMaterialSchema = new Schema<IStudyMaterial>(
     count: { type: Number, required: true },
     type: { type: String, required: true },
     subject: { type: String, required: true },
-    initials: { type: String, required: true }
+    initials: { type: String, required: true },
+    fileName: { type: String },
+    fileSize: { type: String },
+    fileUrl: { type: String }
   },
   { timestamps: true }
 )
 
-export default mongoose.models.StudyMaterial || mongoose.model<IStudyMaterial>('StudyMaterial', StudyMaterialSchema)
+delete mongoose.models.StudyMaterial
+export default mongoose.model<IStudyMaterial>('StudyMaterial', StudyMaterialSchema)

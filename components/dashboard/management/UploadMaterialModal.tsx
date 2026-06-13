@@ -1,7 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Upload, BookOpen, FileText } from 'lucide-react'
+import { X, Upload, BookOpen, FileText, File, CheckCircle2 } from 'lucide-react'
 
 interface UploadMaterialModalProps {
   isOpen: boolean
@@ -17,20 +17,41 @@ export default function UploadMaterialModal({ isOpen, onClose, onSuccess }: Uplo
     type: 'PDFs',
     count: 1
   })
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) {
+      setSelectedFile(file)
+      setFormData(prev => ({ ...prev, count: 1 })) // auto-set count to 1 for a single file
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     try {
+      const data = new FormData()
+      data.append('provider', formData.provider)
+      data.append('subject', formData.subject)
+      data.append('type', formData.type)
+      data.append('count', formData.count.toString())
+      if (selectedFile) {
+        data.append('file', selectedFile)
+        data.append('fileName', selectedFile.name)
+        data.append('fileSize', `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`)
+      }
+
       const res = await fetch('/api/teacher-portal/materials', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: data
       })
       if (res.ok) {
         onSuccess()
         onClose()
         setFormData({ provider: '', subject: '', type: 'PDFs', count: 1 })
+        setSelectedFile(null)
       }
     } catch (err) {
       console.error(err)
@@ -66,6 +87,49 @@ export default function UploadMaterialModal({ isOpen, onClose, onSuccess }: Uplo
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* File Dropzone */}
+              <div>
+                {!selectedFile ? (
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-indigo-200 bg-indigo-50/30 rounded-2xl cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition-all group"
+                  >
+                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                      <Upload className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <p className="text-sm font-bold text-gray-700">Click to browse or drag file here</p>
+                    <p className="text-xs text-gray-400 mt-1">Supports PDF, DOCX, ZIP (Max 50MB)</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center shrink-0">
+                        <File className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <div className="overflow-hidden">
+                        <p className="text-sm font-bold text-gray-800 truncate">{selectedFile.name}</p>
+                        <p className="text-xs font-semibold text-emerald-600 flex items-center gap-1 mt-0.5">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Selected ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Provider Name</label>
                 <div className="relative">
@@ -130,8 +194,8 @@ export default function UploadMaterialModal({ isOpen, onClose, onSuccess }: Uplo
                 </button>
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="flex-1 py-3 rounded-2xl bg-indigo-600 text-white text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100"
+                  disabled={loading || !selectedFile}
+                  className="flex-1 py-3 rounded-2xl bg-indigo-600 text-white text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:shadow-none"
                 >
                   {loading ? 'Uploading...' : 'Upload Material'}
                 </button>

@@ -443,6 +443,17 @@ export default function TeacherPortalDashboard({ teacherName }: { teacherName: s
                       <div>
                         <p className="text-sm font-bold text-gray-900">{m.provider}</p>
                         <p className="text-[11px] text-gray-400">{m.count} {m.type} • {m.subject}</p>
+                        {m.fileName && (
+                          m.fileUrl ? (
+                            <a href={m.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-500 hover:text-indigo-600 font-medium flex items-center gap-1 mt-1 hover:underline w-fit">
+                              <FileText className="w-3 h-3" /> {m.fileName} {m.fileSize && `(${m.fileSize})`}
+                            </a>
+                          ) : (
+                            <p className="text-[10px] text-indigo-500 font-medium flex items-center gap-1 mt-1">
+                              <FileText className="w-3 h-3" /> {m.fileName} {m.fileSize && `(${m.fileSize})`}
+                            </p>
+                          )
+                        )}
                       </div>
                     </div>
                     <button 
