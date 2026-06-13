@@ -30,13 +30,14 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST — add a single student (management only)
+// POST — add a single student (management or teacher)
 export async function POST(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if ((session.user as any).role !== 'management') {
-      return NextResponse.json({ error: 'Only management can add students' }, { status: 403 })
+    const role = (session.user as any).role
+    if (role !== 'management' && role !== 'teacher') {
+      return NextResponse.json({ error: 'Only staff can add students' }, { status: 403 })
     }
 
     await connectDB()
@@ -44,11 +45,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { name, rollNo, class: cls, section, parentContact } = body
 
-    if (!name || !rollNo || !cls || !section) {
-      return NextResponse.json({ error: 'name, rollNo, class, and section are required' }, { status: 400 })
+    if (!name?.trim()) {
+      return NextResponse.json({ error: 'Student name is required.' }, { status: 400 })
     }
 
-    const student = await Student.create({ name, rollNo, class: cls, section, parentContact })
+    const student = await Student.create({
+      name: name.trim(),
+      rollNo: rollNo?.trim() || '',
+      class: cls?.trim() || '',
+      section: section?.trim() || '',
+      parentContact: parentContact?.trim() || '',
+    })
     return NextResponse.json(student, { status: 201 })
   } catch (error: any) {
     if (error.code === 11000) {

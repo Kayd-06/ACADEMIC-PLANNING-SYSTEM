@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Sidebar from '@/components/dashboard/Sidebar'
 import TopHeader from '@/components/dashboard/TopHeader'
-import StudentPerformanceDashboard from '@/components/dashboard/teacher/StudentPerformanceDashboard'
+import TeacherStudentsTabbed from '@/components/dashboard/teacher/TeacherStudentsTabbed'
 import { TEACHER_NAV } from '@/lib/navigation'
 
 function getInitials(name: string) {
@@ -15,18 +15,18 @@ export default async function TeacherStudentsPage() {
   if (session.user.role !== 'teacher' && session.user.role !== 'management') redirect('/')
 
   const initials = getInitials(session.user.name ?? 'EA')
-  
+
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar 
-        userName={session.user.name ?? ''} 
-        userRole={session.user.role === 'management' ? 'Academic Administration' : 'Faculty'} 
-        navItems={TEACHER_NAV} 
-        initials={initials} 
+      <Sidebar
+        userName={session.user.name ?? ''}
+        userRole={session.user.role === 'management' ? 'Academic Administration' : 'Faculty'}
+        navItems={TEACHER_NAV}
+        initials={initials}
       />
       <div className="flex-1 flex flex-col min-w-0">
         <TopHeader initials={initials} />
-        <StudentPerformanceDashboard />
+        <TeacherStudentsTabbed />
       </div>
     </div>
   )

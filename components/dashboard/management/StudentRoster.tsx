@@ -118,8 +118,8 @@ export default function StudentRoster() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     setFormError('')
-    if (!form.name || !form.rollNo || !form.class || !form.section) {
-      setFormError('Name, Roll No, Class, and Section are required.')
+    if (!form.name.trim()) {
+      setFormError('Student name is required.')
       return
     }
     setFormSaving(true)
@@ -216,10 +216,10 @@ export default function StudentRoster() {
             section: get(['section', 'div', 'division']),
             parentContact: get(['parentcontact', 'contact', 'phone', 'mobile']),
           }
-        }).filter(r => r.name || r.rollNo)
+        }).filter(r => r.name)
 
         if (rows.length === 0) {
-          setImportError('No valid rows found. Make sure the file has: Name, Roll No, Class, Section columns.')
+          setImportError('No valid rows found. Make sure at least a Name column exists.')
           return
         }
         setParsedRows(rows)
@@ -242,6 +242,10 @@ export default function StudentRoster() {
       })
       const data = await res.json()
       if (!res.ok) { setImportError(data.error || 'Import failed'); return }
+      if (data.failed > 0 && data.failedReasons?.length > 0) {
+        setImportError(`Failed to insert. Reason: ${data.failedReasons[0]}`);
+        return;
+      }
       setImportResult(data)
       setParsedRows([])
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -545,11 +549,11 @@ export default function StudentRoster() {
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                           {parsedRows.map((r, i) => (
-                            <tr key={i} className={`hover:bg-gray-50/60 ${!r.name || !r.rollNo || !r.class || !r.section ? 'bg-red-50/50' : ''}`}>
+                            <tr key={i} className={`hover:bg-gray-50/60 ${!r.name ? 'bg-red-50/50' : ''}`}>
                               <td className="px-3 py-2 font-medium text-gray-800">{r.name || <span className="text-red-400 italic">missing</span>}</td>
-                              <td className="px-3 py-2 text-gray-600">{r.rollNo || <span className="text-red-400 italic">missing</span>}</td>
-                              <td className="px-3 py-2 text-gray-600">{r.class || <span className="text-red-400 italic">missing</span>}</td>
-                              <td className="px-3 py-2 text-gray-600">{r.section || <span className="text-red-400 italic">missing</span>}</td>
+                              <td className="px-3 py-2 text-gray-600">{r.rollNo || <span className="text-gray-300 italic">—</span>}</td>
+                              <td className="px-3 py-2 text-gray-600">{r.class || <span className="text-gray-300 italic">—</span>}</td>
+                              <td className="px-3 py-2 text-gray-600">{r.section || <span className="text-gray-300 italic">—</span>}</td>
                               <td className="px-3 py-2 text-gray-500">{r.parentContact || '—'}</td>
                             </tr>
                           ))}
@@ -579,9 +583,9 @@ export default function StudentRoster() {
                 <form onSubmit={handleAdd} className="space-y-3">
                   {[
                     { label: 'Full Name *', field: 'name', placeholder: 'e.g. Rahul Sharma' },
-                    { label: 'Roll No *', field: 'rollNo', placeholder: 'e.g. 101' },
-                    { label: 'Class *', field: 'class', placeholder: 'e.g. Grade 10' },
-                    { label: 'Section *', field: 'section', placeholder: 'e.g. A' },
+                    { label: 'Roll No', field: 'rollNo', placeholder: 'e.g. 101 (optional)' },
+                    { label: 'Class', field: 'class', placeholder: 'e.g. Grade 10 (optional)' },
+                    { label: 'Section', field: 'section', placeholder: 'e.g. A (optional)' },
                     { label: 'Parent Contact', field: 'parentContact', placeholder: '10-digit mobile (optional)' },
                   ].map(({ label, field, placeholder }) => (
                     <div key={field}>
