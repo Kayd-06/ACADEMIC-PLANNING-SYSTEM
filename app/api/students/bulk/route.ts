@@ -66,3 +66,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+
+// DELETE — bulk delete all students (management only)
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const role = (session.user as any).role
+    if (role !== 'management' && role !== 'teacher') {
+      return NextResponse.json({ error: 'Only staff can clear all rosters' }, { status: 403 })
+    }
+
+    await connectDB()
+    await Student.deleteMany({})
+
+    return NextResponse.json({ success: true, message: 'All students deleted successfully' })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}

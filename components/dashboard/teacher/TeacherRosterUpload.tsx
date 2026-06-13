@@ -13,6 +13,7 @@ import {
   Search,
   Users,
   X,
+  Trash2,
 } from 'lucide-react'
 
 const fadeUp = (delay = 0) => ({
@@ -41,17 +42,29 @@ interface ParsedRow {
 
 const EMPTY_FORM = { name: '', rollNo: '', class: '', section: '', parentContact: '' }
 
-function downloadTemplate() {
-  const ws = XLSX.utils.aoa_to_sheet([
-    ['Name', 'Roll No', 'Class', 'Section', 'Parent Contact'],
-    ['Rahul Sharma', '101', 'Grade 10', 'A', '9876543210'],
-    ['Priya Patel', '102', 'Grade 10', 'A', '9123456789'],
-    ['Amit Verma', '103', 'Grade 10', 'B', ''],
-  ])
+function downloadTemplate(students: Student[] = []) {
+  const headers = ['Name', 'Roll No', 'Class', 'Section', 'Parent Contact']
+  let data
+  
+  if (students.length > 0) {
+    data = [
+      headers,
+      ...students.map(s => [s.name, s.rollNo, s.class, s.section, s.parentContact || ''])
+    ]
+  } else {
+    data = [
+      headers,
+      ['Rahul Sharma', '101', 'Grade 10', 'A', '9876543210'],
+      ['Priya Patel', '102', 'Grade 10', 'A', '9123456789'],
+      ['Amit Verma', '103', 'Grade 10', 'B', ''],
+    ]
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(data)
   ws['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 18 }]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Students')
-  XLSX.writeFile(wb, 'student_roster_template.xlsx')
+  XLSX.writeFile(wb, students.length > 0 ? 'student_roster_export.xlsx' : 'student_roster_template.xlsx')
 }
 
 export default function TeacherRosterUpload() {
@@ -73,6 +86,21 @@ export default function TeacherRosterUpload() {
       setLoadingStudents(false)
     }
   }, [])
+
+  const clearAllRosters = async () => {
+    if (!window.confirm("Are you absolutely sure you want to clear ALL students? This action cannot be undone.")) return
+    
+    try {
+      const res = await fetch('/api/students/bulk', { method: 'DELETE' })
+      if (res.ok) {
+        setStudents([])
+      } else {
+        alert("Failed to clear rosters")
+      }
+    } catch (e) {
+      alert("An error occurred")
+    }
+  }
 
   useEffect(() => { fetchStudents() }, [fetchStudents])
 
@@ -202,12 +230,20 @@ export default function TeacherRosterUpload() {
             Upload your class student list so reports auto-fill correctly.
           </p>
         </div>
-        <button
-          onClick={downloadTemplate}
-          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl shadow-sm hover:bg-gray-50 transition-all font-semibold"
-        >
-          <Download className="w-3.5 h-3.5" /> Download Template
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={clearAllRosters}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 rounded-xl shadow-sm transition-all font-semibold"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Clear All
+          </button>
+          <button
+            onClick={() => downloadTemplate(students)}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl shadow-sm hover:bg-gray-50 transition-all font-semibold"
+          >
+            <Download className="w-3.5 h-3.5" /> Export / Template
+          </button>
+        </div>
       </motion.div>
 
       {/* Stat strip */}
