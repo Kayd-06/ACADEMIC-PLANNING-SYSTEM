@@ -1,8 +1,7 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { connectDB } from './mongodb'
-import User from '@/models/User'
+import { findUserByEmail } from '@/lib/db/queries/users'
 import { authConfig } from '@/auth.config'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -17,11 +16,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
 
-        await connectDB()
-        const user = await User.findOne({
-          email: (credentials.email as string).toLowerCase(),
-        })
-
+        const user = await findUserByEmail(credentials.email as string)
         if (!user) return null
 
         const passwordMatch = await bcrypt.compare(
@@ -35,7 +30,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         return {
-          id: user._id.toString(),
+          id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,

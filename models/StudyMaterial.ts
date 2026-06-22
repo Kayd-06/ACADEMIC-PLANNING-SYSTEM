@@ -6,6 +6,9 @@ export interface IStudyMaterial extends Document {
   type: string // e.g. "PDFs", "Tests"
   subject: string
   initials: string
+  fileName?: string
+  fileSize?: string
+  fileUrl?: string
 }
 
 const StudyMaterialSchema = new Schema<IStudyMaterial>(

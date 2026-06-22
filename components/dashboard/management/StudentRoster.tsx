@@ -526,7 +526,7 @@ export default function StudentRoster() {
                     <FileSpreadsheet className="w-5 h-5 text-[#002045]" />
                     <h2 className="text-sm font-bold text-gray-900">Upload Excel / CSV</h2>
                   </div>
-                  <button onClick={downloadTemplate} className="text-xs text-indigo-600 font-semibold hover:underline flex items-center gap-1">
+                  <button onClick={() => downloadTemplate()} className="text-xs text-indigo-600 font-semibold hover:underline flex items-center gap-1">
                     <Download className="w-3.5 h-3.5" /> Download template
                   </button>
                 </div>

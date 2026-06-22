@@ -1,3 +1,5 @@
+'use client'
+
 import { LayoutDashboard, Users, BookOpen, ShieldCheck, UserCircle, Calendar, GraduationCap, BarChart2, ClipboardList, ClipboardCheck } from 'lucide-react'
 
 export const MANAGEMENT_NAV = [
