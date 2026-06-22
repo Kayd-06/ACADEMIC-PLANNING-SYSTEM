@@ -20,7 +20,7 @@ import {
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
-  transition: { delay, type: 'spring', stiffness: 320, damping: 28 },
+  transition: { delay, type: 'spring' as const, stiffness: 320, damping: 28 },
 })
 
 export default function AcademicPlanning({ role }: { role: 'management' | 'teacher' }) {

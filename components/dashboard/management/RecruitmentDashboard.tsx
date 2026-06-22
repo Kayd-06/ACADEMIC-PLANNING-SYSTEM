@@ -278,10 +278,10 @@ export default function RecruitmentDashboard() {
               className="px-6 py-4 border-b border-gray-100 bg-[#002045]/5 overflow-hidden"
             >
               <div className="grid grid-cols-5 gap-3 mb-3">
-                <input required value={candidateForm.name} onChange={e => setCandidateForm(f => ({ ...f, name: e.target.value }))} placeholder="Candidate Name" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
-                <input required value={candidateForm.roleApplied} onChange={e => setCandidateForm(f => ({ ...f, roleApplied: e.target.value }))} placeholder="Role Applied" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
-                <input required value={candidateForm.department} onChange={e => setCandidateForm(f => ({ ...f, department: e.target.value }))} placeholder="Department" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
-                <select value={candidateForm.status} onChange={e => setCandidateForm(f => ({ ...f, status: e.target.value }))} className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20">
+                <input required value={candidateForm.name} onChange={e => setCandidateForm((f: any) => ({ ...f, name: e.target.value }))} placeholder="Candidate Name" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                <input required value={candidateForm.roleApplied} onChange={e => setCandidateForm((f: any) => ({ ...f, roleApplied: e.target.value }))} placeholder="Role Applied" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                <input required value={candidateForm.department} onChange={e => setCandidateForm((f: any) => ({ ...f, department: e.target.value }))} placeholder="Department" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                <select value={candidateForm.status} onChange={e => setCandidateForm((f: any) => ({ ...f, status: e.target.value }))} className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20">
                   <option>Requirement Announcement</option>
                   <option>Shortlisted</option>
                   <option>Interview Scheduled</option>
@@ -289,7 +289,7 @@ export default function RecruitmentDashboard() {
                   <option>Under Review</option>
                   <option>Pending</option>
                 </select>
-                <input required value={candidateForm.nextStep} onChange={e => setCandidateForm(f => ({ ...f, nextStep: e.target.value }))} placeholder="Next Step" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
+                <input required value={candidateForm.nextStep} onChange={e => setCandidateForm((f: any) => ({ ...f, nextStep: e.target.value }))} placeholder="Next Step" className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" />
               </div>
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setShowCandidateForm(false)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Cancel</button>
