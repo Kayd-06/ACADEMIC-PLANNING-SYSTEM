@@ -1,0 +1,1380 @@
+# Postgres Foundation Migration Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Stand up Neon (serverless Postgres) + Drizzle ORM and migrate the three Mongoose-backed pieces that currently back live functionality — `User`, `EmailVerification`, `School` — onto it, with NextAuth v5 left otherwise untouched.
+
+**Architecture:** Add a `lib/db/` module housing the Drizzle client, schema, and typed query functions, one file per table-group. Route handlers and `lib/auth.ts` call the query functions instead of Mongoose models. MongoDB (`lib/mongodb.ts`) keeps running unmodified for every other collection (`Student`, `Announcement`, `AcademicPlanning`, etc.) — this plan intentionally leaves the app in a dual-database state until later plans migrate the rest, group by group, matching the 12-group schema designed earlier in this project.
+
+**Tech Stack:** Next.js 16 (App Router), `drizzle-orm` + `drizzle-kit`, `@neondatabase/serverless` (HTTP driver — works in both Node and Edge runtimes, no connection pooling to manage), NextAuth v5 beta (`next-auth@^5.0.0-beta.31`), `bcryptjs`, Jest (`ts-jest`/`next/jest`, `testEnvironment: 'node'`).
+
+## Global Constraints
+
+- Use the Neon serverless **HTTP** driver (`drizzle-orm/neon-http`), not `node-postgres` — it requires no pool management and works from any Next.js runtime.
+- Primary keys are `uuid` with `defaultRandom()` (maps to Postgres `gen_random_uuid()`), matching the schema design already agreed for this project.
+- Do not modify `auth.config.ts` — it has no database access and must stay Edge-compatible exactly as-is.
+- Do not touch any Mongoose model other than `User`, `EmailVerification`, `School` — grep confirms these are the only ones referenced by the 5 files this plan changes (`lib/auth.ts`, `app/api/auth/register/teacher/route.ts`, `app/api/auth/register/management/route.ts`, `app/api/auth/verify-email/route.ts`, `app/api/school/route.ts`).
+- Tests run against a **real** Postgres database, not mocks — set `DATABASE_URL` to a dedicated Neon branch before running `npm test` so test runs don't pollute production data. Every test that inserts rows must delete them in `afterEach`/`afterAll`.
+- Password hashing stays `bcryptjs` with cost factor `12` — unchanged from current code.
+
+---
+
+### Task 1: Install dependencies and configure the Drizzle + Neon client
+
+**Files:**
+- Modify: `package.json`
+- Create: `drizzle.config.ts`
+- Create: `lib/db/index.ts`
+- Modify: `.env.local` (add `DATABASE_URL` — developer fills in their own Neon connection string from the Neon console)
+
+**Interfaces:**
+- Produces: `db` (default export from `lib/db/index.ts`) — the Drizzle client every later task imports.
+
+- [ ] **Step 1: Install dependencies**
+
+```bash
+npm install drizzle-orm @neondatabase/serverless
+npm install -D drizzle-kit
+```
+
+- [ ] **Step 2: Add `DATABASE_URL` to `.env.local`**
+
+Open `.env.local` and add a line (create a Neon project at https://console.neon.tech first if you don't have one, then copy its pooled connection string):
+
+```
+DATABASE_URL=postgresql://<user>:<password>@<host>/<dbname>?sslmode=require
+```
+
+- [ ] **Step 3: Create the Drizzle client**
+
+Create `lib/db/index.ts`:
+
+```ts
+import { neon } from '@neondatabase/serverless'
+import { drizzle } from 'drizzle-orm/neon-http'
+import * as schema from './schema'
+
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL is not defined')
+}
+
+const sql = neon(process.env.DATABASE_URL)
+export const db = drizzle(sql, { schema })
+```
+
+This will fail to compile until Task 2 creates `lib/db/schema.ts` — that's expected, move directly to Task 2.
+
+- [ ] **Step 4: Create the Drizzle Kit config**
+
+Create `drizzle.config.ts` at the project root:
+
+```ts
+import 'dotenv/config'
+import { defineConfig } from 'drizzle-kit'
+
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL is not defined')
+}
+
+export default defineConfig({
+  schema: './lib/db/schema.ts',
+  out: './lib/db/migrations',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: process.env.DATABASE_URL,
+  },
+})
+```
+
+- [ ] **Step 5: Add Drizzle Kit scripts to `package.json`**
+
+In `package.json`, add to `"scripts"`:
+
+```json
+"db:generate": "drizzle-kit generate",
+"db:migrate": "drizzle-kit migrate",
+"db:studio": "drizzle-kit studio"
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add package.json package-lock.json drizzle.config.ts lib/db/index.ts
+git commit -m "chore: add drizzle orm and neon serverless client"
+```
+
+(`.env.local` is gitignored — do not commit it.)
+
+---
+
+### Task 2: Define schema for users, email_verifications, schools and run the first migration
+
+**Files:**
+- Create: `lib/db/schema.ts`
+- Create: `lib/db/migrations/` (generated by drizzle-kit)
+- Test: `lib/db/schema.test.ts`
+
+**Interfaces:**
+- Consumes: `db` from `lib/db/index.ts` (Task 1)
+- Produces: `users`, `emailVerifications`, `schools` table objects; `User`, `NewUser`, `EmailVerification`, `NewEmailVerification`, `School`, `NewSchool` types — every later task's query functions import these.
+
+- [ ] **Step 1: Write the schema**
+
+Create `lib/db/schema.ts`:
+
+```ts
+import { pgTable, uuid, text, varchar, timestamp, pgEnum } from 'drizzle-orm/pg-core'
+
+export const userRoleEnum = pgEnum('user_role', ['teacher', 'management'])
+export const userStatusEnum = pgEnum('user_status', ['pending_verification', 'active'])
+
+export const users = pgTable('users', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  password: text('password').notNull(),
+  role: userRoleEnum('role').notNull(),
+  status: userStatusEnum('status').notNull().default('pending_verification'),
+  department: varchar('department', { length: 255 }),
+  employeeId: varchar('employee_id', { length: 255 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert
+
+export const emailVerifications = pgTable('email_verifications', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  token: varchar('token', { length: 255 }).notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})
+
+export type EmailVerification = typeof emailVerifications.$inferSelect
+export type NewEmailVerification = typeof emailVerifications.$inferInsert
+
+export const schools = pgTable('schools', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 255 }).notNull().default('Academic Planning System'),
+  board: varchar('board', { length: 255 }).notNull().default('CBSE Affiliated'),
+  classes: varchar('classes', { length: 255 }).notNull().default('Nursery – XII'),
+  programs: varchar('programs', { length: 255 }).notNull().default('STEM, Humanities, Arts'),
+  mouStatus: varchar('mou_status', { length: 255 }).notNull().default('Active (2025)'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type School = typeof schools.$inferSelect
+export type NewSchool = typeof schools.$inferInsert
+```
+
+- [ ] **Step 2: Generate the migration**
+
+```bash
+npm run db:generate
+```
+
+Expected: a new SQL file appears under `lib/db/migrations/`, creating the `user_role`/`user_status` enums and the three tables.
+
+- [ ] **Step 3: Apply the migration to Neon**
+
+```bash
+npm run db:migrate
+```
+
+Expected: console output confirms the migration applied with no errors.
+
+- [ ] **Step 4: Write a smoke test confirming the tables are reachable**
+
+Create `lib/db/schema.test.ts`:
+
+```ts
+import { db } from './index'
+import { users, emailVerifications, schools } from './schema'
+
+describe('schema', () => {
+  it('can query all three tables without error', async () => {
+    await expect(db.select().from(users)).resolves.toEqual(expect.any(Array))
+    await expect(db.select().from(emailVerifications)).resolves.toEqual(expect.any(Array))
+    await expect(db.select().from(schools)).resolves.toEqual(expect.any(Array))
+  })
+})
+```
+
+- [ ] **Step 5: Run the test to verify it passes**
+
+Run: `npx jest lib/db/schema.test.ts`
+Expected: PASS (requires `DATABASE_URL` pointed at the migrated Neon database)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add lib/db/schema.ts lib/db/migrations lib/db/schema.test.ts
+git commit -m "feat: add drizzle schema for users, email_verifications, schools"
+```
+
+---
+
+### Task 3: Add typed query functions for users
+
+**Files:**
+- Create: `lib/db/queries/users.ts`
+- Test: `lib/db/queries/users.test.ts`
+
+**Interfaces:**
+- Consumes: `db`, `users`, `User`, `NewUser` from Tasks 1–2
+- Produces: `findUserByEmail(email: string): Promise<User | null>`, `findUserById(id: string): Promise<User | null>`, `createUser(data: NewUser): Promise<User>`, `updateUserStatus(id: string, status: 'pending_verification' | 'active'): Promise<User | null>` — Tasks 6–9 import these.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `lib/db/queries/users.test.ts`:
+
+```ts
+import { db } from '../index'
+import { users } from '../schema'
+import { eq } from 'drizzle-orm'
+import { createUser, findUserByEmail, findUserById, updateUserStatus } from './users'
+
+describe('user queries', () => {
+  const testEmail = `test-user-queries-${Date.now()}@example.com`
+  let createdId: string
+
+  afterAll(async () => {
+    if (createdId) await db.delete(users).where(eq(users.id, createdId))
+  })
+
+  it('createUser inserts a row and returns it', async () => {
+    const user = await createUser({
+      name: 'Test Teacher',
+      email: testEmail,
+      password: 'hashed-password',
+      role: 'teacher',
+      status: 'pending_verification',
+    })
+    createdId = user.id
+    expect(user.email).toBe(testEmail)
+    expect(user.status).toBe('pending_verification')
+  })
+
+  it('findUserByEmail returns the created user', async () => {
+    const user = await findUserByEmail(testEmail)
+    expect(user?.id).toBe(createdId)
+  })
+
+  it('findUserByEmail returns null for an unknown email', async () => {
+    const user = await findUserByEmail('nobody-here@example.com')
+    expect(user).toBeNull()
+  })
+
+  it('findUserById returns the created user', async () => {
+    const user = await findUserById(createdId)
+    expect(user?.email).toBe(testEmail)
+  })
+
+  it('updateUserStatus sets the new status', async () => {
+    const updated = await updateUserStatus(createdId, 'active')
+    expect(updated?.status).toBe('active')
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx jest lib/db/queries/users.test.ts`
+Expected: FAIL with "Cannot find module './users'"
+
+- [ ] **Step 3: Write the implementation**
+
+Create `lib/db/queries/users.ts`:
+
+```ts
+import { eq } from 'drizzle-orm'
+import { db } from '../index'
+import { users, type NewUser, type User } from '../schema'
+
+export async function findUserByEmail(email: string): Promise<User | null> {
+  const rows = await db.select().from(users).where(eq(users.email, email.toLowerCase()))
+  return rows[0] ?? null
+}
+
+export async function findUserById(id: string): Promise<User | null> {
+  const rows = await db.select().from(users).where(eq(users.id, id))
+  return rows[0] ?? null
+}
+
+export async function createUser(data: NewUser): Promise<User> {
+  const rows = await db
+    .insert(users)
+    .values({ ...data, email: data.email.toLowerCase() })
+    .returning()
+  return rows[0]
+}
+
+export async function updateUserStatus(
+  id: string,
+  status: 'pending_verification' | 'active'
+): Promise<User | null> {
+  const rows = await db
+    .update(users)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(users.id, id))
+    .returning()
+  return rows[0] ?? null
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx jest lib/db/queries/users.test.ts`
+Expected: PASS (5 tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/db/queries/users.ts lib/db/queries/users.test.ts
+git commit -m "feat: add typed query functions for users table"
+```
+
+---
+
+### Task 4: Add typed query functions for email verifications
+
+**Files:**
+- Create: `lib/db/queries/email-verifications.ts`
+- Test: `lib/db/queries/email-verifications.test.ts`
+
+**Interfaces:**
+- Consumes: `db`, `emailVerifications`, `EmailVerification`, `NewEmailVerification` from Task 2; `createUser` from Task 3 (test fixture only)
+- Produces: `createEmailVerification(data: NewEmailVerification): Promise<EmailVerification>`, `findVerificationByToken(token: string): Promise<EmailVerification | null>`, `deleteVerificationByToken(token: string): Promise<void>` — Tasks 7 and 9 import these.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `lib/db/queries/email-verifications.test.ts`:
+
+```ts
+import { db } from '../index'
+import { users, emailVerifications } from '../schema'
+import { eq } from 'drizzle-orm'
+import { createUser } from './users'
+import {
+  createEmailVerification,
+  findVerificationByToken,
+  deleteVerificationByToken,
+} from './email-verifications'
+
+describe('email verification queries', () => {
+  const testEmail = `test-verify-queries-${Date.now()}@example.com`
+  const testToken = `test-token-${Date.now()}`
+  let userId: string
+
+  beforeAll(async () => {
+    const user = await createUser({
+      name: 'Test Teacher',
+      email: testEmail,
+      password: 'hashed-password',
+      role: 'teacher',
+      status: 'pending_verification',
+    })
+    userId = user.id
+  })
+
+  afterAll(async () => {
+    await db.delete(emailVerifications).where(eq(emailVerifications.userId, userId))
+    await db.delete(users).where(eq(users.id, userId))
+  })
+
+  it('createEmailVerification inserts a row', async () => {
+    const verification = await createEmailVerification({
+      userId,
+      token: testToken,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    })
+    expect(verification.token).toBe(testToken)
+    expect(verification.userId).toBe(userId)
+  })
+
+  it('findVerificationByToken returns the created row', async () => {
+    const verification = await findVerificationByToken(testToken)
+    expect(verification?.userId).toBe(userId)
+  })
+
+  it('findVerificationByToken returns null for an unknown token', async () => {
+    const verification = await findVerificationByToken('does-not-exist')
+    expect(verification).toBeNull()
+  })
+
+  it('deleteVerificationByToken removes the row', async () => {
+    await deleteVerificationByToken(testToken)
+    const verification = await findVerificationByToken(testToken)
+    expect(verification).toBeNull()
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx jest lib/db/queries/email-verifications.test.ts`
+Expected: FAIL with "Cannot find module './email-verifications'"
+
+- [ ] **Step 3: Write the implementation**
+
+Create `lib/db/queries/email-verifications.ts`:
+
+```ts
+import { eq } from 'drizzle-orm'
+import { db } from '../index'
+import { emailVerifications, type EmailVerification, type NewEmailVerification } from '../schema'
+
+export async function createEmailVerification(
+  data: NewEmailVerification
+): Promise<EmailVerification> {
+  const rows = await db.insert(emailVerifications).values(data).returning()
+  return rows[0]
+}
+
+export async function findVerificationByToken(token: string): Promise<EmailVerification | null> {
+  const rows = await db
+    .select()
+    .from(emailVerifications)
+    .where(eq(emailVerifications.token, token))
+  return rows[0] ?? null
+}
+
+export async function deleteVerificationByToken(token: string): Promise<void> {
+  await db.delete(emailVerifications).where(eq(emailVerifications.token, token))
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx jest lib/db/queries/email-verifications.test.ts`
+Expected: PASS (4 tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/db/queries/email-verifications.ts lib/db/queries/email-verifications.test.ts
+git commit -m "feat: add typed query functions for email_verifications table"
+```
+
+---
+
+### Task 5: Add typed query functions for school
+
+**Files:**
+- Create: `lib/db/queries/school.ts`
+- Test: `lib/db/queries/school.test.ts`
+
+**Interfaces:**
+- Consumes: `db`, `schools`, `School`, `NewSchool` from Task 2
+- Produces: `getOrCreateSchool(): Promise<School>`, `updateSchool(data: Partial<NewSchool>): Promise<School>` — Task 10 imports these.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `lib/db/queries/school.test.ts`:
+
+```ts
+import { db } from '../index'
+import { schools } from '../schema'
+import { getOrCreateSchool, updateSchool } from './school'
+
+describe('school queries', () => {
+  afterAll(async () => {
+    await db.delete(schools)
+  })
+
+  it('getOrCreateSchool creates a default row when none exists', async () => {
+    const school = await getOrCreateSchool()
+    expect(school.name).toBe('Academic Planning System')
+    expect(school.board).toBe('CBSE Affiliated')
+  })
+
+  it('getOrCreateSchool returns the same row on a second call', async () => {
+    const first = await getOrCreateSchool()
+    const second = await getOrCreateSchool()
+    expect(second.id).toBe(first.id)
+  })
+
+  it('updateSchool updates fields on the existing row', async () => {
+    const updated = await updateSchool({ board: 'ICSE Affiliated' })
+    expect(updated.board).toBe('ICSE Affiliated')
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx jest lib/db/queries/school.test.ts`
+Expected: FAIL with "Cannot find module './school'"
+
+- [ ] **Step 3: Write the implementation**
+
+Create `lib/db/queries/school.ts`:
+
+```ts
+import { eq } from 'drizzle-orm'
+import { db } from '../index'
+import { schools, type School, type NewSchool } from '../schema'
+
+export async function getOrCreateSchool(): Promise<School> {
+  const existing = await db.select().from(schools).limit(1)
+  if (existing[0]) return existing[0]
+
+  const created = await db.insert(schools).values({}).returning()
+  return created[0]
+}
+
+export async function updateSchool(data: Partial<NewSchool>): Promise<School> {
+  const school = await getOrCreateSchool()
+  const updated = await db
+    .update(schools)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(schools.id, school.id))
+    .returning()
+  return updated[0]
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx jest lib/db/queries/school.test.ts`
+Expected: PASS (3 tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/db/queries/school.ts lib/db/queries/school.test.ts
+git commit -m "feat: add typed query functions for schools table"
+```
+
+---
+
+### Task 6: Migrate `lib/auth.ts` to query Postgres
+
+**Files:**
+- Modify: `lib/auth.ts`
+- Test: `lib/auth.test.ts`
+
+**Interfaces:**
+- Consumes: `findUserByEmail` from `lib/db/queries/users.ts` (Task 3)
+- Produces: same `authorize()` contract as before — returns `{ id, name, email, role }` or `null`, throws `Error('EMAIL_NOT_VERIFIED')` for unverified accounts. No callers outside this file depend on internals, so nothing downstream changes.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `lib/auth.test.ts`:
+
+```ts
+import bcrypt from 'bcryptjs'
+import { db } from './db'
+import { users } from './db/schema'
+import { eq } from 'drizzle-orm'
+import { createUser } from './db/queries/users'
+
+// authConfig.providers is empty; the Credentials provider with authorize()
+// is only attached inside lib/auth.ts, so we import the module fresh per test
+// to access the real provider function.
+async function getAuthorize() {
+  const authModule = await import('./auth')
+  const credentialsProvider = (authModule as any).handlers ? null : null
+  // NextAuth doesn't export providers directly; instead we re-create the
+  // same authorize logic's dependency (findUserByEmail) is what we verify
+  // indirectly through a direct DB round-trip below.
+  return authModule
+}
+
+describe('auth — credentials authorize logic (via direct DB queries)', () => {
+  const testEmail = `test-auth-${Date.now()}@example.com`
+  const plainPassword = 'correct-password-123'
+  let userId: string
+
+  beforeAll(async () => {
+    const hashed = await bcrypt.hash(plainPassword, 12)
+    const user = await createUser({
+      name: 'Auth Test User',
+      email: testEmail,
+      password: hashed,
+      role: 'teacher',
+      status: 'active',
+    })
+    userId = user.id
+  })
+
+  afterAll(async () => {
+    await db.delete(users).where(eq(users.id, userId))
+  })
+
+  it('module loads without throwing (NextAuth config wiring is valid)', async () => {
+    await expect(getAuthorize()).resolves.toBeDefined()
+  })
+
+  it('a matching bcrypt hash validates against the stored password', async () => {
+    const stored = await db.select().from(users).where(eq(users.id, userId))
+    const match = await bcrypt.compare(plainPassword, stored[0].password)
+    expect(match).toBe(true)
+  })
+
+  it('a non-matching password fails bcrypt comparison', async () => {
+    const stored = await db.select().from(users).where(eq(users.id, userId))
+    const match = await bcrypt.compare('wrong-password', stored[0].password)
+    expect(match).toBe(false)
+  })
+})
+```
+
+This test intentionally avoids calling NextAuth's `authorize()` directly — NextAuth v5 does not export provider internals for unit testing. It verifies the two things `authorize()` depends on (the DB round-trip and the bcrypt comparison) instead. Manual verification of the full login flow happens in Task 11's final check.
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx jest lib/auth.test.ts`
+Expected: FAIL — `lib/auth.ts` still imports `./mongodb` and `@/models/User`, which still work today, so this actually may PASS already since we haven't broken anything yet. Skip to Step 3 regardless — the real verification is that the test still passes *after* the rewrite.
+
+- [ ] **Step 3: Rewrite `lib/auth.ts`**
+
+Replace the full contents of `lib/auth.ts`:
+
+```ts
+import NextAuth from 'next-auth'
+import Credentials from 'next-auth/providers/credentials'
+import bcrypt from 'bcryptjs'
+import { findUserByEmail } from '@/lib/db/queries/users'
+import { authConfig } from '@/auth.config'
+
+export const { handlers, signIn, signOut, auth } = NextAuth({
+  ...authConfig,
+  providers: [
+    Credentials({
+      name: 'credentials',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null
+
+        const user = await findUserByEmail(credentials.email as string)
+        if (!user) return null
+
+        const passwordMatch = await bcrypt.compare(
+          credentials.password as string,
+          user.password
+        )
+        if (!passwordMatch) return null
+
+        if (user.status !== 'active') {
+          throw new Error('EMAIL_NOT_VERIFIED')
+        }
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        }
+      },
+    }),
+  ],
+})
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx jest lib/auth.test.ts`
+Expected: PASS (3 tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/auth.ts lib/auth.test.ts
+git commit -m "feat: migrate lib/auth.ts credentials provider to postgres"
+```
+
+---
+
+### Task 7: Migrate the teacher registration route
+
+**Files:**
+- Modify: `app/api/auth/register/teacher/route.ts`
+- Test: `app/api/auth/register/teacher/route.test.ts`
+
+**Interfaces:**
+- Consumes: `findUserByEmail`, `createUser` (Task 3), `createEmailVerification` (Task 4)
+- Produces: same HTTP contract as before — `POST` returns 201 with `{ message }` on success, 400/409/500 with `{ error }` on failure.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `app/api/auth/register/teacher/route.test.ts`:
+
+```ts
+import { db } from '@/lib/db'
+import { users, emailVerifications } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+
+jest.mock('@/lib/mail', () => ({
+  sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
+}))
+
+import { POST } from './route'
+import { sendVerificationEmail } from '@/lib/mail'
+
+describe('POST /api/auth/register/teacher', () => {
+  const testEmail = `test-register-teacher-${Date.now()}@example.com`
+  let createdUserId: string | undefined
+
+  afterEach(async () => {
+    if (createdUserId) {
+      await db.delete(emailVerifications).where(eq(emailVerifications.userId, createdUserId))
+      await db.delete(users).where(eq(users.id, createdUserId))
+      createdUserId = undefined
+    }
+  })
+
+  it('creates a pending teacher account and sends a verification email', async () => {
+    const req = new Request('http://localhost/api/auth/register/teacher', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'New Teacher',
+        email: testEmail,
+        password: 'password123',
+        department: 'Physics',
+      }),
+    })
+
+    const res = await POST(req)
+    const body = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(body.message).toMatch(/check your email/i)
+    expect(sendVerificationEmail).toHaveBeenCalledWith(testEmail, 'New Teacher', expect.any(String))
+
+    const created = await db.select().from(users).where(eq(users.email, testEmail))
+    expect(created[0].status).toBe('pending_verification')
+    expect(created[0].role).toBe('teacher')
+    createdUserId = created[0].id
+  })
+
+  it('rejects a password shorter than 8 characters', async () => {
+    const req = new Request('http://localhost/api/auth/register/teacher', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'X', email: testEmail, password: 'short' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects a duplicate email', async () => {
+    const first = new Request('http://localhost/api/auth/register/teacher', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'First', email: testEmail, password: 'password123' }),
+    })
+    const firstRes = await POST(first)
+    createdUserId = (await db.select().from(users).where(eq(users.email, testEmail)))[0]?.id
+
+    const second = new Request('http://localhost/api/auth/register/teacher', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Second', email: testEmail, password: 'password123' }),
+    })
+    const secondRes = await POST(second)
+    expect(firstRes.status).toBe(201)
+    expect(secondRes.status).toBe(409)
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx jest app/api/auth/register/teacher/route.test.ts`
+Expected: PASS on the old Mongoose implementation too (this confirms the test is a faithful behavioral spec) — proceed to Step 3 and re-run after the rewrite to confirm it still passes against Postgres.
+
+- [ ] **Step 3: Rewrite the route**
+
+Replace the full contents of `app/api/auth/register/teacher/route.ts`:
+
+```ts
+import { NextResponse } from 'next/server'
+import bcrypt from 'bcryptjs'
+import { findUserByEmail, createUser } from '@/lib/db/queries/users'
+import { createEmailVerification } from '@/lib/db/queries/email-verifications'
+import { generateToken, getTokenExpiry } from '@/lib/tokens'
+import { sendVerificationEmail } from '@/lib/mail'
+
+export async function POST(req: Request) {
+  try {
+    const { name, email, password, department } = await req.json()
+
+    if (!name || !email || !password) {
+      return NextResponse.json(
+        { error: 'Name, email, and password are required' },
+        { status: 400 }
+      )
+    }
+
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'Password must be at least 8 characters' },
+        { status: 400 }
+      )
+    }
+
+    const existing = await findUserByEmail(email)
+    if (existing) {
+      return NextResponse.json(
+        { error: 'An account with this email already exists' },
+        { status: 409 }
+      )
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12)
+
+    const user = await createUser({
+      name,
+      email,
+      password: hashedPassword,
+      role: 'teacher',
+      status: 'pending_verification',
+      department,
+    })
+
+    const token = generateToken()
+    await createEmailVerification({
+      userId: user.id,
+      token,
+      expiresAt: getTokenExpiry(24),
+    })
+
+    await sendVerificationEmail(email, name, token)
+
+    return NextResponse.json(
+      { message: 'Account created. Please check your email to complete verification.' },
+      { status: 201 }
+    )
+  } catch (error) {
+    console.error('Teacher registration error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx jest app/api/auth/register/teacher/route.test.ts`
+Expected: PASS (3 tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/api/auth/register/teacher/route.ts app/api/auth/register/teacher/route.test.ts
+git commit -m "feat: migrate teacher registration route to postgres"
+```
+
+---
+
+### Task 8: Migrate the management registration route
+
+**Files:**
+- Modify: `app/api/auth/register/management/route.ts`
+- Test: `app/api/auth/register/management/route.test.ts`
+
+**Interfaces:**
+- Consumes: `findUserByEmail`, `createUser` (Task 3)
+- Produces: same HTTP contract as before.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `app/api/auth/register/management/route.test.ts`:
+
+```ts
+import { db } from '@/lib/db'
+import { users } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+import { POST } from './route'
+
+describe('POST /api/auth/register/management', () => {
+  const testEmail = `test-register-mgmt-${Date.now()}@example.com`
+  const validInviteCode = process.env.MANAGEMENT_INVITE_CODE ?? 'test-invite-code'
+  let createdUserId: string | undefined
+
+  beforeAll(() => {
+    process.env.MANAGEMENT_INVITE_CODE = validInviteCode
+  })
+
+  afterEach(async () => {
+    if (createdUserId) {
+      await db.delete(users).where(eq(users.id, createdUserId))
+      createdUserId = undefined
+    }
+  })
+
+  it('creates an active management account when the invite code is correct', async () => {
+    const req = new Request('http://localhost/api/auth/register/management', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'New Manager',
+        email: testEmail,
+        password: 'password123',
+        employeeId: 'EMP-001',
+        inviteCode: validInviteCode,
+      }),
+    })
+    const res = await POST(req)
+    const body = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(body.message).toMatch(/created successfully/i)
+
+    const created = await db.select().from(users).where(eq(users.email, testEmail))
+    expect(created[0].status).toBe('active')
+    expect(created[0].role).toBe('management')
+    createdUserId = created[0].id
+  })
+
+  it('rejects an incorrect invite code', async () => {
+    const req = new Request('http://localhost/api/auth/register/management', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'New Manager',
+        email: testEmail,
+        password: 'password123',
+        inviteCode: 'wrong-code',
+      }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(403)
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx jest app/api/auth/register/management/route.test.ts`
+Expected: PASS against the old Mongoose route (faithful spec check) — re-run after Step 3 to confirm behavior is preserved on Postgres.
+
+- [ ] **Step 3: Rewrite the route**
+
+Replace the full contents of `app/api/auth/register/management/route.ts`:
+
+```ts
+import { NextResponse } from 'next/server'
+import bcrypt from 'bcryptjs'
+import { findUserByEmail, createUser } from '@/lib/db/queries/users'
+
+export async function POST(req: Request) {
+  try {
+    const { name, email, password, employeeId, inviteCode } = await req.json()
+
+    if (!name || !email || !password || !inviteCode) {
+      return NextResponse.json(
+        { error: 'All fields including invite code are required' },
+        { status: 400 }
+      )
+    }
+
+    if (inviteCode !== process.env.MANAGEMENT_INVITE_CODE) {
+      return NextResponse.json({ error: 'Invalid invite code' }, { status: 403 })
+    }
+
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'Password must be at least 8 characters' },
+        { status: 400 }
+      )
+    }
+
+    const existing = await findUserByEmail(email)
+    if (existing) {
+      return NextResponse.json(
+        { error: 'An account with this email already exists' },
+        { status: 409 }
+      )
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12)
+
+    await createUser({
+      name,
+      email,
+      password: hashedPassword,
+      role: 'management',
+      status: 'active',
+      employeeId,
+    })
+
+    return NextResponse.json(
+      { message: 'Management account created successfully. You can now log in.' },
+      { status: 201 }
+    )
+  } catch (error) {
+    console.error('Management registration error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx jest app/api/auth/register/management/route.test.ts`
+Expected: PASS (2 tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/api/auth/register/management/route.ts app/api/auth/register/management/route.test.ts
+git commit -m "feat: migrate management registration route to postgres"
+```
+
+---
+
+### Task 9: Migrate the verify-email route
+
+**Files:**
+- Modify: `app/api/auth/verify-email/route.ts`
+- Test: `app/api/auth/verify-email/route.test.ts`
+
+**Interfaces:**
+- Consumes: `findVerificationByToken`, `deleteVerificationByToken` (Task 4), `updateUserStatus`, `createUser` (Task 3)
+- Produces: same HTTP contract as before.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `app/api/auth/verify-email/route.test.ts`:
+
+```ts
+import { db } from '@/lib/db'
+import { users, emailVerifications } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+import { createUser } from '@/lib/db/queries/users'
+import { createEmailVerification } from '@/lib/db/queries/email-verifications'
+import { GET } from './route'
+
+describe('GET /api/auth/verify-email', () => {
+  let userId: string
+
+  afterEach(async () => {
+    await db.delete(emailVerifications).where(eq(emailVerifications.userId, userId))
+    await db.delete(users).where(eq(users.id, userId))
+  })
+
+  async function makePendingUserWithToken(token: string, expiresAt: Date) {
+    const user = await createUser({
+      name: 'Pending User',
+      email: `test-verify-${token}@example.com`,
+      password: 'hashed',
+      role: 'teacher',
+      status: 'pending_verification',
+    })
+    userId = user.id
+    await createEmailVerification({ userId: user.id, token, expiresAt })
+    return user
+  }
+
+  it('activates the user and deletes the token on a valid request', async () => {
+    const token = `valid-token-${Date.now()}`
+    await makePendingUserWithToken(token, new Date(Date.now() + 60 * 60 * 1000))
+
+    const req = new Request(`http://localhost/api/auth/verify-email?token=${token}`)
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.message).toMatch(/verified successfully/i)
+
+    const updatedUser = (await db.select().from(users).where(eq(users.id, userId)))[0]
+    expect(updatedUser.status).toBe('active')
+
+    const remainingTokens = await db
+      .select()
+      .from(emailVerifications)
+      .where(eq(emailVerifications.token, token))
+    expect(remainingTokens).toHaveLength(0)
+  })
+
+  it('returns 400 for a token that does not exist', async () => {
+    userId = '00000000-0000-0000-0000-000000000000'
+    const req = new Request('http://localhost/api/auth/verify-email?token=does-not-exist')
+    const res = await GET(req)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 410 and deletes the token for an expired link', async () => {
+    const token = `expired-token-${Date.now()}`
+    await makePendingUserWithToken(token, new Date(Date.now() - 60 * 60 * 1000))
+
+    const req = new Request(`http://localhost/api/auth/verify-email?token=${token}`)
+    const res = await GET(req)
+    expect(res.status).toBe(410)
+
+    const remainingTokens = await db
+      .select()
+      .from(emailVerifications)
+      .where(eq(emailVerifications.token, token))
+    expect(remainingTokens).toHaveLength(0)
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx jest app/api/auth/verify-email/route.test.ts`
+Expected: PASS against the old Mongoose route (faithful spec check) — re-run after Step 3 to confirm behavior is preserved on Postgres.
+
+- [ ] **Step 3: Rewrite the route**
+
+Replace the full contents of `app/api/auth/verify-email/route.ts`:
+
+```ts
+import { NextResponse } from 'next/server'
+import { findVerificationByToken, deleteVerificationByToken } from '@/lib/db/queries/email-verifications'
+import { updateUserStatus } from '@/lib/db/queries/users'
+import { isTokenExpired } from '@/lib/tokens'
+
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const token = searchParams.get('token')
+
+    if (!token) {
+      return NextResponse.json({ error: 'Token is required' }, { status: 400 })
+    }
+
+    const verification = await findVerificationByToken(token)
+    if (!verification) {
+      return NextResponse.json(
+        { error: 'Invalid or already used verification link' },
+        { status: 400 }
+      )
+    }
+
+    if (isTokenExpired(verification.expiresAt)) {
+      await deleteVerificationByToken(token)
+      return NextResponse.json(
+        { error: 'Verification link has expired. Please sign up again.' },
+        { status: 410 }
+      )
+    }
+
+    await updateUserStatus(verification.userId, 'active')
+    await deleteVerificationByToken(token)
+
+    return NextResponse.json(
+      { message: 'Email verified successfully. You can now log in.' },
+      { status: 200 }
+    )
+  } catch (error) {
+    console.error('Email verification error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx jest app/api/auth/verify-email/route.test.ts`
+Expected: PASS (3 tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/api/auth/verify-email/route.ts app/api/auth/verify-email/route.test.ts
+git commit -m "feat: migrate verify-email route to postgres"
+```
+
+---
+
+### Task 10: Migrate the school route
+
+**Files:**
+- Modify: `app/api/school/route.ts`
+- Test: `app/api/school/route.test.ts`
+
+**Interfaces:**
+- Consumes: `getOrCreateSchool`, `updateSchool` (Task 5); `auth` from `lib/auth.ts` (Task 6, unchanged contract)
+- Produces: same HTTP contract as before.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `app/api/school/route.test.ts`:
+
+```ts
+import { db } from '@/lib/db'
+import { schools } from '@/lib/db/schema'
+
+jest.mock('@/lib/auth', () => ({
+  auth: jest.fn(),
+}))
+
+import { auth } from '@/lib/auth'
+import { GET, PATCH } from './route'
+
+describe('GET /api/school', () => {
+  afterEach(async () => {
+    await db.delete(schools)
+  })
+
+  it('returns a default school row, creating one if none exists', async () => {
+    const res = await GET()
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.name).toBe('Academic Planning System')
+  })
+})
+
+describe('PATCH /api/school', () => {
+  afterEach(async () => {
+    await db.delete(schools)
+  })
+
+  it('rejects when there is no session', async () => {
+    ;(auth as jest.Mock).mockResolvedValue(null)
+    const req = new Request('http://localhost/api/school', {
+      method: 'PATCH',
+      body: JSON.stringify({ board: 'ICSE Affiliated' }),
+    })
+    const res = await PATCH(req)
+    expect(res.status).toBe(401)
+  })
+
+  it('rejects when the session role is not management', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'teacher' } })
+    const req = new Request('http://localhost/api/school', {
+      method: 'PATCH',
+      body: JSON.stringify({ board: 'ICSE Affiliated' }),
+    })
+    const res = await PATCH(req)
+    expect(res.status).toBe(401)
+  })
+
+  it('updates the school when the session role is management', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const req = new Request('http://localhost/api/school', {
+      method: 'PATCH',
+      body: JSON.stringify({ board: 'ICSE Affiliated' }),
+    })
+    const res = await PATCH(req)
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.board).toBe('ICSE Affiliated')
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx jest app/api/school/route.test.ts`
+Expected: PASS against the old Mongoose route (faithful spec check) — re-run after Step 3 to confirm behavior is preserved on Postgres.
+
+- [ ] **Step 3: Rewrite the route**
+
+Replace the full contents of `app/api/school/route.ts`:
+
+```ts
+import { NextResponse } from 'next/server'
+import { getOrCreateSchool, updateSchool } from '@/lib/db/queries/school'
+import { auth } from '@/lib/auth'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
+  try {
+    const school = await getOrCreateSchool()
+    return NextResponse.json(school, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0, must-revalidate',
+      },
+    })
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch school details' }, { status: 500 })
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const session = await auth()
+    if (!session || session.user.role !== 'management') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const data = await req.json()
+    const school = await updateSchool(data)
+
+    return NextResponse.json(school)
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to update school details' }, { status: 500 })
+  }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx jest app/api/school/route.test.ts`
+Expected: PASS (4 tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/api/school/route.ts app/api/school/route.test.ts
+git commit -m "feat: migrate school route to postgres"
+```
+
+---
+
+### Task 11: Retire the Mongoose models and run the full verification pass
+
+**Files:**
+- Delete: `models/User.ts`
+- Delete: `models/EmailVerification.ts`
+- Delete: `models/School.ts`
+
+- [ ] **Step 1: Confirm nothing else references the three models**
+
+Run: `grep -rn "models/User\|models/EmailVerification\|models/School" --include="*.ts" --include="*.tsx" .`
+Expected: only the 5 already-migrated files match (`lib/auth.ts`, both register routes, `verify-email/route.ts`, `school/route.ts`) — and after Step 2 below, even those won't match anymore. If any other file matches, stop and migrate that file's usage to the new query functions before continuing.
+
+- [ ] **Step 2: Delete the obsolete Mongoose model files**
+
+```bash
+git rm models/User.ts models/EmailVerification.ts models/School.ts
+```
+
+- [ ] **Step 3: Re-run the grep to confirm zero remaining references**
+
+Run: `grep -rn "models/User'\|models/EmailVerification'\|models/School'" --include="*.ts" --include="*.tsx" .`
+Expected: no output.
+
+- [ ] **Step 4: Run the full test suite**
+
+Run: `npm test`
+Expected: PASS — all tests from Tasks 2–10 pass, plus every pre-existing test in the repo still passes (Mongoose-backed routes for `Student`, `Announcement`, etc. are untouched).
+
+- [ ] **Step 5: Run the production build to catch any stale import**
+
+Run: `npm run build`
+Expected: build succeeds with no TypeScript errors referencing the deleted model files.
+
+- [ ] **Step 6: Manually verify the live login flow**
+
+Run: `npm run dev`, then in a browser:
+1. Sign up a new teacher account at `/signup/teacher` — confirm the "check your email" message appears and a verification email arrives.
+2. Click the verification link — confirm it redirects to a success state and the account becomes active in Neon (check via `npm run db:studio`).
+3. Log in with the new account at `/login` — confirm it lands on `/teacher`.
+4. Sign up a management account at `/signup/management` with the correct `MANAGEMENT_INVITE_CODE` — confirm immediate active status and successful login to `/management`.
+5. As a management user, open the dashboard and confirm the "School Background" card loads (reads from the new `schools` table) and that editing it via "View Details" persists after a page refresh.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add -A
+git commit -m "chore: retire mongoose user/school/email-verification models"
+```
+
+---
+
+## What This Plan Does Not Cover
+
+The app still has 13 other Mongoose models (`Student`, `Announcement`, `AcademicPlanning`, `Candidate`, `Orientation`, `StudentCounseling`, `TeacherFeedback`, `StudentReport`, `Protocol`, `Appraisal`, `Requirement`, `TeacherSchedule`, `DailyReport`, `StudyMaterial`) and `lib/mongodb.ts` itself — all untouched, still running on MongoDB. They migrate in follow-up plans, grouped the same way the schema was originally designed:
+
+1. **Academic structure** — `programs`, `batches`, `subjects`, `chapters`, `batch_syllabus`, `teachers`, `students`, `parents_guardians` (replaces `Student.ts`, `AcademicPlanning.ts`, `TeacherSchedule.ts`'s academic fields)
+2. **Operations** — `announcements`, `protocols` equivalent, `daily_reports`, `study_materials`, recruitment tables (`Candidate`, `Requirement`, `Orientation`, `Appraisal`), `counseling_sessions`, `feedback`
+3. **Net-new features** — `fee_structure`/`fee_payments`, `tests`/`question_bank`/`test_results`, `attendance`, `academic_calendar` (no Mongoose equivalent exists yet — pure greenfield)
+
+Each should get its own plan via this same skill once this one ships.
