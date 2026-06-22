@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { connectDB } from '@/lib/mongodb'
-import User from '@/models/User'
+import { findUserByEmail, createUser } from '@/lib/db/queries/users'
 
 export async function POST(req: Request) {
   try {
@@ -25,9 +24,7 @@ export async function POST(req: Request) {
       )
     }
 
-    await connectDB()
-
-    const existing = await User.findOne({ email: email.toLowerCase() })
+    const existing = await findUserByEmail(email)
     if (existing) {
       return NextResponse.json(
         { error: 'An account with this email already exists' },
@@ -37,9 +34,9 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    await User.create({
+    await createUser({
       name,
-      email: email.toLowerCase(),
+      email,
       password: hashedPassword,
       role: 'management',
       status: 'active',
