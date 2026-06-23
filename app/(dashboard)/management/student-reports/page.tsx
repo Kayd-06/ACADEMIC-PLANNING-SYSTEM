@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Sidebar from '@/components/dashboard/Sidebar'
 import TopHeader from '@/components/dashboard/TopHeader'
-import StudentReportsAnalytics from '@/components/dashboard/management/StudentReportsAnalytics'
+import StudentReportsView from '@/components/dashboard/management/StudentReportsView'
 import { MANAGEMENT_NAV } from '@/lib/navigation'
 
 function getInitials(name: string) {
@@ -20,7 +20,7 @@ export default async function ManagementStudentReportsPage() {
       <Sidebar userName={session.user.name ?? ''} userRole="Academic Administration" navItems={MANAGEMENT_NAV} initials={initials} />
       <div className="flex-1 flex flex-col min-w-0">
         <TopHeader initials={initials} />
-        <StudentReportsAnalytics />
+        <StudentReportsView />
       </div>
     </div>
   )
