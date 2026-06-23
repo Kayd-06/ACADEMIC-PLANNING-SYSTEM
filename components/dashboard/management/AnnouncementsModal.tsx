@@ -57,9 +57,19 @@ export default function AnnouncementsModal({
 
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this announcement?')) return
-    await fetch(`/api/announcements/${id}`, { method: 'DELETE' })
-    fetchAnnouncements()
-    onUpdate()
+    try {
+      const res = await fetch(`/api/announcements/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        fetchAnnouncements()
+        onUpdate()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to delete announcement.')
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Network error. Could not delete announcement.')
+    }
   }
 
   function startEdit(a: Announcement) {

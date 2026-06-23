@@ -139,8 +139,18 @@ export default function RecruitmentDashboard() {
 
   async function handleDeleteCandidate(id: string) {
     if (!confirm('Are you sure you want to delete this candidate?')) return
-    await fetch(`/api/recruitment/candidates?id=${id}`, { method: 'DELETE' })
-    await fetchData()
+    try {
+      const res = await fetch(`/api/recruitment/candidates?id=${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        await fetchData()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to delete candidate.')
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Network error. Could not delete candidate.')
+    }
   }
 
   async function handleStatusChange(id: string, newStatus: string) {
@@ -153,8 +163,19 @@ export default function RecruitmentDashboard() {
   }
 
   async function handleDeleteAppraisal(id: string) {
-    await fetch(`/api/recruitment/appraisals?id=${id}`, { method: 'DELETE' })
-    await fetchData()
+    if (!confirm('Are you sure you want to delete this appraisal?')) return
+    try {
+      const res = await fetch(`/api/recruitment/appraisals?id=${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        await fetchData()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to delete appraisal.')
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Network error. Could not delete appraisal.')
+    }
   }
 
   const totalOpenRoles = requirements.reduce((sum, req) => sum + (req.openPositions || 1), 0).toString()

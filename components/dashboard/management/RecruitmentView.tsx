@@ -2,6 +2,15 @@
 import { Briefcase, Users, Calendar, CheckCircle2, Filter, Plus, Clock, CheckCircle } from 'lucide-react'
 
 // --- Mock Data ---
+interface PipelineItem {
+  initials: string;
+  name: string;
+  role: string;
+  dep: string;
+  theme: string;
+  schedule?: string;
+}
+
 const KPIS = [
   { label: 'Open Positions', value: '12', subtext: '+2 this month', icon: Briefcase, subcolor: 'text-green-600', subbg: 'bg-green-50' },
   { label: 'Active Candidates', value: '34', subtext: '+8 this week', icon: Users, subcolor: 'text-green-600', subbg: 'bg-green-50' },
@@ -9,7 +18,7 @@ const KPIS = [
   { label: 'Offers Extended', value: '3', subtext: 'All accepted', icon: CheckCircle2, subcolor: 'text-emerald-600', subbg: 'bg-emerald-50' }
 ]
 
-const PIPELINE = {
+const PIPELINE: Record<string, PipelineItem[]> = {
   Requirement: [
     { initials: 'AS', name: 'Alice Smith', role: 'Mathematics HOD', dep: 'SCIENCE', theme: 'blue' },
     { initials: 'BJ', name: 'Bob Jones', role: 'Physics Teacher', dep: 'SCIENCE', theme: 'blue' }

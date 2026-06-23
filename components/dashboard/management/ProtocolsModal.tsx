@@ -74,9 +74,20 @@ export default function ProtocolsModal({ isOpen, onClose, onUpdate }: Props) {
   }
 
   async function handleDelete(id: string) {
-    await fetch(`/api/protocols?id=${id}`, { method: 'DELETE' })
-    await fetchProtocols()
-    onUpdate()
+    if (!confirm('Are you sure you want to delete this protocol?')) return
+    try {
+      const res = await fetch(`/api/protocols?id=${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        await fetchProtocols()
+        onUpdate()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to delete protocol.')
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Network error. Could not delete protocol.')
+    }
   }
 
   if (!isOpen) return null

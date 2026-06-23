@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
 import { Building2, Zap, FileText, TrendingUp, Plus, Filter, Download, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck } from 'lucide-react'
 import SchoolDetailsModal from './SchoolDetailsModal'
 import ProtocolsModal from './ProtocolsModal'
@@ -91,13 +92,15 @@ export default function InstitutionalDashboard() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Institutional Dashboard</h1>
           <p className="text-[13px] font-medium text-slate-500 mt-1">Overview of academic background, protocols, and ongoing management tasks</p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-1.5 bg-[#0b1320] hover:bg-[#1a2333] text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-sm transition-all"
-        >
-          New Recruitment
-        </motion.button>
+        <Link href="/management/recruitment">
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center gap-1.5 bg-[#0b1320] hover:bg-[#1a2333] text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-sm transition-all cursor-pointer"
+          >
+            New Recruitment
+          </motion.div>
+        </Link>
       </motion.div>
 
       {/* Top grid: School Background + Quick Actions + Protocols */}
@@ -139,19 +142,31 @@ export default function InstitutionalDashboard() {
           </div>
           <div className="space-y-3">
             {[
-              { label: 'Initiate Recruitment', icon: <Plus className="w-4 h-4 text-indigo-600" /> },
-              { label: 'Update Macro Plan', icon: <Clock className="w-4 h-4 text-indigo-600" /> },
-              { label: 'Upload Compliance Doc', icon: <FileText className="w-4 h-4 text-indigo-600" /> },
+              { label: 'Initiate Recruitment', href: '/management/recruitment', icon: <Plus className="w-4 h-4 text-indigo-600" /> },
+              { label: 'Update Macro Plan', href: '/management/academic-planning', icon: <Clock className="w-4 h-4 text-indigo-600" /> },
+              { label: 'Upload Compliance Doc', href: '#', onClick: () => setIsProtocolsModalOpen(true), icon: <FileText className="w-4 h-4 text-indigo-600" /> },
             ].map(action => (
-              <button key={action.label} className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all group text-left">
-                <div className="flex items-center gap-3 text-[13px] font-bold text-slate-800">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-                    {action.icon}
+              action.href !== '#' ? (
+                <Link key={action.label} href={action.href!} className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all group text-left">
+                  <div className="flex items-center gap-3 text-[13px] font-bold text-slate-800">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                      {action.icon}
+                    </div>
+                    {action.label}
                   </div>
-                  {action.label}
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
-              </button>
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
+                </Link>
+              ) : (
+                <button key={action.label} onClick={action.onClick} className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all group text-left cursor-pointer">
+                  <div className="flex items-center gap-3 text-[13px] font-bold text-slate-800">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                      {action.icon}
+                    </div>
+                    {action.label}
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
+                </button>
+              )
             ))}
           </div>
         </motion.div>

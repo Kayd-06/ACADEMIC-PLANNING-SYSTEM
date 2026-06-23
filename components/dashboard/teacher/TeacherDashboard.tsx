@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
 import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Clock } from 'lucide-react'
 
 const fadeUp = (delay = 0) => ({
@@ -64,13 +65,15 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })} • You have {schedules.filter(s => s.status === 'Upcoming' || s.status === 'Pending').length} classes today
           </p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-1.5 bg-[#002045] hover:bg-[#1a365d] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Add Class Note
-        </motion.button>
+        <Link href="/teacher/daily-report">
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center gap-1.5 bg-[#002045] hover:bg-[#1a365d] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Add Class Note
+          </motion.div>
+        </Link>
       </motion.div>
 
       <div className="grid grid-cols-12 gap-4 mb-6">
@@ -177,7 +180,9 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
           <motion.div {...fadeUp(0.22)}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-[15px] font-bold text-slate-900">Today's Schedule</h2>
-              <button className="text-[13px] font-bold text-indigo-600 hover:text-indigo-700">View Full Week</button>
+              <Link href="/teacher/schedule" className="text-[13px] font-bold text-indigo-600 hover:text-indigo-700">
+                View Full Week
+              </Link>
             </div>
             <div className="relative pl-4 space-y-6 before:absolute before:inset-y-0 before:left-[21px] before:w-0.5 before:bg-slate-100">
               {schedules.map((row, i) => (
@@ -198,9 +203,11 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
                         </p>
                       </div>
                       {row.status !== 'Completed' && (
-                        <button className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-bold rounded-lg transition-colors">
-                          Mark Attendance
-                        </button>
+                        <Link href="/teacher/attendance">
+                          <span className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-bold rounded-lg transition-colors inline-block cursor-pointer">
+                            Mark Attendance
+                          </span>
+                        </Link>
                       )}
                     </div>
                   </div>
@@ -216,16 +223,16 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
             <h2 className="text-[15px] font-bold text-slate-900 mb-4">Quick Actions</h2>
             <div className="space-y-3">
               {[
-                { label: 'Submit Daily Report', icon: <ClipboardList className="w-4 h-4 text-indigo-600" /> },
-                { label: 'Upload Material', icon: <BookOpen className="w-4 h-4 text-emerald-600" /> },
-                { label: 'Create Assignment', icon: <Plus className="w-4 h-4 text-amber-600" /> },
+                { label: 'Submit Daily Report', href: '/teacher/daily-report', icon: <ClipboardList className="w-4 h-4 text-indigo-600" /> },
+                { label: 'Upload Material', href: '/teacher/courses', icon: <BookOpen className="w-4 h-4 text-emerald-600" /> },
+                { label: 'Create Assignment', href: '/teacher/assignments', icon: <Plus className="w-4 h-4 text-amber-600" /> },
               ].map(action => (
-                <button key={action.label} className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-slate-300 transition-all text-left group bg-slate-50/50">
+                <Link key={action.label} href={action.href} className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-slate-300 transition-all text-left group bg-slate-50/50">
                   <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center shrink-0">
                     {action.icon}
                   </div>
                   <span className="text-[13px] font-bold text-slate-700 group-hover:text-slate-900">{action.label}</span>
-                </button>
+                </Link>
               ))}
             </div>
           </motion.div>

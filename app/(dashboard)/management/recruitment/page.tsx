@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { LayoutDashboard, Users, BookOpen, ShieldCheck, UserCircle } from 'lucide-react'
 import Sidebar from '@/components/dashboard/Sidebar'
 import TopHeader from '@/components/dashboard/TopHeader'
-import RecruitmentView from '@/components/dashboard/management/RecruitmentView'
+import RecruitmentDashboard from '@/components/dashboard/management/RecruitmentDashboard'
 import { MANAGEMENT_NAV } from '@/lib/navigation'
 
 function getInitials(name: string) {
@@ -20,7 +20,7 @@ export default async function ManagementRecruitmentPage() {
       <Sidebar userName={session.user.name ?? ''} userRole="Academic Administration" navItems={MANAGEMENT_NAV} initials={initials} />
       <div className="flex-1 flex flex-col min-w-0">
         <TopHeader initials={initials} />
-        <RecruitmentView />
+        <RecruitmentDashboard />
       </div>
     </div>
   )

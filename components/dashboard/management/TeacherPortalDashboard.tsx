@@ -128,10 +128,16 @@ export default function TeacherPortalDashboard({ teacherName }: { teacherName: s
   async function handleDeleteSchedule(id: string) {
     if (!confirm('Are you sure you want to delete this schedule?')) return
     try {
-      await fetch(`/api/teacher-portal/schedule?id=${id}`, { method: 'DELETE' })
-      handleScheduleSuccess()
+      const res = await fetch(`/api/teacher-portal/schedule?id=${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        handleScheduleSuccess()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to delete schedule.')
+      }
     } catch (err) {
       console.error(err)
+      alert('Network error. Could not delete schedule.')
     }
   }
 
