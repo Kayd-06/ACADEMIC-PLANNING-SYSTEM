@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Sidebar from '@/components/dashboard/Sidebar'
 import TopHeader from '@/components/dashboard/TopHeader'
-import TeacherStudentsTabbed from '@/components/dashboard/teacher/TeacherStudentsTabbed'
+import TeacherStudentRosterView from '@/components/dashboard/teacher/TeacherStudentRosterView'
 import { TEACHER_NAV } from '@/lib/navigation'
 
 function getInitials(name: string) {
@@ -12,21 +12,14 @@ function getInitials(name: string) {
 export default async function TeacherStudentsPage() {
   const session = await auth()
   if (!session) redirect('/login')
-  if (session.user.role !== 'teacher' && session.user.role !== 'management') redirect('/')
-
-  const initials = getInitials(session.user.name ?? 'EA')
-
+  const initials = getInitials(session.user.name ?? 'Teacher')
+  
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar
-        userName={session.user.name ?? ''}
-        userRole={session.user.role === 'management' ? 'Academic Administration' : 'Faculty'}
-        navItems={TEACHER_NAV}
-        initials={initials}
-      />
+    <div className="flex min-h-screen bg-slate-50">
+      <Sidebar userName={session.user.name ?? ''} userRole="Faculty Portal" navItems={TEACHER_NAV} initials={initials} />
       <div className="flex-1 flex flex-col min-w-0">
         <TopHeader initials={initials} />
-        <TeacherStudentsTabbed />
+        <TeacherStudentRosterView />
       </div>
     </div>
   )
