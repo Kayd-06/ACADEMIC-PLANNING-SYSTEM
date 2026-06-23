@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Sidebar from '@/components/dashboard/Sidebar'
 import TopHeader from '@/components/dashboard/TopHeader'
-import DailyReportForm from '@/components/dashboard/teacher/DailyReportForm'
+import TeacherDailyReportView from '@/components/dashboard/teacher/TeacherDailyReportView'
 import { TEACHER_NAV } from '@/lib/navigation'
 
 function getInitials(name: string) {
@@ -12,13 +12,13 @@ function getInitials(name: string) {
 export default async function TeacherDailyReportPage() {
   const session = await auth()
   if (!session) redirect('/login')
-  const initials = getInitials(session.user.name ?? 'TC')
+  const initials = getInitials(session.user.name ?? 'Teacher')
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar userName={session.user.name ?? ''} userRole="Faculty" navItems={TEACHER_NAV} initials={initials} />
+    <div className="flex min-h-screen bg-slate-50">
+      <Sidebar userName={session.user.name ?? ''} userRole="Faculty Portal" navItems={TEACHER_NAV} initials={initials} />
       <div className="flex-1 flex flex-col min-w-0">
         <TopHeader initials={initials} />
-        <DailyReportForm firstName={session.user.name?.split(' ')[0] ?? 'Teacher'} />
+        <TeacherDailyReportView />
       </div>
     </div>
   )
