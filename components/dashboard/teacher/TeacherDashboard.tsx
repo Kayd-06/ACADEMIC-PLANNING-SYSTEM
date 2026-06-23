@@ -56,11 +56,13 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
   }
 
   return (
-    <div className="flex-1 p-6 overflow-auto">
-      <motion.div {...fadeUp(0)} className="flex items-start justify-between mb-6">
+    <div className="flex-1 p-6 overflow-auto bg-slate-50/50">
+      <motion.div {...fadeUp(0)} className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Welcome back, {firstName}. Here's your schedule for today.</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome back, {firstName}</h1>
+          <p className="text-[13px] font-medium text-slate-500 mt-1">
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })} • You have {schedules.filter(s => s.status === 'Upcoming' || s.status === 'Pending').length} classes today
+          </p>
         </div>
         <motion.button
           whileHover={{ scale: 1.02 }}
@@ -125,75 +127,141 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-4 gap-4 mb-4">
-        {[
-          { icon: <BookOpen className="w-5 h-5" />, label: 'Courses', value: '4', color: 'bg-emerald-50', iconColor: 'text-emerald-600' },
-          { icon: <Users className="w-5 h-5" />, label: 'Students', value: '142', color: 'bg-blue-50', iconColor: 'text-blue-600' },
-          { icon: <Calendar className="w-5 h-5" />, label: 'Classes today', value: '3', color: 'bg-amber-50', iconColor: 'text-amber-600' },
-          { icon: <ClipboardList className="w-5 h-5" />, label: 'Pending tasks', value: '2', color: 'bg-red-50', iconColor: 'text-red-600' },
-        ].map((s, i) => (
-          <motion.div key={s.label} {...fadeUp(i * 0.05)} className={`${s.color} border border-transparent hover:border-gray-200 transition-colors rounded-xl p-5 shadow-sm`}>
-            <div className="flex items-center justify-between mb-4">
-              <span className={`${s.iconColor}`}>{s.icon}</span>
+      <div className="grid grid-cols-4 gap-4 mb-8">
+        <motion.div {...fadeUp(0.05)} className="bg-[#0b1320] rounded-xl p-5 shadow-sm text-white relative overflow-hidden">
+          <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/5 rounded-full blur-2xl" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+              <Calendar className="w-4 h-4 text-white" />
             </div>
-            <p className="text-2xl font-bold text-gray-900 leading-none mb-1">{s.value}</p>
-            <p className="text-xs font-medium text-gray-600">{s.label}</p>
-          </motion.div>
-        ))}
+          </div>
+          <p className="text-3xl font-bold leading-none mb-1">{schedules.length}</p>
+          <p className="text-[13px] font-medium text-slate-300">Today's Classes</p>
+        </motion.div>
+
+        <motion.div {...fadeUp(0.1)} className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-slate-900 leading-none mb-1">2</p>
+          <p className="text-[13px] font-bold text-slate-500">Pending Daily Reports</p>
+        </motion.div>
+
+        <motion.div {...fadeUp(0.15)} className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-slate-900 leading-none mb-1">14</p>
+          <p className="text-[13px] font-bold text-slate-500">Assignments to Grade</p>
+        </motion.div>
+
+        <motion.div {...fadeUp(0.2)} className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+              <ClipboardList className="w-4 h-4 text-purple-600" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-slate-900 leading-none mb-1">1</p>
+          <p className="text-[13px] font-bold text-slate-500">Upcoming Tests</p>
+        </motion.div>
       </div>
 
-      {/* Today's schedule table */}
-      <motion.div {...fadeUp(0.22)} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <p className="text-sm font-bold text-gray-900">Today's Schedule</p>
-          <div className="flex items-center gap-2">
-            <button className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
-              <Filter className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-50">
-              {['Activity', 'Time', 'Batch', 'Location', 'Status', ''].map(h => (
-                <th key={h} className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wide">{h}</th>
+      <div className="grid grid-cols-12 gap-6">
+        {/* Left Column (Schedule) */}
+        <div className="col-span-8">
+          <motion.div {...fadeUp(0.22)}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-[15px] font-bold text-slate-900">Today's Schedule</h2>
+              <button className="text-[13px] font-bold text-indigo-600 hover:text-indigo-700">View Full Week</button>
+            </div>
+            <div className="relative pl-4 space-y-6 before:absolute before:inset-y-0 before:left-[21px] before:w-0.5 before:bg-slate-100">
+              {schedules.map((row, i) => (
+                <div key={row._id || i} className="relative pl-10">
+                  <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white ring-2 ${
+                    row.status === 'Completed' ? 'bg-slate-300 ring-slate-200' :
+                    row.status === 'Pending' ? 'bg-amber-400 ring-amber-100' :
+                    'bg-indigo-600 ring-indigo-100'
+                  }`} />
+                  
+                  <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1">{row.time}</p>
+                        <h3 className="text-[15px] font-bold text-slate-900">{row.activity}</h3>
+                        <p className="text-[13px] font-medium text-slate-600 mt-1">
+                          {row.batch} • <span className="text-slate-400">{row.location}</span>
+                        </p>
+                      </div>
+                      {row.status !== 'Completed' && (
+                        <button className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-bold rounded-lg transition-colors">
+                          Mark Attendance
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {schedules.map((row, i) => (
-              <motion.tr
-                key={row._id || i}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.28 + i * 0.05 }}
-                className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors"
-              >
-                <td className="px-5 py-3.5 text-sm font-bold text-gray-800">{row.activity}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-500">{row.time}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-500">{row.batch}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-500">{row.location}</td>
-                <td className="px-5 py-3.5">
-                  <select
-                    value={row.status}
-                    onChange={(e) => handleStatusChange(row._id, e.target.value)}
-                    className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-full border cursor-pointer outline-none appearance-none text-center transition-colors ${STATUS_STYLES[row.status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}
-                  >
-                    <option value="Upcoming">Upcoming</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </td>
-                <td className="px-5 py-3.5 text-right">
-                  <button className="p-1.5 rounded-lg text-gray-400 hover:text-[#002045] hover:bg-gray-100 transition-colors">
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </table>
-      </motion.div>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Right Column (Actions & Announcements) */}
+        <div className="col-span-4 space-y-6">
+          <motion.div {...fadeUp(0.25)} className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm">
+            <h2 className="text-[15px] font-bold text-slate-900 mb-4">Quick Actions</h2>
+            <div className="space-y-3">
+              {[
+                { label: 'Submit Daily Report', icon: <ClipboardList className="w-4 h-4 text-indigo-600" /> },
+                { label: 'Upload Material', icon: <BookOpen className="w-4 h-4 text-emerald-600" /> },
+                { label: 'Create Assignment', icon: <Plus className="w-4 h-4 text-amber-600" /> },
+              ].map(action => (
+                <button key={action.label} className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-slate-300 transition-all text-left group bg-slate-50/50">
+                  <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center shrink-0">
+                    {action.icon}
+                  </div>
+                  <span className="text-[13px] font-bold text-slate-700 group-hover:text-slate-900">{action.label}</span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+
+          <motion.div {...fadeUp(0.3)} className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[15px] font-bold text-slate-900">Announcements</h2>
+            </div>
+            <div className="space-y-4">
+              {[
+                { title: 'Faculty Meeting', date: 'Oct 24', urgent: true, desc: 'Mandatory meeting at 4 PM in the main hall.' },
+                { title: 'Syllabus Update', date: 'Oct 23', urgent: false, desc: 'Revised physics syllabus for Grade 11.' },
+              ].map((ann, i) => (
+                <div key={i} className="flex gap-3 items-start pb-4 border-b border-slate-50 last:border-0 last:pb-0">
+                  <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${ann.urgent ? 'bg-red-500' : 'bg-slate-300'}`} />
+                  <div>
+                    <div className="flex gap-2 items-center mb-0.5">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${ann.urgent ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'}`}>
+                        {ann.urgent ? 'Urgent' : 'General'}
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-400">{ann.date}</span>
+                    </div>
+                    <h4 className="text-[13px] font-bold text-slate-800 leading-tight">{ann.title}</h4>
+                    <p className="text-[12px] text-slate-500 mt-1 leading-snug">{ann.desc}</p>
+                  </div>
+                </div>
+              ))}
+              <button className="w-full text-center text-[12px] font-bold text-indigo-600 hover:text-indigo-700 mt-2">
+                View All Announcements
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+
     </div>
   )
 }

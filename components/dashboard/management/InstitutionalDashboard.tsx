@@ -86,17 +86,17 @@ export default function InstitutionalDashboard() {
       />
 
       {/* Page title */}
-      <motion.div {...fadeUp(0)} className="flex items-start justify-between mb-6">
+      <motion.div {...fadeUp(0)} className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Institutional Dashboard</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Overview of academic background, protocols, and ongoing management tasks.</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Institutional Dashboard</h1>
+          <p className="text-[13px] font-medium text-slate-500 mt-1">Overview of academic background, protocols, and ongoing management tasks</p>
         </div>
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-1.5 bg-[#002045] hover:bg-[#1a365d] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-1.5 bg-[#0b1320] hover:bg-[#1a2333] text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-sm transition-all"
         >
-          <Plus className="w-4 h-4" /> New Recruitment
+          New Recruitment
         </motion.button>
       </motion.div>
 
@@ -105,30 +105,28 @@ export default function InstitutionalDashboard() {
 
         {/* School Background — 7 cols */}
         <motion.div {...fadeUp(0.04)} className="col-span-7 bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 font-medium text-gray-900 text-sm">
-              <Building2 className="w-4 h-4 text-gray-400" /> School Background
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2 font-bold text-slate-900 text-[15px]">
+              <Building2 className="w-5 h-5 text-slate-700" /> School Background
             </div>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="text-xs text-[#002045] hover:text-[#1a365d] font-semibold transition-colors"
-            >
-              View Details
-            </button>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             {[
-              { label: 'CURRENT BOARD', value: schoolData.board },
-              { label: 'ACTIVE CLASSES', value: schoolData.classes },
-              { label: 'PROGRAMS', value: schoolData.programs },
-              { label: 'MOU STATUS', value: schoolData.mouStatus, primary: true },
+              { label: 'CURRENT BOARD', value: schoolData.board || 'State Education Board' },
+              { label: 'ACTIVE CLASSES', value: schoolData.classes || 'Pre-K to 12th Grade' },
+              { label: 'PROGRAMS OFFERED', value: schoolData.programs || 'STEM, Arts, Humanities' },
+              { label: 'MOU STATUS', value: schoolData.mouStatus || 'Active & Verified', primary: true },
             ].map(item => (
-              <div key={item.label} className={`rounded-lg p-3.5 ${item.primary ? 'bg-[#002045]/5 border-l-4 border-[#1a365d]' : 'bg-gray-50'}`}>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{item.label}</p>
-                <p className={`text-sm font-medium ${item.primary ? 'text-[#002045] flex items-center gap-1' : 'text-gray-900'}`}>
-                  {item.primary && <CheckCircle2 className="w-3.5 h-3.5" />}
+              <div key={item.label} className={`rounded-xl p-4 border flex flex-col justify-center relative ${item.primary ? 'bg-indigo-50/40 border-indigo-200/60' : 'bg-slate-50/70 border-slate-100'}`}>
+                <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${item.primary ? 'text-indigo-600' : 'text-slate-500'}`}>{item.label}</p>
+                <p className="text-[13px] font-bold text-slate-800">
                   {item.value}
                 </p>
+                {item.primary && (
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 border-indigo-600 flex items-center justify-center">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -136,21 +134,23 @@ export default function InstitutionalDashboard() {
 
         {/* Quick Actions — 3 cols */}
         <motion.div {...fadeUp(0.08)} className="col-span-3 bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center gap-2 font-medium text-gray-900 text-sm mb-4">
-            <Zap className="w-4 h-4 text-gray-400" /> Quick Actions
+          <div className="flex items-center gap-2 font-bold text-slate-900 text-[15px] mb-5">
+            <Zap className="w-5 h-5 text-slate-700" /> Quick Actions
           </div>
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {[
-              { label: 'Initiate Recruitment', icon: <Plus className="w-3.5 h-3.5" /> },
-              { label: 'Update Macro Plan', icon: <Clock className="w-3.5 h-3.5" /> },
-              { label: 'Upload Compliance Doc', icon: <FileText className="w-3.5 h-3.5" /> },
+              { label: 'Initiate Recruitment', icon: <Plus className="w-4 h-4 text-indigo-600" /> },
+              { label: 'Update Macro Plan', icon: <Clock className="w-4 h-4 text-indigo-600" /> },
+              { label: 'Upload Compliance Doc', icon: <FileText className="w-4 h-4 text-indigo-600" /> },
             ].map(action => (
-              <button key={action.label} className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-200 hover:border-[#002045]/30 hover:bg-[#002045]/5 transition-all group text-left">
-                <div className="flex items-center gap-2 text-xs font-medium text-gray-700 group-hover:text-[#002045]">
-                  <span className="text-gray-400 group-hover:text-[#1a365d]">{action.icon}</span>
+              <button key={action.label} className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all group text-left">
+                <div className="flex items-center gap-3 text-[13px] font-bold text-slate-800">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                    {action.icon}
+                  </div>
                   {action.label}
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-[#1a365d]" />
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
               </button>
             ))}
           </div>
@@ -158,50 +158,57 @@ export default function InstitutionalDashboard() {
 
         {/* Protocols — 2 cols */}
         <motion.div {...fadeUp(0.12)} className="col-span-2 bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center gap-2 font-medium text-gray-900 text-sm mb-4">
-            <ShieldCheck className="w-4 h-4 text-gray-400" /> Protocols
+          <div className="flex items-center gap-2 font-bold text-slate-900 text-[15px] mb-5">
+            <ShieldCheck className="w-5 h-5 text-slate-700" /> Protocols
           </div>
-          <div className="space-y-3">
-            {protocols.length === 0 && <p className="text-[11px] text-gray-400 italic">Loading...</p>}
+          <div className="space-y-5">
+            {protocols.length === 0 && <p className="text-[12px] text-slate-400 italic">Loading...</p>}
             {protocols.slice(0, 3).map(p => (
-              <div key={p._id} className="flex gap-2.5">
-                <div className="mt-0.5 shrink-0">{protocolIcon(p.status)}</div>
+              <div key={p._id} className="flex gap-4 items-start">
+                <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                  p.status === 'completed' ? 'bg-emerald-50 text-emerald-500' :
+                  p.status === 'overdue' ? 'bg-red-50 text-red-500' :
+                  'bg-amber-50 text-amber-500'
+                }`}>
+                  {p.status === 'completed' ? <CheckCircle2 className="w-4 h-4" /> :
+                   p.status === 'overdue' ? <AlertTriangle className="w-4 h-4" /> :
+                   <Clock className="w-4 h-4" />}
+                </div>
                 <div>
-                  <p className="text-xs font-semibold text-gray-800 leading-tight">{p.label}</p>
-                  <p className={`text-[11px] mt-0.5 ${p.status === 'overdue' ? 'text-red-500' : 'text-gray-400'}`}>{p.sub}</p>
+                  <p className="text-[13px] font-bold text-slate-800 leading-tight">{p.label}</p>
+                  <p className={`text-[11px] mt-1 font-medium ${p.status === 'overdue' ? 'text-red-500' : 'text-slate-500'}`}>{p.sub}</p>
                 </div>
               </div>
             ))}
           </div>
-          <button
-            onClick={() => setIsProtocolsModalOpen(true)}
-            className="text-xs text-[#002045] hover:text-[#1a365d] font-semibold mt-4 transition-colors"
-          >
-            Manage All
-          </button>
+          <div className="mt-6 pt-4 border-t border-slate-100 flex justify-center">
+            <button
+              onClick={() => setIsProtocolsModalOpen(true)}
+              className="text-[13px] text-indigo-600 hover:text-indigo-700 font-bold transition-colors"
+            >
+              Manage All
+            </button>
+          </div>
         </motion.div>
       </div>
 
       {/* Academic Quality Monitoring table */}
       <motion.div {...fadeUp(0.16)} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2 font-medium text-gray-900 text-sm">
-            <TrendingUp className="w-4 h-4 text-gray-400" /> Academic Quality Monitoring
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div className="flex items-center gap-2 font-bold text-slate-900 text-[15px]">
+            <TrendingUp className="w-5 h-5 text-slate-700" /> Academic Quality Monitoring
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
-              <Filter className="w-3.5 h-3.5" />
-            </button>
-            <button className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
-              <Download className="w-3.5 h-3.5" />
+            <button className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors">
+              <span className="text-xl leading-none">⋮</span>
             </button>
           </div>
         </div>
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-50">
+            <tr className="border-b border-slate-100">
               {['Department', 'Audit Cycle', 'Lead Coordinator', 'Status', 'Action'].map(h => (
-                <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{h}</th>
+                <th key={h} className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
@@ -212,33 +219,28 @@ export default function InstitutionalDashboard() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 + i * 0.05 }}
-                className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors"
+                className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
               >
-                <td className="px-5 py-3.5 text-sm text-gray-800 font-medium">{row.dept}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-500">{row.cycle}</td>
-                <td className="px-5 py-3.5">
+                <td className="px-6 py-4 text-[13px] text-slate-800 font-bold">{row.dept}</td>
+                <td className="px-6 py-4 text-[13px] text-slate-600 font-medium">{row.cycle}</td>
+                <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-[#002045]/10 flex items-center justify-center text-[10px] font-bold text-[#002045]">{row.initials}</div>
-                    <span className="text-sm text-gray-800">{row.coordinator}</span>
+                    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700">{row.initials}</div>
+                    <span className="text-[13px] font-semibold text-slate-800">{row.coordinator}</span>
                   </div>
                 </td>
-                <td className="px-5 py-3.5">
-                  <select
-                    value={row.status}
-                    onChange={(e) => {
-                      const newRows = [...audits];
-                      newRows[i].status = e.target.value;
-                      setAudits(newRows);
-                    }}
-                    className={`text-[11px] font-bold uppercase px-2 py-1 rounded-full border cursor-pointer outline-none appearance-none text-center transition-colors ${STATUS_STYLES[row.status] || STATUS_STYLES['In Progress']}`}
-                  >
-                    <option value="In Progress">In Progress</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Delayed">Delayed</option>
-                  </select>
+                <td className="px-6 py-4">
+                  <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full ${
+                    row.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' :
+                    row.status === 'Delayed' ? 'bg-red-50 text-red-600' :
+                    row.status === 'Upcoming' ? 'bg-blue-50 text-blue-600' :
+                    'bg-amber-50 text-amber-600'
+                  }`}>
+                    {row.status}
+                  </span>
                 </td>
-                <td className="px-5 py-3.5">
-                  <button className="p-1.5 rounded-lg text-gray-400 hover:text-[#002045] hover:bg-gray-100 transition-colors">
+                <td className="px-6 py-4">
+                  <button className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 transition-colors">
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </td>

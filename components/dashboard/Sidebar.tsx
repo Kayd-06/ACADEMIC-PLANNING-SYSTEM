@@ -48,34 +48,34 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
       className="w-64 shrink-0 bg-slate-50 border-r border-slate-200 h-screen sticky top-0 flex flex-col print:hidden"
     >
       {/* Identity */}
-      <div className="px-6 pb-6 pt-6 mb-2 border-b border-slate-200 flex items-center gap-3">
+      <div className="px-6 pb-6 pt-6 mb-2 flex items-center gap-3">
         <motion.div
           whileHover={{ rotate: 5, scale: 1.05 }}
-          className="w-10 h-10 rounded-xl bg-[#002045] flex items-center justify-center text-white text-sm font-bold shadow-md"
+          className="w-10 h-10 rounded-xl bg-[#0b1320] flex items-center justify-center text-white text-sm font-bold shadow-sm"
         >
           {initials}
         </motion.div>
         <div className="min-w-0">
-          <p className="text-sm font-bold text-slate-800 truncate">EduAdmin Pro</p>
-          <p className="text-[11px] font-medium text-slate-500 truncate">{userRole}</p>
+          <p className="text-[15px] font-bold text-slate-900 tracking-tight truncate">EduAdmin Pro</p>
+          <p className="text-[12px] font-medium text-slate-500 truncate">{userRole === 'Academic Administration' ? 'School Management' : userRole}</p>
         </div>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
-        {navItems.map(item => {
+        {navItems.map((item, index) => {
           const active = pathname === item.href
           return (
-            <Link key={item.href} href={item.href}>
+            <Link key={`${item.label}-${index}`} href={item.href}>
               <motion.div
                 whileHover={{ x: 2 }}
-                className={`flex items-center gap-3 px-4 py-3 mx-2 rounded-md text-[13px] font-medium transition-all group ${
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-md text-[13px] font-medium transition-all group ${
                   active
-                    ? 'bg-blue-50 text-[#002045] font-semibold border-r-4 border-[#002045]'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-slate-100/80 text-[#0b1320] font-bold border-l-4 border-[#0b1320] pl-3'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                 }`}
               >
-                <span className={`w-4 h-4 shrink-0 transition-colors ${active ? 'text-[#002045]' : 'text-slate-400 group-hover:text-slate-600'}`}>
+                <span className={`w-4 h-4 shrink-0 transition-colors ${active ? 'text-[#0b1320]' : 'text-slate-400 group-hover:text-slate-500'}`}>
                   {item.icon}
                 </span>
                 {item.label}
@@ -92,7 +92,7 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
             onClick={() => setShowRecruitmentModal(true)}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-[#002045] hover:bg-[#1a365d] text-white text-[13px] font-bold shadow-sm transition-all mb-3"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#0b1320] hover:bg-[#1a2333] text-white text-[13px] font-bold shadow-sm transition-all mb-3"
           >
             <Plus className="w-4 h-4" />
             New Recruitment
