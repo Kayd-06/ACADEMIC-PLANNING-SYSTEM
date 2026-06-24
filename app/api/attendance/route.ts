@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import Attendance from '@/models/Attendance'
-import Student from '@/models/Student'
 import { auth } from '@/lib/auth'
+import { countStudentsByClasses, findStudentsByClasses, bulkInsertStudents } from '@/lib/db/queries/students'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,15 +38,13 @@ export async function GET(req: NextRequest) {
     }
 
     // Seeding check: Ensure student roster exists for classes 11-A, 11-B, etc.
-    const targetClassCount = await Student.countDocuments({
-      class: { $in: ['11 - A', '11 - B', '10 - A', '10 - B', 'Grade 11-A', 'Grade 11-B'] }
-    })
+    const targetClassCount = await countStudentsByClasses(['11 - A', '11 - B', '10 - A', '10 - B', 'Grade 11-A', 'Grade 11-B'])
     if (targetClassCount < 10) {
       const firstNames = ['Karan', 'Isha', 'Rohan', 'Meera', 'Amit', 'Neha', 'Rahul', 'Priya', 'Sanjay', 'Deepa', 'Vijay', 'Anjali', 'Rajesh', 'Sunita', 'Vikram', 'Kavita', 'Arjun', 'Pooja', 'Aditya', 'Ritu']
       const lastNames = ['Sharma', 'Patel', 'Gupta', 'Kumar', 'Verma', 'Singh', 'Joshi', 'Mehta', 'Shah', 'Rao', 'Nair', 'Das', 'Sen', 'Reddy', 'Gowda', 'Mishra', 'Trivedi', 'Pandey', 'Choudhury', 'Gill']
-      
+
       const newStudentsData = []
-      
+
       // Explicitly insert Kunal Singhi in 11 - B to match search criteria
       newStudentsData.push({
         name: 'Kunal Singhi',
@@ -63,7 +61,7 @@ export async function GET(req: NextRequest) {
         const classNum = i % 2 === 0 ? '11' : '10'
         const sec = i % 3 === 0 ? 'A' : 'B'
         const rollNum = `${classNum}${sec}-${String(i + 2).padStart(3, '0')}`
-        
+
         newStudentsData.push({
           name: `${fn} ${ln}`,
           rollNo: rollNum,
@@ -73,7 +71,7 @@ export async function GET(req: NextRequest) {
           isActive: true
         })
       }
-      await Student.insertMany(newStudentsData)
+      await bulkInsertStudents(newStudentsData)
     }
 
     // Try finding an existing marked attendance sheet
@@ -85,14 +83,10 @@ export async function GET(req: NextRequest) {
 
     // If no sheet exists, load all active students of this batch to mark attendance
     const resolvedClass = resolveClassFromBatch(batch)
-    const students = await Student.find({
-      class: { $in: [resolvedClass, batch] },
-      isActive: true
-    }).sort({ rollNo: 1, name: 1 }).lean()
-
+    const students = await findStudentsByClasses([resolvedClass, batch], true)
 
     const defaultRecords = students.map((st) => ({
-      studentId: st._id,
+      studentId: st.id,
       studentName: st.name,
       rollNo: st.rollNo || '',
       status: '', // initially empty/unmarked
@@ -139,7 +133,7 @@ export async function POST(req: NextRequest) {
         batch,
         subject,
         classTime: classTime || '09:00 AM - 10:00 AM',
-        records: records.map(r => ({
+        records: records.map((r: any) => ({
           studentId: r.studentId,
           studentName: r.studentName,
           rollNo: r.rollNo || '',
