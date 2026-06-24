@@ -5,9 +5,16 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {
-    // Fetch all students (active and inactive)
+    // Fetch all students (active and inactive), sorted by class, then section, then name
+    // to match the original Mongoose route's { class: 1, section: 1, name: 1 } sort
     const students = await listStudents({ activeOnly: false })
-    students.sort((a, b) => a.name.localeCompare(b.name))
+    students.sort((a, b) => {
+      const classCompare = (a.class || '').localeCompare(b.class || '')
+      if (classCompare !== 0) return classCompare
+      const sectionCompare = (a.section || '').localeCompare(b.section || '')
+      if (sectionCompare !== 0) return sectionCompare
+      return a.name.localeCompare(b.name)
+    })
 
     // Map to the required view format
     const roster = students.map((s) => {
