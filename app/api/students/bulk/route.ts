@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
-import Student from '@/models/Student'
 import { auth } from '@/lib/auth'
+import { upsertStudentByRollClassSection, createStudent, deleteAllStudents } from '@/lib/db/queries/students'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,8 +14,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only staff can import students' }, { status: 403 })
     }
 
-    await connectDB()
-
     const body = await req.json()
     const { students } = body
 
@@ -25,13 +22,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Only name is required; all other fields are optional
-    const valid = students.filter(s => s.name?.trim())
+    const valid = students.filter((s: any) => s.name?.trim())
     if (valid.length === 0) {
       return NextResponse.json({ error: 'No valid rows found. Each row needs at least a Name.' }, { status: 400 })
     }
 
     const results = await Promise.allSettled(
-      valid.map(s => {
+      valid.map((s: any) => {
         const name = s.name.trim()
         const rollNo = s.rollNo?.trim() || ''
         const cls = s.class?.trim() || ''
@@ -41,21 +38,17 @@ export async function POST(req: NextRequest) {
         // If rollNo + class + section all present → upsert (prevents duplicates)
         // Otherwise → plain insert (name-only rows are always added)
         if (rollNo && cls && section) {
-          return Student.findOneAndUpdate(
-            { rollNo, class: cls, section },
-            { name, rollNo, class: cls, section, parentContact, isActive: true },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
-          )
+          return upsertStudentByRollClassSection({ name, rollNo, class: cls, section, parentContact, isActive: true })
         } else {
-          return Student.create({ name, rollNo, class: cls, section, parentContact, isActive: true })
+          return createStudent({ name, rollNo, class: cls, section, parentContact, isActive: true })
         }
       })
     )
 
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failedResults = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]
+    const succeeded = results.filter((r) => r.status === 'fulfilled').length
+    const failedResults = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[]
     const failed = failedResults.length
-    const failedReasons = failedResults.map(r => r.reason?.message || r.reason)
+    const failedReasons = failedResults.map((r) => r.reason?.message || r.reason)
 
     if (failed > 0) {
       console.error('Bulk import failures:', failedReasons)
@@ -77,8 +70,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Only staff can clear all rosters' }, { status: 403 })
     }
 
-    await connectDB()
-    await Student.deleteMany({})
+    await deleteAllStudents()
 
     return NextResponse.json({ success: true, message: 'All students deleted successfully' })
   } catch (error: any) {
