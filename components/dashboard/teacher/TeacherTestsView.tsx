@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Search, 
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react'
 
 export default function TeacherTestsView() {
+  const { showAlert } = useAlert()
   const [activeTab, setActiveTab] = useState<'questions' | 'tests'>('questions')
   
   // Data states
@@ -99,19 +101,11 @@ export default function TeacherTestsView() {
   }, [])
 
   // Question form submit (add or edit)
-  async function handleQuestionSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!questionForm.topic || !questionForm.text) return
+  async function submitQuestionData(payload: any, isEditing: boolean) {
     setActionLoading(true)
-    
     try {
-      const isEditing = !!editingQuestion
       const url = '/api/tests/questions'
       const method = isEditing ? 'PUT' : 'POST'
-      const payload = isEditing 
-        ? { ...questionForm, id: editingQuestion._id } 
-        : questionForm
-
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -139,29 +133,75 @@ export default function TeacherTestsView() {
         })
         loadData()
       } else {
-        alert(data.error)
+        showAlert({
+          title: 'Failed to Save Question',
+          message: data.error || 'Failed to save question.',
+          type: 'warning',
+          onRetry: () => submitQuestionData(payload, isEditing),
+          retryText: 'Retry'
+        })
       }
     } catch (err) {
       console.error(err)
+      showAlert({
+        title: 'Error',
+        message: 'A network error occurred. Please try again.',
+        type: 'warning',
+        onRetry: () => submitQuestionData(payload, isEditing),
+        retryText: 'Retry'
+      })
     } finally {
       setActionLoading(false)
     }
   }
 
+  async function handleQuestionSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!questionForm.topic || !questionForm.text) return
+    const isEditing = !!editingQuestion
+    const payload = isEditing 
+      ? { ...questionForm, id: editingQuestion._id } 
+      : questionForm
+    submitQuestionData(payload, isEditing)
+  }
+
   // Delete Question
-  async function handleQuestionDelete(id: string) {
-    if (!confirm('Are you sure you want to delete this question?')) return
+  async function executeQuestionDelete(id: string) {
     try {
       const res = await fetch(`/api/tests/questions?id=${id}`, { method: 'DELETE' })
       const data = await res.json()
       if (!data.error) {
         loadData()
       } else {
-        alert(data.error)
+        showAlert({
+          title: 'Delete Failed',
+          message: data.error || 'Failed to delete question.',
+          type: 'warning',
+          onRetry: () => executeQuestionDelete(id),
+          retryText: 'Retry'
+        })
       }
     } catch (err) {
       console.error(err)
+      showAlert({
+        title: 'Error',
+        message: 'A network error occurred while deleting the question.',
+        type: 'warning',
+        onRetry: () => executeQuestionDelete(id),
+        retryText: 'Retry'
+      })
     }
+  }
+
+  async function handleQuestionDelete(id: string) {
+    showAlert({
+      title: 'Delete Question',
+      message: 'Are you sure you want to delete this question?',
+      type: 'trash',
+      retryText: 'Delete',
+      cancelText: 'Cancel',
+      onRetry: () => executeQuestionDelete(id)
+    })
   }
 
   // Edit Question Click
@@ -182,19 +222,11 @@ export default function TeacherTestsView() {
   }
 
   // Test form submit (create or edit)
-  async function handleTestSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!testForm.title || !testForm.date || !testForm.time || !testForm.duration || !testForm.totalMarks) return
+  async function submitTestData(payload: any, isEditing: boolean) {
     setActionLoading(true)
-
     try {
-      const isEditing = !!editingTest
       const url = '/api/tests/schedule'
       const method = isEditing ? 'PUT' : 'POST'
-      const payload = isEditing 
-        ? { ...testForm, id: editingTest._id, status: editingTest.status } 
-        : testForm
-
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -221,29 +253,75 @@ export default function TeacherTestsView() {
         })
         loadData()
       } else {
-        alert(data.error)
+        showAlert({
+          title: 'Failed to Save Test',
+          message: data.error || 'Failed to save test scheduled details.',
+          type: 'warning',
+          onRetry: () => submitTestData(payload, isEditing),
+          retryText: 'Retry'
+        })
       }
     } catch (err) {
       console.error(err)
+      showAlert({
+        title: 'Error',
+        message: 'A network error occurred. Please try again.',
+        type: 'warning',
+        onRetry: () => submitTestData(payload, isEditing),
+        retryText: 'Retry'
+      })
     } finally {
       setActionLoading(false)
     }
   }
 
+  async function handleTestSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!testForm.title || !testForm.date || !testForm.time || !testForm.duration || !testForm.totalMarks) return
+    const isEditing = !!editingTest
+    const payload = isEditing 
+      ? { ...testForm, id: editingTest._id, status: editingTest.status } 
+      : testForm
+    submitTestData(payload, isEditing)
+  }
+
   // Delete Test
-  async function handleTestDelete(id: string) {
-    if (!confirm('Are you sure you want to cancel/delete this scheduled test?')) return
+  async function executeTestDelete(id: string) {
     try {
       const res = await fetch(`/api/tests/schedule?id=${id}`, { method: 'DELETE' })
       const data = await res.json()
       if (!data.error) {
         loadData()
       } else {
-        alert(data.error)
+        showAlert({
+          title: 'Delete Failed',
+          message: data.error || 'Failed to delete/cancel scheduled test.',
+          type: 'warning',
+          onRetry: () => executeTestDelete(id),
+          retryText: 'Retry'
+        })
       }
     } catch (err) {
       console.error(err)
+      showAlert({
+        title: 'Error',
+        message: 'A network error occurred while deleting the test.',
+        type: 'warning',
+        onRetry: () => executeTestDelete(id),
+        retryText: 'Retry'
+      })
     }
+  }
+
+  async function handleTestDelete(id: string) {
+    showAlert({
+      title: 'Cancel Test',
+      message: 'Are you sure you want to cancel/delete this scheduled test?',
+      type: 'trash',
+      retryText: 'Delete',
+      cancelText: 'Cancel',
+      onRetry: () => executeTestDelete(id)
+    })
   }
 
   // Edit Test Click

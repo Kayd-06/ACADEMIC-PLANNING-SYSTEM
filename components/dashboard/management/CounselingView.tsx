@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   HeartHandshake, Plus, Search, Filter, Eye, Flag, RefreshCw,
@@ -85,6 +86,7 @@ const EMPTY_FORM = {
 }
 
 export default function CounselingView() {
+  const { showAlert } = useAlert()
   const [sessions, setSessions]         = useState<Session[]>([])
   const [stats, setStats]               = useState<Stats>({ sessionsThisWeek: 0, upcomingSessions: 0, noShowsThisMonth: 0, studentsFlagged: 0 })
   const [loading, setLoading]           = useState(true)
@@ -148,15 +150,13 @@ export default function CounselingView() {
 
   // ── CRUD ─────────────────────────────────────────────────────────────────
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    if (!form.studentName.trim() || !form.date) return
+  async function createSession(payload: any) {
     setSubmitting(true)
     try {
       const res = await fetch('/api/counseling', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (res.ok && !data.error) {
@@ -164,13 +164,29 @@ export default function CounselingView() {
         setForm(EMPTY_FORM)
         fetchData()
       } else {
-        alert(data.error || 'Failed to schedule session.')
+        showAlert({
+          title: 'Failed to Schedule Session',
+          message: data.error || 'Failed to schedule session.',
+          type: 'calendar',
+          onRetry: () => createSession(payload)
+        })
       }
     } catch {
-      alert('Network error. Please try again.')
+      showAlert({
+        title: 'Error Scheduling Session',
+        message: 'Network error. Please try again.',
+        type: 'calendar',
+        onRetry: () => createSession(payload)
+      })
     } finally {
       setSubmitting(false)
     }
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.studentName.trim() || !form.date) return
+    await createSession(form)
   }
 
   async function handleStatusUpdate(id: string, status: string) {
@@ -201,8 +217,7 @@ export default function CounselingView() {
     } catch (err) { console.error(err) }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Delete this counseling session?')) return
+  async function deleteSession(id: string) {
     try {
       const res = await fetch(`/api/counseling?id=${id}`, { method: 'DELETE' })
       if (res.ok) {
@@ -211,9 +226,28 @@ export default function CounselingView() {
         fetchData()
       } else {
         const d = await res.json()
-        alert(d.error || 'Failed to delete.')
+        const session = sessions.find(s => s._id === id)
+        const name = session ? session.studentName : 'session'
+        showAlert({
+          title: 'Failed to Delete Session',
+          message: `Could not delete counseling session for ${name}. ${d.error || 'Failed to delete.'}`,
+          type: 'trash',
+          onRetry: () => deleteSession(id)
+        })
       }
-    } catch { alert('Network error.') }
+    } catch {
+      showAlert({
+        title: 'Error Deleting Session',
+        message: 'Network error. Could not delete counseling session.',
+        type: 'trash',
+        onRetry: () => deleteSession(id)
+      })
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this counseling session?')) return
+    await deleteSession(id)
   }
 
   // ── PAGINATION ────────────────────────────────────────────────────────────

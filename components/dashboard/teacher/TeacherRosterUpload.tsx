@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as XLSX from 'xlsx'
 import {
@@ -68,6 +69,7 @@ function downloadTemplate(students: Student[] = []) {
 }
 
 export default function TeacherRosterUpload() {
+  const { showAlert } = useAlert()
   const [tab, setTab] = useState<'upload' | 'add' | 'view'>('upload')
 
   // Existing roster (view tab)
@@ -87,19 +89,32 @@ export default function TeacherRosterUpload() {
     }
   }, [])
 
-  const clearAllRosters = async () => {
-    if (!window.confirm("Are you absolutely sure you want to clear ALL students? This action cannot be undone.")) return
-    
+  const executeClearAllRosters = async () => {
     try {
       const res = await fetch('/api/students/bulk', { method: 'DELETE' })
       if (res.ok) {
         setStudents([])
       } else {
-        alert("Failed to clear rosters")
+        showAlert({
+          title: "Failed to Clear Rosters",
+          message: "Could not clear all student rosters from the system.",
+          type: "warning",
+          onRetry: () => executeClearAllRosters()
+        })
       }
     } catch (e) {
-      alert("An error occurred")
+      showAlert({
+        title: "An Error Occurred",
+        message: "Network error. Failed to clear student rosters.",
+        type: "warning",
+        onRetry: () => executeClearAllRosters()
+      })
     }
+  }
+
+  const clearAllRosters = async () => {
+    if (!window.confirm("Are you absolutely sure you want to clear ALL students? This action cannot be undone.")) return
+    await executeClearAllRosters()
   }
 
   useEffect(() => { fetchStudents() }, [fetchStudents])

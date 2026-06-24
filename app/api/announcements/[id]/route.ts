@@ -12,11 +12,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const { id } = await params
     const data = await req.json()
+    
     await connectDB()
-    const announcement = await Announcement.findByIdAndUpdate(id, { ...data, updatedAt: new Date() }, { new: true })
+    const announcement = await Announcement.findById(id)
+    if (!announcement) {
+      return NextResponse.json({ error: 'Announcement not found' }, { status: 404 })
+    }
+
+    // Update fields
+    if (data.title !== undefined) announcement.title = data.title
+    if (data.content !== undefined) announcement.content = data.content
+    if (data.type !== undefined) announcement.type = data.type
+    if (data.scope !== undefined) announcement.scope = data.scope
+    if (data.pinned !== undefined) announcement.pinned = data.pinned
+    if (data.authorName !== undefined) announcement.authorName = data.authorName
+    if (data.authorRole !== undefined) announcement.authorRole = data.authorRole
+    if (data.expiryDate !== undefined) announcement.expiryDate = data.expiryDate
+    if (data.done !== undefined) announcement.done = data.done
+
+    announcement.updatedAt = new Date()
+    await announcement.save()
+
     return NextResponse.json(announcement)
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to update announcement' }, { status: 500 })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to update announcement' }, { status: 500 })
   }
 }
 
@@ -31,7 +50,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     await connectDB()
     await Announcement.findByIdAndDelete(id)
     return NextResponse.json({ success: true })
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete announcement' }, { status: 500 })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to delete announcement' }, { status: 500 })
   }
 }

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Plus, Loader2, CheckCircle2, Clock, AlertTriangle, Trash2, Save } from 'lucide-react'
 
@@ -25,6 +26,7 @@ const STATUS_OPTIONS = [
 ]
 
 export default function ProtocolsModal({ isOpen, onClose, onUpdate }: Props) {
+  const { showAlert } = useAlert()
   const [protocols, setProtocols] = useState<Protocol[]>([])
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -73,8 +75,7 @@ export default function ProtocolsModal({ isOpen, onClose, onUpdate }: Props) {
     onUpdate()
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Are you sure you want to delete this protocol?')) return
+  async function deleteProtocol(id: string) {
     try {
       const res = await fetch(`/api/protocols?id=${id}`, { method: 'DELETE' })
       if (res.ok) {
@@ -82,12 +83,29 @@ export default function ProtocolsModal({ isOpen, onClose, onUpdate }: Props) {
         onUpdate()
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to delete protocol.')
+        const proto = protocols.find(p => p._id === id)
+        const name = proto ? proto.label : 'protocol'
+        showAlert({
+          title: 'Failed to Delete Protocol',
+          message: `Could not delete compliance protocol "${name}". ${data.error || 'Failed to delete protocol.'}`,
+          type: 'trash',
+          onRetry: () => deleteProtocol(id)
+        })
       }
     } catch (err) {
       console.error(err)
-      alert('Network error. Could not delete protocol.')
+      showAlert({
+        title: 'Error Deleting Protocol',
+        message: 'Network error. Could not delete protocol.',
+        type: 'trash',
+        onRetry: () => deleteProtocol(id)
+      })
     }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Are you sure you want to delete this protocol?')) return
+    await deleteProtocol(id)
   }
 
   if (!isOpen) return null

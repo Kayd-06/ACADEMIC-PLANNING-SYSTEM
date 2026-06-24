@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Plus, Trash2, Megaphone, Bell, Loader2, Save } from 'lucide-react'
 
@@ -20,6 +21,7 @@ export default function AnnouncementsModal({
   onClose: () => void
   onUpdate: () => void
 }) {
+  const { showAlert } = useAlert()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -55,8 +57,7 @@ export default function AnnouncementsModal({
     setLoading(false)
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Are you sure you want to delete this announcement?')) return
+  async function deleteAnnouncement(id: string) {
     try {
       const res = await fetch(`/api/announcements/${id}`, { method: 'DELETE' })
       if (res.ok) {
@@ -64,12 +65,29 @@ export default function AnnouncementsModal({
         onUpdate()
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to delete announcement.')
+        const ann = announcements.find(a => a._id === id)
+        const name = ann ? ann.label : 'announcement'
+        showAlert({
+          title: 'Failed to Delete Announcement',
+          message: `Could not delete announcement "${name}". ${data.error || 'Failed to delete announcement.'}`,
+          type: 'trash',
+          onRetry: () => deleteAnnouncement(id)
+        })
       }
     } catch (err) {
       console.error(err)
-      alert('Network error. Could not delete announcement.')
+      showAlert({
+        title: 'Error Deleting Announcement',
+        message: 'Network error. Could not delete announcement.',
+        type: 'trash',
+        onRetry: () => deleteAnnouncement(id)
+      })
     }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Are you sure you want to delete this announcement?')) return
+    await deleteAnnouncement(id)
   }
 
   function startEdit(a: Announcement) {

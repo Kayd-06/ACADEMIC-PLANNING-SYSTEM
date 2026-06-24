@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Calendar as CalendarIcon, 
@@ -34,6 +35,7 @@ function getWeekdayIndex(dateStr: string) {
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 export default function TestsBankView() {
+  const { showAlert } = useAlert()
   const [activeTab, setActiveTab] = useState<'calendar' | 'questions'>('calendar')
   
   // Data states
@@ -122,21 +124,14 @@ export default function TestsBankView() {
     fetchStatsAndData()
   }, [])
 
-  // Schedule Test Submit
-  async function handleTestSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!testForm.title || !testForm.date || !testForm.time || !testForm.duration || !testForm.totalMarks) return
-
+  // Submit test helper to support retry
+  async function submitTest(payload: any) {
     setActionLoading(true)
     try {
       const res = await fetch('/api/tests/schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...testForm,
-          duration: Number(testForm.duration),
-          totalMarks: Number(testForm.totalMarks)
-        })
+        body: JSON.stringify(payload)
       })
       const data = await res.json()
       if (!data.error) {
@@ -152,29 +147,47 @@ export default function TestsBankView() {
         })
         fetchStatsAndData()
       } else {
-        alert(data.error)
+        showAlert({
+          title: 'Failed to Schedule Test',
+          message: data.error,
+          type: 'calendar',
+          onRetry: () => submitTest(payload)
+        })
       }
     } catch (err) {
       console.error(err)
+      showAlert({
+        title: 'Error Scheduling Test',
+        message: 'Network error. Could not schedule test.',
+        type: 'calendar',
+        onRetry: () => submitTest(payload)
+      })
     } finally {
       setActionLoading(false)
     }
   }
 
-  // Create Question Submit
-  async function handleQuestionSubmit(e: React.FormEvent) {
+  // Schedule Test Submit
+  async function handleTestSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!questionForm.topic || !questionForm.text) return
+    if (!testForm.title || !testForm.date || !testForm.time || !testForm.duration || !testForm.totalMarks) return
 
+    const payload = {
+      ...testForm,
+      duration: Number(testForm.duration),
+      totalMarks: Number(testForm.totalMarks)
+    }
+    await submitTest(payload)
+  }
+
+  // Submit question helper to support retry
+  async function submitQuestion(payload: any) {
     setActionLoading(true)
     try {
       const res = await fetch('/api/tests/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...questionForm,
-          options: questionForm.type === 'MCQ' ? questionForm.options : []
-        })
+        body: JSON.stringify(payload)
       })
       const data = await res.json()
       if (!data.error) {
@@ -190,13 +203,36 @@ export default function TestsBankView() {
         })
         fetchStatsAndData()
       } else {
-        alert(data.error)
+        showAlert({
+          title: 'Failed to Save Question',
+          message: data.error,
+          type: 'warning',
+          onRetry: () => submitQuestion(payload)
+        })
       }
     } catch (err) {
       console.error(err)
+      showAlert({
+        title: 'Error Saving Question',
+        message: 'Network error. Could not save question to the bank.',
+        type: 'warning',
+        onRetry: () => submitQuestion(payload)
+      })
     } finally {
       setActionLoading(false)
     }
+  }
+
+  // Create Question Submit
+  async function handleQuestionSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!questionForm.topic || !questionForm.text) return
+
+    const payload = {
+      ...questionForm,
+      options: questionForm.type === 'MCQ' ? questionForm.options : []
+    }
+    await submitQuestion(payload)
   }
 
   // Filter questions

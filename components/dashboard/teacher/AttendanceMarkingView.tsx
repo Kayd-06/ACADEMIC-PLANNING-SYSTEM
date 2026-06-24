@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   CheckCircle, 
@@ -39,6 +40,7 @@ function getInitials(name: string) {
 }
 
 export default function AttendanceMarkingView() {
+  const { showAlert } = useAlert()
   // Selection states
   const [selectedBatch, setSelectedBatch] = useState('Grade 11-A')
   const [selectedSubject, setSelectedSubject] = useState('Physics (PHY-101)')
@@ -113,15 +115,7 @@ export default function AttendanceMarkingView() {
   }
 
   // Submit to DB
-  async function submitAttendance() {
-    // Check if any student is unmarked
-    const unmarkedCount = records.filter(r => !r.status).length
-    if (unmarkedCount > 0) {
-      if (!confirm(`You have left ${unmarkedCount} student(s) unmarked. Do you want to submit anyway? (Unmarked students will default to Absent)`)) {
-        return
-      }
-    }
-
+  async function executeSubmitAttendance() {
     setSubmitting(true)
     try {
       const payload = {
@@ -143,16 +137,49 @@ export default function AttendanceMarkingView() {
 
       const data = await res.json()
       if (!data.error) {
-        alert('Attendance submitted successfully!')
+        showAlert({
+          title: 'Success',
+          message: 'Attendance submitted successfully!',
+          type: 'success'
+        })
         fetchAttendanceSheet()
       } else {
-        alert(data.error)
+        showAlert({
+          title: 'Submission Failed',
+          message: data.error,
+          type: 'warning',
+          onRetry: () => executeSubmitAttendance(),
+          retryText: 'Retry'
+        })
       }
     } catch (err) {
       console.error(err)
-      alert('Failed to submit attendance.')
+      showAlert({
+        title: 'Submission Error',
+        message: 'Failed to submit attendance.',
+        type: 'warning',
+        onRetry: () => executeSubmitAttendance(),
+        retryText: 'Retry'
+      })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  function submitAttendance() {
+    // Check if any student is unmarked
+    const unmarkedCount = records.filter(r => !r.status).length
+    if (unmarkedCount > 0) {
+      showAlert({
+        title: 'Unmarked Students',
+        message: `You have left ${unmarkedCount} student(s) unmarked. Do you want to submit anyway? (Unmarked students will default to Absent)`,
+        type: 'warning',
+        retryText: 'Submit Anyway',
+        cancelText: 'Cancel',
+        onRetry: () => executeSubmitAttendance()
+      })
+    } else {
+      executeSubmitAttendance()
     }
   }
 

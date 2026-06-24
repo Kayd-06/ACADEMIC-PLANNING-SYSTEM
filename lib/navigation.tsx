@@ -15,8 +15,8 @@ export const MANAGEMENT_NAV = [
   { label: 'Attendance', href: '/management/attendance', icon: <CheckSquare className="w-4 h-4" /> },
   { label: 'Feedback', href: '/management/feedback', icon: <MessageSquare className="w-4 h-4" /> },
   { label: 'Counseling', href: '/management/counseling', icon: <HeartHandshake className="w-4 h-4" /> },
-  { label: 'Calendar', href: '#', icon: <Calendar className="w-4 h-4" /> },
-  { label: 'Announcements', href: '#', icon: <Bell className="w-4 h-4" /> },
+  { label: 'Calendar', href: '/management/calendar', icon: <Calendar className="w-4 h-4" /> },
+  { label: 'Announcements', href: '/management/announcements', icon: <Bell className="w-4 h-4" /> },
 ]
 
 export const TEACHER_NAV = [
@@ -30,8 +30,8 @@ export const TEACHER_NAV = [
   { label: 'Attendance', href: '/teacher/attendance', icon: <CheckSquare className="w-4 h-4" /> },
   { label: 'Tests & Question Bank', href: '/teacher/tests', icon: <FileQuestion className="w-4 h-4" /> },
   { label: 'Assignments/DPP', href: '/teacher/assignments', icon: <ListTodo className="w-4 h-4" /> },
-  { label: 'Test Results', href: '#', icon: <FileCheck className="w-4 h-4" /> },
-  { label: 'Counseling Log', href: '#', icon: <HeartHandshake className="w-4 h-4" /> },
-  { label: 'Feedback', href: '#', icon: <MessageSquare className="w-4 h-4" /> },
+  { label: 'Academic Records', href: '/teacher/academic-records', icon: <FileCheck className="w-4 h-4" /> },
+  { label: 'Counseling Log', href: '/teacher/counseling-log', icon: <HeartHandshake className="w-4 h-4" /> },
+  { label: 'Feedback', href: '/teacher/feedback', icon: <MessageSquare className="w-4 h-4" /> },
 ]
 

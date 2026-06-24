@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users,
@@ -50,6 +51,7 @@ const getRatingStyle = (rating: string) => {
 }
 
 export default function RecruitmentDashboard() {
+  const { showAlert } = useAlert()
   const [candidates, setCandidates] = useState<any[]>([])
   const [orientations, setOrientations] = useState<any[]>([])
   const [appraisals, setAppraisals] = useState<any[]>([])
@@ -137,20 +139,36 @@ export default function RecruitmentDashboard() {
     setSubmitting(false)
   }
 
-  async function handleDeleteCandidate(id: string) {
-    if (!confirm('Are you sure you want to delete this candidate?')) return
+  async function deleteCandidate(id: string) {
     try {
       const res = await fetch(`/api/recruitment/candidates?id=${id}`, { method: 'DELETE' })
       if (res.ok) {
         await fetchData()
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to delete candidate.')
+        const candidate = candidates.find(c => c._id === id)
+        const name = candidate ? candidate.name : 'candidate'
+        showAlert({
+          title: 'Failed to Delete Candidate',
+          message: `Could not delete candidate ${name}. ${data.error || 'Failed to delete candidate.'}`,
+          type: 'user-x',
+          onRetry: () => deleteCandidate(id)
+        })
       }
     } catch (err) {
       console.error(err)
-      alert('Network error. Could not delete candidate.')
+      showAlert({
+        title: 'Error Deleting Candidate',
+        message: 'Network error. Could not delete candidate.',
+        type: 'user-x',
+        onRetry: () => deleteCandidate(id)
+      })
     }
+  }
+
+  async function handleDeleteCandidate(id: string) {
+    if (!confirm('Are you sure you want to delete this candidate?')) return
+    await deleteCandidate(id)
   }
 
   async function handleStatusChange(id: string, newStatus: string) {
@@ -162,20 +180,36 @@ export default function RecruitmentDashboard() {
     await fetchData()
   }
 
-  async function handleDeleteAppraisal(id: string) {
-    if (!confirm('Are you sure you want to delete this appraisal?')) return
+  async function deleteAppraisal(id: string) {
     try {
       const res = await fetch(`/api/recruitment/appraisals?id=${id}`, { method: 'DELETE' })
       if (res.ok) {
         await fetchData()
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to delete appraisal.')
+        const appraisal = appraisals.find(a => a._id === id)
+        const name = appraisal ? appraisal.facultyName : 'appraisal'
+        showAlert({
+          title: 'Failed to Delete Appraisal',
+          message: `Could not delete appraisal for ${name}. ${data.error || 'Failed to delete appraisal.'}`,
+          type: 'trash',
+          onRetry: () => deleteAppraisal(id)
+        })
       }
     } catch (err) {
       console.error(err)
-      alert('Network error. Could not delete appraisal.')
+      showAlert({
+        title: 'Error Deleting Appraisal',
+        message: 'Network error. Could not delete appraisal.',
+        type: 'trash',
+        onRetry: () => deleteAppraisal(id)
+      })
     }
+  }
+
+  async function handleDeleteAppraisal(id: string) {
+    if (!confirm('Are you sure you want to delete this appraisal?')) return
+    await deleteAppraisal(id)
   }
 
   const totalOpenRoles = requirements.reduce((sum, req) => sum + (req.openPositions || 1), 0).toString()

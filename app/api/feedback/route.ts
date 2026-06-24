@@ -115,13 +115,13 @@ async function seedFeedback() {
   for (let i = 0; i < 122; i++) {
     const type = types[i % types.length]
     const status = statuses[i]
-    const rating = ratings[i]
+    const rating = ratings[Math.floor(Math.random() * ratings.length)]
     
     const textPool = contents[type as keyof typeof contents]
-    const content = textPool[i % textPool.length]
+    const content = textPool[Math.floor(Math.random() * textPool.length)]
 
-    const isAnon = type === 'Student -> Teacher' && i % 2 === 0
-    const senderName = isAnon ? 'Anonymous' : names[i % names.length]
+    const isAnon = type === 'Student -> Teacher' && Math.random() < 0.4
+    const senderName = isAnon ? 'Anonymous' : names[Math.floor(Math.random() * names.length)]
 
     const item: Record<string, any> = {
       senderName,
@@ -134,10 +134,10 @@ async function seedFeedback() {
     }
 
     if (type === 'Student -> Teacher') {
-      item.subject = subjects[i % subjects.length]
-      item.batch = batches[i % batches.length]
+      item.subject = subjects[Math.floor(Math.random() * subjects.length)]
+      item.batch = batches[Math.floor(Math.random() * batches.length)]
     } else {
-      item.category = categories[i % categories.length]
+      item.category = categories[Math.floor(Math.random() * categories.length)]
     }
 
     feedList.push(item)

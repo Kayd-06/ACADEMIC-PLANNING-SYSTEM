@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion } from 'framer-motion'
 import { 
   Calendar, 
@@ -48,6 +49,7 @@ function formatDateHeading(dateStr: string) {
 }
 
 export default function TeacherPortalDashboard({ teacherName }: { teacherName: string }) {
+  const { showAlert } = useAlert()
   const [view, setView] = useState<'dashboard' | 'schedule' | 'results'>('dashboard')
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -125,20 +127,36 @@ export default function TeacherPortalDashboard({ teacherName }: { teacherName: s
     }
   }
 
-  async function handleDeleteSchedule(id: string) {
-    if (!confirm('Are you sure you want to delete this schedule?')) return
+  async function deleteSchedule(id: string) {
     try {
       const res = await fetch(`/api/teacher-portal/schedule?id=${id}`, { method: 'DELETE' })
       if (res.ok) {
         handleScheduleSuccess()
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to delete schedule.')
+        const schedule = allSchedules.find(s => s._id === id)
+        const name = schedule ? schedule.activity : 'schedule'
+        showAlert({
+          title: 'Failed to Delete Schedule',
+          message: `Could not delete schedule "${name}". ${data.error || 'Failed to delete schedule.'}`,
+          type: 'trash',
+          onRetry: () => deleteSchedule(id)
+        })
       }
     } catch (err) {
       console.error(err)
-      alert('Network error. Could not delete schedule.')
+      showAlert({
+        title: 'Error Deleting Schedule',
+        message: 'Network error. Could not delete schedule.',
+        type: 'trash',
+        onRetry: () => deleteSchedule(id)
+      })
     }
+  }
+
+  async function handleDeleteSchedule(id: string) {
+    if (!confirm('Are you sure you want to delete this schedule?')) return
+    await deleteSchedule(id)
   }
 
   async function handleDeleteCounseling(id: string) {

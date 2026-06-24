@@ -11,25 +11,27 @@ function getDateOffset(offsetDays: number): string {
 }
 
 async function seedSessions() {
-  const count = await CounselingSession.countDocuments()
+  const count = await CounselingSession.countDocuments({ duration: { $exists: true } })
   if (count > 0) return
 
+  await CounselingSession.deleteMany({})
+
   const sessions = [
-    { studentName: 'Isha Patel', studentInitials: 'IP', counselor: 'Dr. Anjali Sharma', type: 'Academic', date: getDateOffset(5), time: '10:30 AM', status: 'Scheduled', flagged: false, notes: 'Struggling with mathematics; follow-up after mid-term.' },
-    { studentName: 'Marcus Johnson', studentInitials: 'MJ', counselor: 'Mr. David Chen', type: 'Career', date: getDateOffset(-1), time: '2:00 PM', status: 'Completed', flagged: false, notes: 'Discussed engineering college options and entrance exams.' },
-    { studentName: 'Sarah O\'Connor', studentInitials: 'SO', counselor: 'Dr. Anjali Sharma', type: 'Personal', date: getDateOffset(-1), time: '11:15 AM', status: 'No-Show', flagged: true, notes: 'Student did not attend. Parent contact required.' },
-    { studentName: 'Liam Miller', studentInitials: 'LM', counselor: 'Ms. Rebecca Torres', type: 'Disciplinary', date: getDateOffset(-2), time: '9:00 AM', status: 'Cancelled', flagged: false, notes: 'Session cancelled due to school event.' },
-    { studentName: 'Priya Nair', studentInitials: 'PN', counselor: 'Dr. Anjali Sharma', type: 'Academic', date: getDateOffset(2), time: '11:00 AM', status: 'Scheduled', flagged: false, notes: 'Reviewing improvement plan for science subjects.' },
-    { studentName: 'Ethan Brooks', studentInitials: 'EB', counselor: 'Mr. David Chen', type: 'Career', date: getDateOffset(3), time: '3:30 PM', status: 'Scheduled', flagged: false, notes: 'Aptitude test review and career mapping session.' },
-    { studentName: 'Aisha Gomez', studentInitials: 'AG', counselor: 'Ms. Rebecca Torres', type: 'Personal', date: getDateOffset(-3), time: '10:00 AM', status: 'Completed', flagged: true, notes: 'Peer pressure issues discussed. Flagged for follow-up.' },
-    { studentName: 'Rohan Verma', studentInitials: 'RV', counselor: 'Dr. Anjali Sharma', type: 'Disciplinary', date: getDateOffset(-4), time: '9:30 AM', status: 'Completed', flagged: false, notes: 'Attendance discussion resolved.' },
-    { studentName: 'Mei Lin', studentInitials: 'ML', counselor: 'Mr. David Chen', type: 'Academic', date: getDateOffset(1), time: '2:00 PM', status: 'Scheduled', flagged: false, notes: 'Grade improvement strategy for upcoming finals.' },
-    { studentName: 'James Wilson', studentInitials: 'JW', counselor: 'Ms. Rebecca Torres', type: 'Career', date: getDateOffset(-5), time: '4:00 PM', status: 'No-Show', flagged: true, notes: 'Second consecutive no-show. Escalation needed.' },
-    { studentName: 'Kavya Reddy', studentInitials: 'KR', counselor: 'Dr. Anjali Sharma', type: 'Personal', date: getDateOffset(-2), time: '12:00 PM', status: 'Completed', flagged: false, notes: 'Stress management techniques shared.' },
-    { studentName: 'David Osei', studentInitials: 'DO', counselor: 'Mr. David Chen', type: 'Academic', date: getDateOffset(7), time: '1:00 PM', status: 'Scheduled', flagged: false, notes: 'Scholarship application guidance session.' },
-    { studentName: 'Sophie Laurent', studentInitials: 'SL', counselor: 'Ms. Rebecca Torres', type: 'Career', date: getDateOffset(-6), time: '10:30 AM', status: 'Completed', flagged: false, notes: 'Arts college portfolio reviewed.' },
-    { studentName: 'Aryan Kapoor', studentInitials: 'AK', counselor: 'Dr. Anjali Sharma', type: 'Disciplinary', date: getDateOffset(-1), time: '9:00 AM', status: 'Completed', flagged: true, notes: 'Bullying complaint investigated and resolved.' },
-    { studentName: 'Nina Johansson', studentInitials: 'NJ', counselor: 'Mr. David Chen', type: 'Personal', date: getDateOffset(4), time: '11:30 AM', status: 'Scheduled', flagged: false, notes: 'Anxiety management referral follow-up.' },
+    { studentName: 'Aarav Sharma', studentInitials: 'AS', counselor: 'Dr. Anjali Sharma', type: 'Academic', date: getDateOffset(-1), time: '10:30 AM', duration: '45 mins', status: 'Completed', flagged: false, notes: 'Struggling with mathematics; follow-up after mid-term.' },
+    { studentName: 'Maya Patel', studentInitials: 'MP', counselor: 'Mr. David Chen', type: 'Career', date: getDateOffset(-2), time: '2:00 PM', duration: '30 mins', status: 'Scheduled', flagged: false, notes: 'Discussed engineering college options and entrance exams.' },
+    { studentName: 'Sarah Jenkins', studentInitials: 'SJ', counselor: 'Dr. Anjali Sharma', type: 'Disciplinary', date: getDateOffset(-3), time: '11:15 AM', duration: '15 mins', status: 'No-Show', flagged: true, notes: 'Student did not attend scheduled session. Follow up required.' },
+    { studentName: 'Liam Miller', studentInitials: 'LM', counselor: 'Ms. Rebecca Torres', type: 'Disciplinary', date: getDateOffset(-4), time: '9:00 AM', duration: '30 mins', status: 'Cancelled', flagged: false, notes: 'Session cancelled due to school event.' },
+    { studentName: 'Priya Nair', studentInitials: 'PN', counselor: 'Dr. Anjali Sharma', type: 'Academic', date: getDateOffset(2), time: '11:00 AM', duration: '45 mins', status: 'Scheduled', flagged: false, notes: 'Reviewing improvement plan for science subjects.' },
+    { studentName: 'Ethan Brooks', studentInitials: 'EB', counselor: 'Mr. David Chen', type: 'Career', date: getDateOffset(3), time: '3:30 PM', duration: '60 mins', status: 'Scheduled', flagged: false, notes: 'Aptitude test review and career mapping session.' },
+    { studentName: 'Aisha Gomez', studentInitials: 'AG', counselor: 'Ms. Rebecca Torres', type: 'Personal', date: getDateOffset(-5), time: '10:00 AM', duration: '45 mins', status: 'Completed', flagged: true, notes: 'Peer pressure issues discussed. Flagged for follow-up.' },
+    { studentName: 'Rohan Verma', studentInitials: 'RV', counselor: 'Dr. Anjali Sharma', type: 'Disciplinary', date: getDateOffset(-6), time: '9:30 AM', duration: '30 mins', status: 'Completed', flagged: false, notes: 'Attendance discussion resolved.' },
+    { studentName: 'Mei Lin', studentInitials: 'ML', counselor: 'Mr. David Chen', type: 'Academic', date: getDateOffset(1), time: '2:00 PM', duration: '30 mins', status: 'Scheduled', flagged: false, notes: 'Grade improvement strategy for upcoming finals.' },
+    { studentName: 'James Wilson', studentInitials: 'JW', counselor: 'Ms. Rebecca Torres', type: 'Career', date: getDateOffset(-7), time: '4:00 PM', duration: '45 mins', status: 'No-Show', flagged: true, notes: 'Second consecutive no-show. Escalation needed.' },
+    { studentName: 'Kavya Reddy', studentInitials: 'KR', counselor: 'Dr. Anjali Sharma', type: 'Personal', date: getDateOffset(-2), time: '12:00 PM', duration: '15 mins', status: 'Completed', flagged: false, notes: 'Stress management techniques shared.' },
+    { studentName: 'David Osei', studentInitials: 'DO', counselor: 'Mr. David Chen', type: 'Academic', date: getDateOffset(7), time: '1:00 PM', duration: '45 mins', status: 'Scheduled', flagged: false, notes: 'Scholarship application guidance session.' },
+    { studentName: 'Sophie Laurent', studentInitials: 'SL', counselor: 'Ms. Rebecca Torres', type: 'Career', date: getDateOffset(-8), time: '10:30 AM', duration: '30 mins', status: 'Completed', flagged: false, notes: 'Arts college portfolio reviewed.' },
+    { studentName: 'Aryan Kapoor', studentInitials: 'AK', counselor: 'Dr. Anjali Sharma', type: 'Disciplinary', date: getDateOffset(-1), time: '9:00 AM', duration: '15 mins', status: 'Completed', flagged: true, notes: 'Bullying complaint investigated and resolved.' },
+    { studentName: 'Nina Johansson', studentInitials: 'NJ', counselor: 'Mr. David Chen', type: 'Personal', date: getDateOffset(4), time: '11:30 AM', duration: '30 mins', status: 'Scheduled', flagged: false, notes: 'Anxiety management referral follow-up.' },
   ]
 
   await CounselingSession.insertMany(sessions)
@@ -109,7 +111,7 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB()
     const body = await req.json()
-    const { studentName, counselor, type, date, time, notes } = body
+    const { studentName, counselor, type, date, time, notes, duration } = body
 
     if (!studentName?.trim() || !counselor?.trim() || !type || !date || !time) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -129,6 +131,7 @@ export async function POST(req: NextRequest) {
       time,
       status: 'Scheduled',
       notes: notes?.trim() || '',
+      duration: duration || '30 mins',
       flagged: false
     })
 
@@ -143,7 +146,7 @@ export async function PATCH(req: NextRequest) {
   try {
     await connectDB()
     const body = await req.json()
-    const { id, status, flagged, notes } = body
+    const { id, status, flagged, notes, duration } = body
 
     if (!id) return NextResponse.json({ error: 'Missing session ID.' }, { status: 400 })
 
@@ -151,6 +154,7 @@ export async function PATCH(req: NextRequest) {
     if (status !== undefined) updates.status = status
     if (flagged !== undefined) updates.flagged = flagged
     if (notes !== undefined) updates.notes = notes
+    if (duration !== undefined) updates.duration = duration
 
     const updated = await CounselingSession.findByIdAndUpdate(id, updates, { new: true })
     if (!updated) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })

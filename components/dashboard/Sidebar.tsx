@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { HelpCircle, LogOut, Plus, X } from 'lucide-react'
+import { LogOut, Plus, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface NavItem {
@@ -98,12 +98,7 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
             New Recruitment
           </motion.button>
         )}
-        <Link href="/support">
-          <div className="flex items-center gap-3 px-4 py-2 mx-2 rounded-md text-[13px] font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all">
-            <HelpCircle className="w-4 h-4 shrink-0 text-slate-400" />
-            Support
-          </div>
-        </Link>
+
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
           className="w-full flex items-center gap-3 px-4 py-2 mx-2 rounded-md text-[13px] font-medium text-slate-500 hover:bg-red-50 hover:text-red-500 transition-all"

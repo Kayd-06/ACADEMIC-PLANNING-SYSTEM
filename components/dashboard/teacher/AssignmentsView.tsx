@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Calendar, 
@@ -26,6 +27,7 @@ function formatShortDate(dateStr: string) {
 }
 
 export default function AssignmentsView() {
+  const { showAlert } = useAlert()
   const [assignments, setAssignments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -90,32 +92,14 @@ export default function AssignmentsView() {
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedList = searchedAssignments.slice(startIndex, startIndex + itemsPerPage)
 
-  // Handle create submit
-  async function handleCreateAssignment(e: React.FormEvent) {
-    e.preventDefault()
-    if (!newTitle || !newChapter || !newDueDate) {
-      alert('Please fill in all required fields.')
-      return
-    }
-
+  // Submit assignment helper to support retry
+  async function createAssignment(payload: any) {
     setSubmitting(true)
     try {
-      // Determine total student counts based on batch
-      const totalStudents = newBatch.startsWith('Grade 11') ? 60 : 65
-
       const res = await fetch('/api/assignments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newTitle,
-          chapter: newChapter,
-          batch: newBatch,
-          subject: newSubject,
-          type: newType,
-          dueDate: newDueDate,
-          dueTime: newDueTime,
-          totalStudents
-        })
+        body: JSON.stringify(payload)
       })
 
       const data = await res.json()
@@ -127,14 +111,50 @@ export default function AssignmentsView() {
         setNewDueDate('')
         fetchAssignments()
       } else {
-        alert(data.error)
+        showAlert({
+          title: 'Failed to Create Assignment',
+          message: data.error,
+          type: 'book',
+          onRetry: () => createAssignment(payload)
+        })
       }
     } catch (err) {
       console.error(err)
-      alert('Failed to create assignment.')
+      showAlert({
+        title: 'Error Creating Assignment',
+        message: 'Network error. Could not create assignment.',
+        type: 'book',
+        onRetry: () => createAssignment(payload)
+      })
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Handle create submit
+  async function handleCreateAssignment(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newTitle || !newChapter || !newDueDate) {
+      showAlert({
+        title: 'Missing Required Fields',
+        message: 'Please fill in all required fields before assigning.',
+        type: 'warning'
+      })
+      return
+    }
+
+    const totalStudents = newBatch.startsWith('Grade 11') ? 60 : 65
+    const payload = {
+      title: newTitle,
+      chapter: newChapter,
+      batch: newBatch,
+      subject: newSubject,
+      type: newType,
+      dueDate: newDueDate,
+      dueTime: newDueTime,
+      totalStudents
+    }
+    await createAssignment(payload)
   }
 
   // Handle evaluation status update
@@ -171,6 +191,34 @@ export default function AssignmentsView() {
       }
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  async function deleteAssignment(id: string) {
+    try {
+      const res = await fetch(`/api/assignments?id=${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (res.ok && !data.error) {
+        setShowDetailsModal(false)
+        setSelectedAssignment(null)
+        fetchAssignments()
+      } else {
+        const assignmentName = selectedAssignment ? selectedAssignment.title : 'assignment'
+        showAlert({
+          title: 'Failed to Delete Assignment',
+          message: `Could not delete assignment "${assignmentName}". ${data.error || 'Failed to delete.'}`,
+          type: 'trash',
+          onRetry: () => deleteAssignment(id)
+        })
+      }
+    } catch (err) {
+      console.error('Delete error:', err)
+      showAlert({
+        title: 'Error Deleting Assignment',
+        message: 'Network error. Could not delete assignment.',
+        type: 'trash',
+        onRetry: () => deleteAssignment(id)
+      })
     }
   }
 
@@ -666,20 +714,7 @@ export default function AssignmentsView() {
                 <button
                   onClick={async () => {
                     if (confirm('Are you sure you want to cancel and delete this assignment?')) {
-                      try {
-                        const res = await fetch(`/api/assignments?id=${selectedAssignment._id}`, { method: 'DELETE' })
-                        const data = await res.json()
-                        if (res.ok && !data.error) {
-                          setShowDetailsModal(false)
-                          setSelectedAssignment(null)
-                          fetchAssignments()
-                        } else {
-                          alert(data.error || 'Failed to delete assignment. Please try again.')
-                        }
-                      } catch (err) {
-                        console.error('Delete error:', err)
-                        alert('Network error. Could not delete assignment.')
-                      }
+                      await deleteAssignment(selectedAssignment._id)
                     }
                   }}
                   className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"

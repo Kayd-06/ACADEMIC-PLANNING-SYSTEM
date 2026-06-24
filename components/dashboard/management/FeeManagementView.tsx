@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   CreditCard, 
@@ -32,6 +33,7 @@ function formatCurrency(amount: number) {
 }
 
 export default function FeeManagementView() {
+  const { showAlert } = useAlert()
   // Tabs: 'structure' or 'payments'
   const [activeTab, setActiveTab] = useState<'structure' | 'payments'>('structure')
 
@@ -124,22 +126,14 @@ export default function FeeManagementView() {
     fetchData()
   }, [])
 
-  // Handle Fee Structure Form Submit (Create or Update)
-  async function handleFeeSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!feeForm.name || !feeForm.programBatch || !feeForm.amount) return
-
+  // Submit fee helper to support retry
+  async function submitFee(payload: any, editingFeeId?: string) {
     setActionLoading(true)
     try {
-      const url = editingFee 
-        ? `/api/fees/structures?id=${editingFee._id}`
+      const url = editingFeeId 
+        ? `/api/fees/structures?id=${editingFeeId}`
         : '/api/fees/structures'
-      const method = editingFee ? 'PUT' : 'POST'
-      
-      const payload = {
-        ...feeForm,
-        amount: Number(feeForm.amount)
-      }
+      const method = editingFeeId ? 'PUT' : 'POST'
 
       const res = await fetch(url, {
         method,
@@ -149,7 +143,6 @@ export default function FeeManagementView() {
 
       const data = await res.json()
       if (!data.error) {
-        // Reset states and refresh
         setShowFeeModal(false)
         setEditingFee(null)
         setFeeForm({
@@ -162,19 +155,40 @@ export default function FeeManagementView() {
         })
         fetchData()
       } else {
-        alert(data.error)
+        showAlert({
+          title: editingFeeId ? 'Failed to Update Fee Structure' : 'Failed to Create Fee Structure',
+          message: data.error,
+          type: 'warning',
+          onRetry: () => submitFee(payload, editingFeeId)
+        })
       }
     } catch (err) {
       console.error(err)
+      showAlert({
+        title: 'Error Saving Fee Structure',
+        message: 'Network error. Could not save fee structure.',
+        type: 'warning',
+        onRetry: () => submitFee(payload, editingFeeId)
+      })
     } finally {
       setActionLoading(false)
     }
   }
 
-  // Handle Fee Structure Delete
-  async function handleFeeDelete(id: string) {
-    if (!confirm('Are you sure you want to delete this fee structure?')) return
+  // Handle Fee Structure Form Submit (Create or Update)
+  async function handleFeeSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!feeForm.name || !feeForm.programBatch || !feeForm.amount) return
 
+    const payload = {
+      ...feeForm,
+      amount: Number(feeForm.amount)
+    }
+    await submitFee(payload, editingFee?._id)
+  }
+
+  // Delete fee structure helper to support retry
+  async function deleteFee(id: string) {
     try {
       const res = await fetch(`/api/fees/structures?id=${id}`, {
         method: 'DELETE'
@@ -183,25 +197,36 @@ export default function FeeManagementView() {
       if (!data.error) {
         fetchData()
       } else {
-        alert(data.error)
+        const fee = feeTypes.find(f => f._id === id)
+        const feeName = fee ? fee.name : 'fee structure'
+        showAlert({
+          title: 'Failed to Delete Fee Structure',
+          message: `Could not delete ${feeName}. ${data.error}`,
+          type: 'trash',
+          onRetry: () => deleteFee(id)
+        })
       }
     } catch (err) {
       console.error(err)
+      showAlert({
+        title: 'Error Deleting Fee Structure',
+        message: 'Network error. Could not delete fee structure.',
+        type: 'trash',
+        onRetry: () => deleteFee(id)
+      })
     }
   }
 
-  // Handle Payment Record Form Submit
-  async function handlePaymentSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!paymentForm.studentId || !paymentForm.feeTypeId || !paymentForm.amount) return
+  // Handle Fee Structure Delete
+  async function handleFeeDelete(id: string) {
+    if (!confirm('Are you sure you want to delete this fee structure?')) return
+    await deleteFee(id)
+  }
 
+  // Submit payment helper to support retry
+  async function submitPayment(payload: any) {
     setActionLoading(true)
     try {
-      const payload = {
-        ...paymentForm,
-        amount: Number(paymentForm.amount)
-      }
-
       const res = await fetch('/api/fees/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -221,13 +246,40 @@ export default function FeeManagementView() {
         })
         fetchData()
       } else {
-        alert(data.error)
+        const student = students.find(s => s._id === payload.studentId)
+        const studentName = student ? student.name : 'Student'
+        showAlert({
+          title: `Payment for ${studentName} was unsuccessful`,
+          message: `The payment for ${studentName} couldn't be completed. ${data.error}`,
+          type: 'card',
+          onRetry: () => submitPayment(payload)
+        })
       }
     } catch (err) {
       console.error(err)
+      const student = students.find(s => s._id === payload.studentId)
+      const studentName = student ? student.name : 'Student'
+      showAlert({
+        title: `Payment for ${studentName} was unsuccessful`,
+        message: `Network error. The payment for ${studentName} couldn't be completed.`,
+        type: 'card',
+        onRetry: () => submitPayment(payload)
+      })
     } finally {
       setActionLoading(false)
     }
+  }
+
+  // Handle Payment Record Form Submit
+  async function handlePaymentSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!paymentForm.studentId || !paymentForm.feeTypeId || !paymentForm.amount) return
+
+    const payload = {
+      ...paymentForm,
+      amount: Number(paymentForm.amount)
+    }
+    await submitPayment(payload)
   }
 
   // Open Edit Fee structure modal
