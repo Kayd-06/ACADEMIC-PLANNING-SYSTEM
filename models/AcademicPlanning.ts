@@ -36,4 +36,18 @@ const AcademicMetricSchema = new mongoose.Schema({
 
 const AcademicMetric = mongoose.models.AcademicMetric || mongoose.model('AcademicMetric', AcademicMetricSchema)
 
-export { Milestone, PlanningLog, AcademicMetric }
+const SyllabusChapterSchema = new mongoose.Schema({
+  className: { type: String, required: true },
+  subject: { type: String, required: true },
+  title: { type: String, required: true },
+  estHours: { type: String, required: true },
+  dates: { type: String, required: true },
+  status: { type: String, enum: ['NOT STARTED', 'IN PROGRESS', 'COMPLETED'], default: 'NOT STARTED' },
+  notes: { type: String, default: '' },
+  order: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
+})
+
+const SyllabusChapter = mongoose.models.SyllabusChapter || mongoose.model('SyllabusChapter', SyllabusChapterSchema)
+
+export { Milestone, PlanningLog, AcademicMetric, SyllabusChapter }
