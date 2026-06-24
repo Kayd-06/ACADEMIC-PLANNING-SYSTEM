@@ -1,9 +1,8 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { LayoutDashboard, BookOpen, Calendar, Users, GraduationCap } from 'lucide-react'
 import Sidebar from '@/components/dashboard/Sidebar'
 import TopHeader from '@/components/dashboard/TopHeader'
-import AcademicPlanning from '@/components/dashboard/AcademicPlanning'
+import FacultyAcademicPlanningView from '@/components/dashboard/teacher/FacultyAcademicPlanningView'
 import { TEACHER_NAV } from '@/lib/navigation'
 
 function getInitials(name: string) {
@@ -20,7 +19,7 @@ export default async function TeacherAcademicPlanningPage() {
       <Sidebar userName={session.user.name ?? ''} userRole="Faculty Portal" navItems={TEACHER_NAV} initials={initials} />
       <div className="flex-1 flex flex-col min-w-0">
         <TopHeader initials={initials} />
-        <AcademicPlanning role="teacher" />
+        <FacultyAcademicPlanningView />
       </div>
     </div>
   )
