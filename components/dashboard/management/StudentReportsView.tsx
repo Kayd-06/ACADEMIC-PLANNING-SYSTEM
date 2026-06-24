@@ -1,33 +1,120 @@
 'use client'
-import { ChevronDown, Download, Search, AlertTriangle, ChevronRight, Award, Medal } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ChevronDown, Download, Search, AlertTriangle, ChevronRight, Award, CheckCircle, Loader2 } from 'lucide-react'
 
-// --- Mock Data ---
-const PERFORMANCE_DATA = [
-  { label: 'Q1', math: 60, science: 75 },
-  { label: 'Q2', math: 68, science: 78 },
-  { label: 'Mid', math: 65, science: 75 },
-  { label: 'Q3', math: 80, science: 82 },
-  { label: 'Final', math: 88, science: 86 },
-]
+// --- Interfaces ---
+interface PerformanceTrend {
+  _id: string
+  label: string
+  math: number
+  science: number
+}
 
-const UPLOADED_REPORTS = [
-  { initials: 'SJ', name: 'Sarah Jenkins', class: 'Class 10-A', sub: 'Mathematics', term: "Mid-Term '24", date: 'Oct 12, 2024', students: 32, theme: 'indigo' },
-  { initials: 'MR', name: 'Michael Ross', class: 'Class 10-A', sub: 'Science', term: "Mid-Term '24", date: 'Oct 11, 2024', students: 32, theme: 'emerald' },
-  { initials: 'ED', name: 'Emily Davis', class: 'Class 10-B', sub: 'English', term: "Mid-Term '24", date: 'Oct 10, 2024', students: 28, theme: 'blue' },
-]
+interface UploadedReport {
+  _id: string
+  initials: string
+  name: string
+  className: string
+  subject: string
+  term: string
+  date: string
+  students: number
+  theme: string
+}
 
-const TOP_PERFORMERS = [
-  { rank: 1, name: 'Alex Johnson', class: 'Class 10-A', score: '98.5%', initials: 'AJ', bg: 'bg-[#0b1320]' },
-  { rank: 2, name: 'Chloe Wu', class: 'Class 10-C', score: '96.2%', initials: 'CW', bg: 'bg-indigo-100 text-indigo-700' },
-  { rank: 3, name: 'Daniel Patel', class: 'Class 10-A', score: '95.8%', initials: 'DP', bg: 'bg-purple-100 text-purple-700' },
-  { rank: 4, name: 'Emma Stone', score: '94.1%', initials: '4' },
-  { rank: 5, name: 'Liam Smith', score: '93.5%', initials: '5' },
-]
+interface TopPerformer {
+  _id: string
+  rank: number
+  name: string
+  className?: string
+  score: string
+  initials: string
+  bg?: string
+}
+
+interface AttentionSubject {
+  _id: string
+  subject: string
+  avg: string
+  target: string
+  theme: string
+}
 
 export default function StudentReportsView() {
+  const [performanceData, setPerformanceData] = useState<PerformanceTrend[]>([])
+  const [uploadedReports, setUploadedReports] = useState<UploadedReport[]>([])
+  const [topPerformers, setTopPerformers] = useState<TopPerformer[]>([])
+  const [attentionSubjects, setAttentionSubjects] = useState<AttentionSubject[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [toast, setToast] = useState<string | null>(null)
+
+  // Filter dropdown states
+  const [selectedClass, setSelectedClass] = useState('Class 10')
+  const [selectedSection, setSelectedSection] = useState('Section A')
+  const [selectedTerm, setSelectedTerm] = useState('Mid-Term 2024')
+  const [selectedSubject, setSelectedSubject] = useState('All Subjects')
+
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  useEffect(() => {
+    fetch('/api/student-reports/dashboard')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          setPerformanceData(data.performanceTrends || [])
+          setUploadedReports(data.uploadedReports || [])
+          setTopPerformers(data.topPerformers || [])
+          setAttentionSubjects(data.attentionSubjects || [])
+        }
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error('Failed to fetch dashboard data', err)
+        setLoading(false)
+      })
+  }, [])
+
+  // Filtered reports
+  const filteredReports = uploadedReports.filter(rep => {
+    if (!searchQuery) return true
+    const lowerQuery = searchQuery.toLowerCase()
+    return rep.name.toLowerCase().includes(lowerQuery) || rep.subject.toLowerCase().includes(lowerQuery) || rep.className.toLowerCase().includes(lowerQuery)
+  })
+
+  // Pagination
+  const itemsPerPage = 3
+  const totalPages = Math.max(1, Math.ceil(filteredReports.length / itemsPerPage))
+  const paginatedReports = filteredReports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+
+  const handleExport = () => {
+    showToast('Exporting reports as CSV...')
+  }
+
+  if (loading) {
+    return (
+      <div className="flex-1 p-8 flex items-center justify-center bg-slate-50 min-h-screen">
+        <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+      </div>
+    )
+  }
+
   return (
-    <div className="flex-1 p-8 overflow-auto bg-slate-50 min-h-screen">
+    <div className="flex-1 p-8 overflow-auto bg-slate-50 min-h-screen relative">
       
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-8 right-8 bg-slate-900 text-white px-6 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-3 font-medium animate-in slide-in-from-bottom-5">
+          <CheckCircle className="w-4 h-4 text-emerald-400" />
+          {toast}
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">Student Reports & Analytics</h1>
@@ -37,22 +124,22 @@ export default function StudentReportsView() {
       </div>
 
       {/* Filters Bar */}
-      <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm mb-6">
-        <div className="flex items-center gap-3">
-          <button className="flex items-center justify-between w-32 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors">
-            Class 10 <ChevronDown className="w-4 h-4 text-slate-400" />
+      <div className="flex flex-wrap items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm mb-6 gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <button onClick={() => { setSelectedClass('Class 10'); showToast('Filtered by Class 10'); }} className="flex items-center justify-between w-32 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors active:scale-95">
+            {selectedClass} <ChevronDown className="w-4 h-4 text-slate-400" />
           </button>
-          <button className="flex items-center justify-between w-32 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors">
-            Section A <ChevronDown className="w-4 h-4 text-slate-400" />
+          <button onClick={() => { setSelectedSection('Section A'); showToast('Filtered by Section A'); }} className="flex items-center justify-between w-32 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors active:scale-95">
+            {selectedSection} <ChevronDown className="w-4 h-4 text-slate-400" />
           </button>
-          <button className="flex items-center justify-between w-40 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors">
-            Mid-Term 2024 <ChevronDown className="w-4 h-4 text-slate-400" />
+          <button onClick={() => { setSelectedTerm('Mid-Term 2024'); showToast('Filtered by Mid-Term 2024'); }} className="flex items-center justify-between w-40 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors active:scale-95">
+            {selectedTerm} <ChevronDown className="w-4 h-4 text-slate-400" />
           </button>
-          <button className="flex items-center justify-between w-40 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors">
-            All Subjects <ChevronDown className="w-4 h-4 text-slate-400" />
+          <button onClick={() => { setSelectedSubject('All Subjects'); showToast('Showing All Subjects'); }} className="flex items-center justify-between w-40 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors active:scale-95">
+            {selectedSubject} <ChevronDown className="w-4 h-4 text-slate-400" />
           </button>
         </div>
-        <button className="flex items-center gap-2 px-5 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
+        <button onClick={handleExport} className="flex items-center gap-2 px-5 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm active:scale-95">
           <Download className="w-4 h-4" /> Export
         </button>
       </div>
@@ -75,30 +162,38 @@ export default function StudentReportsView() {
 
             {/* CSS Bar Chart */}
             <div className="relative h-64 flex items-end justify-between px-4 pb-8 pt-4">
-              {/* Y-Axis lines */}
-              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-8">
-                {[100, 75, 50, 25, 0].map(val => (
-                  <div key={val} className="flex items-center w-full">
-                    <span className="text-[10px] text-slate-400 w-6 mr-2 text-right font-medium">{val}</span>
-                    <div className="flex-1 border-t border-dashed border-slate-100" />
+              {performanceData.length === 0 ? (
+                <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-slate-400">
+                  No performance data available. Please upload reports.
+                </div>
+              ) : (
+                <>
+                  {/* Y-Axis lines */}
+                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-8">
+                    {[100, 75, 50, 25, 0].map(val => (
+                      <div key={val} className="flex items-center w-full">
+                        <span className="text-[10px] text-slate-400 w-6 mr-2 text-right font-medium">{val}</span>
+                        <div className="flex-1 border-t border-dashed border-slate-100" />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              {/* Bars */}
-              <div className="relative z-10 w-full flex justify-around items-end h-full ml-8">
-                {PERFORMANCE_DATA.map((data, idx) => (
-                  <div key={idx} className="flex flex-col items-center gap-2 group h-full justify-end">
-                    <div className="flex items-end gap-1.5 h-full">
-                      {/* Math Bar */}
-                      <div className="w-4 bg-indigo-600 rounded-t-sm hover:opacity-80 transition-opacity relative group-hover:bg-indigo-500" style={{ height: `${data.math}%` }}></div>
-                      {/* Science Bar */}
-                      <div className="w-4 bg-emerald-500 rounded-t-sm hover:opacity-80 transition-opacity relative group-hover:bg-emerald-400" style={{ height: `${data.science}%` }}></div>
-                    </div>
-                    <span className="text-[11px] font-semibold text-slate-500 absolute -bottom-6">{data.label}</span>
+                  {/* Bars */}
+                  <div className="relative z-10 w-full flex justify-around items-end h-full ml-8">
+                    {performanceData.map((data, idx) => (
+                      <div key={data._id || idx} className="flex flex-col items-center gap-2 group h-full justify-end cursor-pointer" onClick={() => showToast(`${data.label}: Math ${data.math}%, Science ${data.science}%`)}>
+                        <div className="flex items-end gap-1.5 h-full">
+                          {/* Math Bar */}
+                          <div className="w-4 bg-indigo-600 rounded-t-sm hover:opacity-80 transition-opacity relative group-hover:bg-indigo-500" style={{ height: `${data.math}%` }}></div>
+                          {/* Science Bar */}
+                          <div className="w-4 bg-emerald-500 rounded-t-sm hover:opacity-80 transition-opacity relative group-hover:bg-emerald-400" style={{ height: `${data.science}%` }}></div>
+                        </div>
+                        <span className="text-[11px] font-semibold text-slate-500 absolute -bottom-6">{data.label}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -108,55 +203,101 @@ export default function StudentReportsView() {
               <h2 className="text-sm font-bold text-slate-900">Uploaded Reports</h2>
               <div className="relative w-64">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" placeholder="Filter reports..." className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" />
+                <input 
+                  type="text" 
+                  placeholder="Filter reports..." 
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1); // Reset page on search
+                  }}
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" 
+                />
               </div>
             </div>
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-50/50">
-                  <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Teacher</th>
-                  <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Class / Subject</th>
-                  <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Term</th>
-                  <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Uploaded</th>
-                  <th className="px-6 py-4 text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">Students</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {UPLOADED_REPORTS.map((rep, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                          rep.theme === 'indigo' ? 'bg-indigo-100 text-indigo-700' :
-                          rep.theme === 'emerald' ? 'bg-emerald-100 text-emerald-700' :
-                          'bg-blue-100 text-blue-700'
-                        }`}>
-                          {rep.initials}
-                        </div>
-                        <span className="text-[13px] font-bold text-slate-900">{rep.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-[13px] font-bold text-slate-900">{rep.class}</p>
-                      <p className="text-[11px] text-slate-500">{rep.sub}</p>
-                    </td>
-                    <td className="px-6 py-4 text-[13px] text-slate-700">{rep.term}</td>
-                    <td className="px-6 py-4">
-                      <p className="text-[13px] text-slate-700">{rep.date.split(',')[0]}</p>
-                      <p className="text-[11px] text-slate-500">{rep.date.split(',')[1]}</p>
-                    </td>
-                    <td className="px-6 py-4 text-center text-[13px] font-semibold text-slate-700">{rep.students}</td>
+            
+            {paginatedReports.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500">
+                No reports found matching your criteria.
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Teacher</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Class / Subject</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Term</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Uploaded</th>
+                    <th className="px-6 py-4 text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">Students</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedReports.map((rep, idx) => (
+                    <tr key={rep._id || idx} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => showToast(`Viewing report from ${rep.name}`)}>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                            rep.theme === 'indigo' ? 'bg-indigo-100 text-indigo-700' :
+                            rep.theme === 'emerald' ? 'bg-emerald-100 text-emerald-700' :
+                            'bg-blue-100 text-blue-700'
+                          }`}>
+                            {rep.initials}
+                          </div>
+                          <span className="text-[13px] font-bold text-slate-900">{rep.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-[13px] font-bold text-slate-900">{rep.className}</p>
+                        <p className="text-[11px] text-slate-500">{rep.subject}</p>
+                      </td>
+                      <td className="px-6 py-4 text-[13px] text-slate-700">{rep.term}</td>
+                      <td className="px-6 py-4">
+                        {/* Check if date contains a comma, robust splitting */}
+                        <p className="text-[13px] text-slate-700">{rep.date.includes(',') ? rep.date.split(',')[0] : rep.date}</p>
+                        {rep.date.includes(',') && <p className="text-[11px] text-slate-500">{rep.date.split(',')[1]}</p>}
+                      </td>
+                      <td className="px-6 py-4 text-center text-[13px] font-semibold text-slate-700">{rep.students}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            
+            {/* Pagination */}
             <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <span className="text-[12px] text-slate-500">Showing 1 to 3 of 12 entries</span>
+              <span className="text-[12px] text-slate-500">
+                Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredReports.length)} to {Math.min(currentPage * itemsPerPage, filteredReports.length)} of {filteredReports.length} entries
+              </span>
               <div className="flex items-center gap-1">
-                <button className="px-3 py-1.5 border border-slate-200 bg-white text-slate-500 text-[12px] font-semibold rounded-md hover:bg-slate-50">Prev</button>
-                <button className="w-8 py-1.5 bg-indigo-600 text-white text-[12px] font-bold rounded-md">1</button>
-                <button className="w-8 py-1.5 border border-slate-200 bg-white text-slate-600 text-[12px] font-semibold rounded-md hover:bg-slate-50">2</button>
-                <button className="px-3 py-1.5 border border-slate-200 bg-white text-slate-600 text-[12px] font-semibold rounded-md hover:bg-slate-50">Next</button>
+                <button 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 border border-slate-200 bg-white text-slate-500 text-[12px] font-semibold rounded-md hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                >
+                  Prev
+                </button>
+                
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <button 
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-8 py-1.5 text-[12px] font-semibold rounded-md transition-colors ${
+                      currentPage === page 
+                        ? 'bg-indigo-600 text-white font-bold' 
+                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                
+                <button 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 border border-slate-200 bg-white text-slate-600 text-[12px] font-semibold rounded-md hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                >
+                  Next
+                </button>
               </div>
             </div>
           </div>
@@ -169,38 +310,44 @@ export default function StudentReportsView() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <h2 className="text-sm font-bold text-slate-900 mb-6">Top Performers</h2>
             <div className="space-y-4">
-              {TOP_PERFORMERS.map((perf) => (
-                <div key={perf.rank} className="flex items-center justify-between p-3 border border-slate-100 rounded-xl bg-slate-50/50">
-                  <div className="flex items-center gap-3 relative">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${perf.bg || 'bg-slate-200 text-slate-600'}`}>
-                      {perf.bg ? perf.initials : perf.rank}
-                    </div>
-                    {perf.rank <= 3 && (
-                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-black ${
-                        perf.rank === 1 ? 'bg-amber-400 text-white' : 
-                        perf.rank === 2 ? 'bg-slate-300 text-slate-700' : 
-                        'bg-amber-700 text-white'
-                      }`}>
-                        {perf.rank}
-                      </div>
-                    )}
-                    <div>
-                      <h4 className="text-[13px] font-bold text-slate-900 leading-tight">{perf.name}</h4>
-                      {perf.class && <p className="text-[11px] text-slate-500">{perf.class}</p>}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[15px] font-black text-slate-900">{perf.score}</span>
-                    {perf.rank <= 3 && (
-                      <Award className={`w-3.5 h-3.5 ml-auto mt-0.5 ${
-                        perf.rank === 1 ? 'text-amber-400' : 
-                        perf.rank === 2 ? 'text-slate-400' : 
-                        'text-amber-700'
-                      }`} />
-                    )}
-                  </div>
+              {topPerformers.length === 0 ? (
+                <div className="p-6 text-center text-sm font-medium text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                  No top performer data available yet.
                 </div>
-              ))}
+              ) : (
+                topPerformers.map((perf) => (
+                  <div key={perf._id || perf.rank} onClick={() => showToast(`View details for ${perf.name}`)} className="flex items-center justify-between p-3 border border-slate-100 rounded-xl bg-slate-50/50 cursor-pointer hover:bg-slate-100/50 transition-colors">
+                    <div className="flex items-center gap-3 relative">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${perf.bg || 'bg-slate-200 text-slate-600'}`}>
+                        {perf.bg ? perf.initials : perf.rank}
+                      </div>
+                      {perf.rank <= 3 && (
+                        <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-black ${
+                          perf.rank === 1 ? 'bg-amber-400 text-white' : 
+                          perf.rank === 2 ? 'bg-slate-300 text-slate-700' : 
+                          'bg-amber-700 text-white'
+                        }`}>
+                          {perf.rank}
+                        </div>
+                      )}
+                      <div>
+                        <h4 className="text-[13px] font-bold text-slate-900 leading-tight">{perf.name}</h4>
+                        {perf.className && <p className="text-[11px] text-slate-500">{perf.className}</p>}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[15px] font-black text-slate-900">{perf.score}</span>
+                      {perf.rank <= 3 && (
+                        <Award className={`w-3.5 h-3.5 ml-auto mt-0.5 ${
+                          perf.rank === 1 ? 'text-amber-400' : 
+                          perf.rank === 2 ? 'text-slate-400' : 
+                          'text-amber-700'
+                        }`} />
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -215,20 +362,25 @@ export default function StudentReportsView() {
             </p>
 
             <div className="space-y-3">
-              <div className="bg-red-50/50 border border-red-200 p-4 rounded-xl flex items-center justify-between cursor-pointer hover:bg-red-50 transition-colors group">
-                <div>
-                  <h4 className="text-[14px] font-bold text-red-700 mb-1">Physics</h4>
-                  <p className="text-[12px] font-semibold text-red-600/80">Avg: 58% (Target: 65%)</p>
+              {attentionSubjects.length === 0 ? (
+                <div className="p-6 text-center text-sm font-medium text-emerald-600 bg-emerald-50/50 border border-emerald-100 rounded-xl">
+                  All subjects are currently performing well!
                 </div>
-                <ChevronRight className="w-4 h-4 text-red-400 group-hover:text-red-600 transition-colors" />
-              </div>
-              <div className="bg-amber-50/50 border border-amber-200 p-4 rounded-xl flex items-center justify-between cursor-pointer hover:bg-amber-50 transition-colors group">
-                <div>
-                  <h4 className="text-[14px] font-bold text-amber-700 mb-1">History</h4>
-                  <p className="text-[12px] font-semibold text-amber-600/80">Avg: 62% (Target: 65%)</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-amber-400 group-hover:text-amber-600 transition-colors" />
-              </div>
+              ) : (
+                attentionSubjects.map((sub, idx) => (
+                  <div key={sub._id || idx} onClick={() => showToast(`Viewing intervention plan for ${sub.subject}`)} className={`border p-4 rounded-xl flex items-center justify-between cursor-pointer transition-colors group ${
+                    sub.theme === 'red' ? 'bg-red-50/50 border-red-200 hover:bg-red-50' : 'bg-amber-50/50 border-amber-200 hover:bg-amber-50'
+                  }`}>
+                    <div>
+                      <h4 className={`text-[14px] font-bold mb-1 ${sub.theme === 'red' ? 'text-red-700' : 'text-amber-700'}`}>{sub.subject}</h4>
+                      <p className={`text-[12px] font-semibold ${sub.theme === 'red' ? 'text-red-600/80' : 'text-amber-600/80'}`}>Avg: {sub.avg} (Target: {sub.target})</p>
+                    </div>
+                    <ChevronRight className={`w-4 h-4 transition-colors ${
+                      sub.theme === 'red' ? 'text-red-400 group-hover:text-red-600' : 'text-amber-400 group-hover:text-amber-600'
+                    }`} />
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
