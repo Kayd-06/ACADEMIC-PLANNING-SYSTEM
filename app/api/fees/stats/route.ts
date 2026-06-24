@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import FeeType from '@/models/FeeType'
 import PaymentRecord from '@/models/PaymentRecord'
-import Student from '@/models/Student'
 import { auth } from '@/lib/auth'
+import { listStudents, bulkInsertStudents } from '@/lib/db/queries/students'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,11 +13,11 @@ async function seedDataIfEmpty() {
   if (feeTypeCount > 0) return
 
   // 1. Create realistic mock students if none exist
-  let students = await Student.find({ isActive: true })
+  let students = await listStudents({ activeOnly: true })
   if (students.length < 50) {
     const firstNames = ['Karan', 'Isha', 'Rohan', 'Meera', 'Amit', 'Neha', 'Rahul', 'Priya', 'Sanjay', 'Deepa', 'Vijay', 'Anjali', 'Rajesh', 'Sunita', 'Vikram', 'Kavita', 'Arjun', 'Pooja', 'Aditya', 'Ritu']
     const lastNames = ['Sharma', 'Patel', 'Gupta', 'Kumar', 'Verma', 'Singh', 'Joshi', 'Mehta', 'Shah', 'Rao', 'Nair', 'Das', 'Sen', 'Reddy', 'Gowda', 'Mishra', 'Trivedi', 'Pandey', 'Choudhury', 'Gill']
-    
+
     const newStudentsData = []
     for (let i = 0; i < 60; i++) {
       const fn = firstNames[i % firstNames.length]
@@ -25,7 +25,7 @@ async function seedDataIfEmpty() {
       const classNum = i % 2 === 0 ? '11' : '10'
       const sec = i % 3 === 0 ? 'A' : 'B'
       const rollNum = `24-${classNum}${sec}-0${String(i + 1).padStart(2, '0')}`
-      
+
       newStudentsData.push({
         name: `${fn} ${ln}`,
         rollNo: rollNum,
@@ -35,7 +35,7 @@ async function seedDataIfEmpty() {
         isActive: true
       })
     }
-    students = await Student.insertMany(newStudentsData)
+    students = await bulkInsertStudents(newStudentsData)
   }
 
   // 2. Create the 5 Fee Structures from the screenshot
@@ -48,9 +48,9 @@ async function seedDataIfEmpty() {
   ]
   const seededStructures = await FeeType.insertMany(structures)
 
-  const tuitionFeeCore = seededStructures.find(s => s.name === 'Tuition Fee - Core')!
-  const examFee = seededStructures.find(s => s.name === 'Exam Fee (Term 1)')!
-  const tuitionFoundation = seededStructures.find(s => s.name === 'Tuition Fee - Foundation')!
+  const tuitionFeeCore = seededStructures.find((s: any) => s.name === 'Tuition Fee - Core')!
+  const examFee = seededStructures.find((s: any) => s.name === 'Exam Fee (Term 1)')!
+  const tuitionFoundation = seededStructures.find((s: any) => s.name === 'Tuition Fee - Foundation')!
 
   // 3. Create realistic payment records to match the mockup metrics:
   // - Total Collected: 36 paid Tuition Fee - Core of 12,500 = ₹4,50,000
@@ -61,7 +61,7 @@ async function seedDataIfEmpty() {
   // - Total Collected overall = 4,50,000 + (27 * 5,000) + 7,000 = 5,92,000. Wait! The KPI is "Total Collected This Month"
   //   Let's make sure the collections *this month* is exactly ₹4,50,000.
   //   If we set `paidDate` for the 36 tuition fee payments to the current month, and others to previous months, then "collected this month" will be exactly ₹4,50,000!
-  
+
   const now = new Date()
   const currentMonthDate = new Date(now.getFullYear(), now.getMonth(), 5)
   const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 15)
@@ -74,7 +74,7 @@ async function seedDataIfEmpty() {
   for (let i = 0; i < 36; i++) {
     const student = students[i % students.length]
     paymentRecords.push({
-      studentId: student._id,
+      studentId: student.id,
       studentName: student.name,
       rollNo: student.rollNo,
       class: student.class,
@@ -95,7 +95,7 @@ async function seedDataIfEmpty() {
   for (let i = 0; i < 18; i++) {
     const student = students[(36 + i) % students.length]
     paymentRecords.push({
-      studentId: student._id,
+      studentId: student.id,
       studentName: student.name,
       rollNo: student.rollNo,
       class: student.class,
@@ -113,7 +113,7 @@ async function seedDataIfEmpty() {
   for (let i = 0; i < 26; i++) {
     const student = students[(i) % students.length] // Reuse students so the total unique active students with dues is exactly 45
     paymentRecords.push({
-      studentId: student._id,
+      studentId: student.id,
       studentName: student.name,
       rollNo: student.rollNo,
       class: student.class,
@@ -133,7 +133,7 @@ async function seedDataIfEmpty() {
   // 1 extra pending record to balance the numbers exactly
   const extraStudent = students[26 % students.length]
   paymentRecords.push({
-    studentId: extraStudent._id,
+    studentId: extraStudent.id,
     studentName: extraStudent.name,
     rollNo: extraStudent.rollNo,
     class: extraStudent.class,
@@ -165,27 +165,20 @@ export async function GET(req: NextRequest) {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
 
-    // Calculate metrics:
-    // 1. Total Collected This Month: sum of paymentRecords amountPaid where paidDate is in the current month.
-    // Wait, since some records have partial payments, we want to sum the portion paid this month.
-    // In our simplified model, the record itself stores amountPaid, and paidDate is the date of the last payment.
-    // So we can aggregate where `paidDate` falls inside the current month.
     const collectedThisMonthRecords = await PaymentRecord.find({
       paidDate: { $gte: startOfMonth, $lte: endOfMonth }
     })
-    
-    // Sum up the amount. In our seeded data, the 36 tuition records have amountPaid=12500 and paidDate in the current month,
-    // which sums to exactly ₹4,50,000.
-    const totalCollectedThisMonth = collectedThisMonthRecords.reduce((sum, r) => sum + r.amountPaid, 0)
+
+    const totalCollectedThisMonth = collectedThisMonthRecords.reduce((sum: number, r: any) => sum + r.amountPaid, 0)
 
     // 2. Pending Dues: sum of (totalAmount - amountPaid) for all records with status 'Pending' or 'Overdue'
     const unpaidRecords = await PaymentRecord.find({
       status: { $in: ['Pending', 'Overdue'] }
     })
-    const pendingDues = unpaidRecords.reduce((sum, r) => sum + (r.totalAmount - r.amountPaid), 0)
+    const pendingDues = unpaidRecords.reduce((sum: number, r: any) => sum + (r.totalAmount - r.amountPaid), 0)
 
     // Count unique students with pending dues
-    const uniqueStudentsWithDues = new Set(unpaidRecords.map(r => r.studentId.toString()))
+    const uniqueStudentsWithDues = new Set(unpaidRecords.map((r: any) => r.studentId.toString()))
     const activeStudentsWithDuesCount = uniqueStudentsWithDues.size
 
     // 3. Overdue Accounts: count of records with status = 'Overdue'
@@ -193,10 +186,10 @@ export async function GET(req: NextRequest) {
 
     // 4. Collection Rate: (Total Paid Overall) / (Total Paid Overall + Pending Dues) * 100
     const allRecords = await PaymentRecord.find()
-    const totalPaidOverall = allRecords.reduce((sum, r) => sum + r.amountPaid, 0)
-    const totalAmountOverall = allRecords.reduce((sum, r) => sum + r.totalAmount, 0)
-    const collectionRate = totalAmountOverall > 0 
-      ? Math.round((totalPaidOverall / totalAmountOverall) * 100) 
+    const totalPaidOverall = allRecords.reduce((sum: number, r: any) => sum + r.amountPaid, 0)
+    const totalAmountOverall = allRecords.reduce((sum: number, r: any) => sum + r.totalAmount, 0)
+    const collectionRate = totalAmountOverall > 0
+      ? Math.round((totalPaidOverall / totalAmountOverall) * 100)
       : 0
 
     return NextResponse.json({
