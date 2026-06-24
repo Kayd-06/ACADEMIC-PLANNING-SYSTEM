@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import Test from '@/models/Test'
-import Student from '@/models/Student'
 import TestResult from '@/models/TestResult'
 import { auth } from '@/lib/auth'
+import { findStudentsByClasses } from '@/lib/db/queries/students'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,7 @@ function resolveClassFromBatch(batch: string): string {
 function generateDistribution(count: number, highest: number, lowest: number, targetAverage: number): number[] {
   if (count <= 0) return []
   if (count === 1) return [Math.round(targetAverage)]
-  
+
   const scores: number[] = []
   for (let i = 0; i < count; i++) {
     const ratio = i / (count - 1)
@@ -56,7 +56,7 @@ function calculateRanks(studentResults: any[]) {
 
   const rankMap = new Map<string, number>()
   let currentRank = 1
-  
+
   gradedResults.forEach((res, index) => {
     const key = res.rollNo ? `${res.rollNo}-${res.studentName}` : res.studentName
     if (index > 0 && res.marksObtained !== gradedResults[index - 1].marksObtained) {
@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
 
     const resolvedClass = resolveClassFromBatch(test.batch)
     // Fetch real students in this class
-    const students = await Student.find({ class: resolvedClass, isActive: true }).sort({ rollNo: 1, name: 1 }).lean()
+    const students = await findStudentsByClasses([resolvedClass], true)
 
     if (!resultDoc) {
       if (students.length === 0) {
@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
       const isUnitTest3 = test.title === 'Unit Test 3' && resolvedClass === '11 - A'
       const presentCount = isUnitTest3 ? students.length - 1 : students.length
       const scores = isUnitTest3 ? generateDistribution(presentCount, 98, 42, 74.5) : []
-      
+
       let scoreIdx = 0
 
       let initialRecords = students.map((st, index) => {
@@ -149,7 +149,7 @@ export async function GET(req: NextRequest) {
         if (isUnitTest3) {
           if (isAbsent) {
             return {
-              studentId: st._id,
+              studentId: st.id,
               studentName: st.name,
               rollNo: st.rollNo || `11A-${String(index + 1).padStart(2, '0')}`,
               marksObtained: undefined,
@@ -167,7 +167,7 @@ export async function GET(req: NextRequest) {
           const incorrect = Math.max(0, 50 - correct - unattempted)
 
           return {
-            studentId: st._id,
+            studentId: st.id,
             studentName: st.name,
             rollNo: st.rollNo || `11A-${String(index + 1).padStart(2, '0')}`,
             marksObtained: score,
@@ -181,7 +181,7 @@ export async function GET(req: NextRequest) {
 
         // For other tests, default to empty template values
         return {
-          studentId: st._id,
+          studentId: st.id,
           studentName: st.name,
           rollNo: st.rollNo || `${resolvedClass.replace(/\s+/g, '')}-${String(index + 1).padStart(2, '0')}`,
           marksObtained: undefined,
@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    
+
     const role = (session.user as any).role
     if (role !== 'teacher' && role !== 'management') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
