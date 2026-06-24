@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose'
 
 export interface IPaymentRecord extends Document {
-  studentId: mongoose.Types.ObjectId
+  studentId: string
   studentName: string
   rollNo?: string
   class?: string
@@ -21,7 +21,7 @@ export interface IPaymentRecord extends Document {
 
 const PaymentRecordSchema = new Schema<IPaymentRecord>(
   {
-    studentId: { type: Schema.Types.ObjectId, ref: 'Student', required: true },
+    studentId: { type: String, required: true },
     studentName: { type: String, required: true },
     rollNo: { type: String, default: '' },
     class: { type: String, default: '' },
