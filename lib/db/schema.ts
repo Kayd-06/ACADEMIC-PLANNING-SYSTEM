@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, varchar, timestamp, pgEnum } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, varchar, timestamp, pgEnum, boolean, uniqueIndex } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 
 export const userRoleEnum = pgEnum('user_role', ['teacher', 'management'])
 export const userStatusEnum = pgEnum('user_status', ['pending_verification', 'active'])
@@ -43,3 +44,26 @@ export const schools = pgTable('schools', {
 
 export type School = typeof schools.$inferSelect
 export type NewSchool = typeof schools.$inferInsert
+
+export const students = pgTable(
+  'students',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: varchar('name', { length: 255 }).notNull(),
+    rollNo: varchar('roll_no', { length: 255 }).notNull().default(''),
+    class: varchar('class', { length: 255 }).notNull().default(''),
+    section: varchar('section', { length: 255 }).notNull().default(''),
+    parentContact: varchar('parent_contact', { length: 255 }),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    rollClassSectionUnique: uniqueIndex('students_roll_no_class_section_unique')
+      .on(table.rollNo, table.class, table.section)
+      .where(sql`${table.rollNo} <> '' AND ${table.class} <> '' AND ${table.section} <> ''`),
+  })
+)
+
+export type Student = typeof students.$inferSelect
+export type NewStudent = typeof students.$inferInsert
