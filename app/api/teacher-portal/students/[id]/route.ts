@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
-import Student from '@/models/Student'
+import { getStudentById } from '@/lib/db/queries/students'
 import StudentReport from '@/models/StudentReport'
 import CounselingSession from '@/models/CounselingSession'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await connectDB()
-    const student = await Student.findById(params.id).lean()
-    
+    const { id } = await params
+    const student = await getStudentById(id)
+
     if (!student) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
