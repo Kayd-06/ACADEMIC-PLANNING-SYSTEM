@@ -14,7 +14,7 @@ export const MANAGEMENT_NAV = [
   { label: 'Tests & Question Bank', href: '/management/tests-bank', icon: <FileQuestion className="w-4 h-4" /> },
   { label: 'Attendance', href: '/management/attendance', icon: <CheckSquare className="w-4 h-4" /> },
   { label: 'Feedback', href: '/management/feedback', icon: <MessageSquare className="w-4 h-4" /> },
-  { label: 'Counseling', href: '#', icon: <HeartHandshake className="w-4 h-4" /> },
+  { label: 'Counseling', href: '/management/counseling', icon: <HeartHandshake className="w-4 h-4" /> },
   { label: 'Calendar', href: '#', icon: <Calendar className="w-4 h-4" /> },
   { label: 'Announcements', href: '#', icon: <Bell className="w-4 h-4" /> },
 ]
