@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { name, rollNo, class: cls, section, parentContact } = body
+    const { name, rollNo, class: cls, section, program, batch, parentContact } = body
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'Student name is required.' }, { status: 400 })
@@ -61,6 +61,8 @@ export async function POST(req: NextRequest) {
       rollNo: rollNo?.trim() || '',
       class: cls?.trim() || '',
       section: section?.trim() || '',
+      program: program?.trim() || '',
+      batch: batch?.trim() || '',
       parentContact: parentContact?.trim() || '',
     })
     return NextResponse.json(toApiShape(student), { status: 201 })
@@ -86,12 +88,14 @@ export async function PATCH(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Student ID is required' }, { status: 400 })
 
     const body = await req.json()
-    const { name, rollNo, class: cls, section, parentContact, isActive } = body
+    const { name, rollNo, class: cls, section, program, batch, parentContact, isActive } = body
     const updateData: Partial<NewStudent> = {}
     if (name !== undefined) updateData.name = name
     if (rollNo !== undefined) updateData.rollNo = rollNo
     if (cls !== undefined) updateData.class = cls
     if (section !== undefined) updateData.section = section
+    if (program !== undefined) updateData.program = program
+    if (batch !== undefined) updateData.batch = batch
     if (parentContact !== undefined) updateData.parentContact = parentContact
     if (isActive !== undefined) updateData.isActive = isActive
 

@@ -88,6 +88,20 @@ describe('POST /api/students', () => {
     const res = await POST(req('http://localhost/api/students', { method: 'POST', body: JSON.stringify(payload) }))
     expect(res.status).toBe(409)
   })
+
+  it('accepts and persists program and batch on create', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const res = await POST(
+      req('http://localhost/api/students', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Prog Student', program: 'JEE 2026', batch: 'Morning' }),
+      })
+    )
+    const body = await res.json()
+    expect(res.status).toBe(201)
+    expect(body.program).toBe('JEE 2026')
+    expect(body.batch).toBe('Morning')
+  })
 })
 
 describe('PATCH /api/students', () => {
@@ -112,6 +126,22 @@ describe('PATCH /api/students', () => {
     expect(res.status).toBe(200)
     expect(body.name).toBe('After')
     expect(body._id).toBe(created.id)
+  })
+
+  it('updates program and batch', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const [created] = await db.insert(students).values({ name: 'Before' }).returning()
+
+    const res = await PATCH(
+      req(`http://localhost/api/students?id=${created.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ program: 'Foundation', batch: 'Evening' }),
+      })
+    )
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.program).toBe('Foundation')
+    expect(body.batch).toBe('Evening')
   })
 
   it('returns 404 for an unknown id', async () => {
