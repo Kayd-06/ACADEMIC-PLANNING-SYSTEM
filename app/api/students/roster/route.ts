@@ -31,7 +31,8 @@ export async function GET(req: Request) {
         class: `${s.class || 'N/A'} - ${s.section || 'N/A'}`,
         rawClass: s.class || '',
         rawSection: s.section || '',
-        batch: 'Unassigned',
+        program: s.program || 'Unassigned',
+        batch: s.batch || 'Unassigned',
         batchTheme: 'blue', // defaults
         initials,
         color: colors[nameHash],
