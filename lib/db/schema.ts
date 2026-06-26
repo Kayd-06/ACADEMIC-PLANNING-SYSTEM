@@ -53,6 +53,8 @@ export const students = pgTable(
     rollNo: varchar('roll_no', { length: 255 }).notNull().default(''),
     class: varchar('class', { length: 255 }).notNull().default(''),
     section: varchar('section', { length: 255 }).notNull().default(''),
+    program: varchar('program', { length: 255 }).notNull().default(''),
+    batch: varchar('batch', { length: 255 }).notNull().default(''),
     parentContact: varchar('parent_contact', { length: 255 }),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

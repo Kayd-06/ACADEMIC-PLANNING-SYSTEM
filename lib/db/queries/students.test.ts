@@ -27,6 +27,18 @@ describe('students queries', () => {
     expect(student.isActive).toBe(true)
   })
 
+  it('createStudent applies empty-string defaults to program and batch', async () => {
+    const student = await createStudent({ name: 'No Program Set' })
+    expect(student.program).toBe('')
+    expect(student.batch).toBe('')
+  })
+
+  it('createStudent persists explicit program and batch values', async () => {
+    const student = await createStudent({ name: 'Has Program', program: 'JEE 2026', batch: 'Morning' })
+    expect(student.program).toBe('JEE 2026')
+    expect(student.batch).toBe('Morning')
+  })
+
   it('getStudentById returns the created row', async () => {
     const created = await createStudent({ name: 'Lookup Me' })
     const found = await getStudentById(created.id)
