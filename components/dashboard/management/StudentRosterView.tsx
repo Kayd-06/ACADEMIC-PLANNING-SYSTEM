@@ -54,7 +54,9 @@ export default function StudentRosterView() {
       const res = await fetch(`/api/students?id=${student._id}`, { method: 'DELETE' })
       if (res.ok) {
         setStudents((prev) => prev.filter((s) => s._id !== student._id))
-        setSelectedStudent(null)
+        if (selectedStudent?._id === student._id) {
+          setSelectedStudent(null)
+        }
         showToast(`${student.name} removed from roster`)
       } else {
         showToast('Failed to remove student')
