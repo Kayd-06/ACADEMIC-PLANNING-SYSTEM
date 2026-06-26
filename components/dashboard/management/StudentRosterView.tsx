@@ -1,8 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter, Plus, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter, Plus, Pencil, Trash2, Upload } from 'lucide-react'
 import StudentFormModal from './StudentFormModal'
+import CsvUploadModal from './CsvUploadModal'
 
 export default function StudentRosterView() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
@@ -22,6 +23,9 @@ export default function StudentRosterView() {
 
   // Edit/Delete
   const [editingStudent, setEditingStudent] = useState<any>(null)
+
+  // CSV upload
+  const [showCsvModal, setShowCsvModal] = useState(false)
 
   useEffect(() => {
     fetchStudents()
@@ -111,6 +115,9 @@ export default function StudentRosterView() {
           <div className="flex items-center gap-3">
             <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm">
               <Plus className="w-4 h-4" /> Add Student
+            </button>
+            <button onClick={() => setShowCsvModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
+              <Upload className="w-4 h-4" /> Upload CSV
             </button>
             <button onClick={() => showToast('Syncing with SIS...')} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
               <Filter className="w-4 h-4" /> Sync Data
@@ -369,6 +376,14 @@ export default function StudentRosterView() {
           student={editingStudent}
           onClose={() => setEditingStudent(null)}
           onSaved={fetchStudents}
+        />
+      )}
+
+      {showCsvModal && (
+        <CsvUploadModal
+          students={students}
+          onClose={() => setShowCsvModal(false)}
+          onImported={fetchStudents}
         />
       )}
 
