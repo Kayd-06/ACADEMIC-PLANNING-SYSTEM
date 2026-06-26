@@ -198,7 +198,7 @@ export default function TeacherPortalView() {
             ) : (
               <div className="p-2">
                 {data?.materials.map((mat, idx) => (
-                  <div key={mat._id || idx} onClick={() => showToast(`Previewing ${mat.title}`)} className="flex items-start gap-4 p-4 hover:bg-slate-50 rounded-xl transition-colors border-b border-slate-50 last:border-0 cursor-pointer">
+                  <div key={mat._id || idx} onClick={() => mat.fileUrl ? window.open(mat.fileUrl, '_blank', 'noopener,noreferrer') : showToast('No file attached to this upload')} className="flex items-start gap-4 p-4 hover:bg-slate-50 rounded-xl transition-colors border-b border-slate-50 last:border-0 cursor-pointer">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${mat.iconBg}`}>
                       <FileIcon className={`w-5 h-5 ${mat.iconColor}`} />
                     </div>

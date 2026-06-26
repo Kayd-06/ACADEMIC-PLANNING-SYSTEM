@@ -62,6 +62,7 @@ export async function GET() {
         _id: mat._id.toString(),
         title: mat.fileName || mat.provider + ' Upload',
         type: mat.type || 'PDF',
+        fileUrl: mat.fileUrl || '',
         spec: mat.subject.includes('JEE') ? 'JEE' : (mat.subject.includes('NEET') ? 'NEET' : 'GENERAL'),
         specTheme: mat.subject.includes('NEET') ? 'green' : 'blue',
         author: mat.provider,
