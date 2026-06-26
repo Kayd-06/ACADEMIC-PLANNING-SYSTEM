@@ -315,7 +315,7 @@ export default function StudentRosterView() {
                 <div className="mb-8">
                   <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
                     <h4 className="text-[13px] font-bold text-slate-900">Parents / Guardians</h4>
-                    <button onClick={() => showToast('Edit mode enabled')} className="text-[11px] font-semibold text-indigo-600 hover:underline">Edit</button>
+                    <button onClick={() => setEditingStudent(selectedStudent)} className="text-[11px] font-semibold text-indigo-600 hover:underline">Edit</button>
                   </div>
                   
                   <div className="space-y-3">
