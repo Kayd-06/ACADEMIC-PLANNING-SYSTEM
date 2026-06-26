@@ -57,6 +57,45 @@ describe('POST /api/students/bulk', () => {
     const body = await res.json()
     expect(body.total).toBe(1)
   })
+
+  it('uses the global default program/batch/section when provided, overriding row values', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const res = await POST(
+      req({
+        students: [{ name: 'A', program: 'Row Program', batch: 'Row Batch', section: 'Row Section' }],
+        defaults: { program: 'Default Program', batch: 'Default Batch', section: 'Default Section' },
+      })
+    )
+    expect(res.status).toBe(201)
+
+    const rows = await db.select().from(students)
+    expect(rows[0].program).toBe('Default Program')
+    expect(rows[0].batch).toBe('Default Batch')
+    expect(rows[0].section).toBe('Default Section')
+  })
+
+  it('falls back to the row CSV value when no default is provided', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const res = await POST(
+      req({ students: [{ name: 'A', program: 'Row Program', batch: 'Row Batch', section: 'Row Section' }] })
+    )
+    expect(res.status).toBe(201)
+
+    const rows = await db.select().from(students)
+    expect(rows[0].program).toBe('Row Program')
+    expect(rows[0].batch).toBe('Row Batch')
+    expect(rows[0].section).toBe('Row Section')
+  })
+
+  it('leaves program and batch empty when neither a default nor a row value is provided', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const res = await POST(req({ students: [{ name: 'A' }] }))
+    expect(res.status).toBe(201)
+
+    const rows = await db.select().from(students)
+    expect(rows[0].program).toBe('')
+    expect(rows[0].batch).toBe('')
+  })
 })
 
 describe('DELETE /api/students/bulk', () => {
