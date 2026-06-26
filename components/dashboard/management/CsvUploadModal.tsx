@@ -141,6 +141,8 @@ export default function CsvUploadModal({ students, onClose, onImported }: CsvUpl
       setParsedRows([])
       if (fileInputRef.current) fileInputRef.current.value = ''
       onImported()
+    } catch {
+      setError('Import failed. Please check your connection and try again.')
     } finally {
       setImporting(false)
     }
