@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose'
 
 export interface IAttendanceRecord {
-  studentId: mongoose.Types.ObjectId
+  studentId: string
   studentName: string
   rollNo?: string
   status: 'Present' | 'Absent' | 'Late' | ''
@@ -19,7 +19,7 @@ export interface IAttendance extends Document {
 }
 
 const AttendanceRecordSchema = new Schema<IAttendanceRecord>({
-  studentId: { type: Schema.Types.ObjectId, ref: 'Student', required: true },
+  studentId: { type: String, required: true },
   studentName: { type: String, required: true },
   rollNo: { type: String, default: '' },
   status: { type: String, enum: ['Present', 'Absent', 'Late', ''], default: '' },

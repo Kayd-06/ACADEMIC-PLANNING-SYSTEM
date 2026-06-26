@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import Attendance from '@/models/Attendance'
-import Student from '@/models/Student'
 import { auth } from '@/lib/auth'
+import { countStudentsByClasses, deleteStudentsByClasses, bulkInsertStudents, findStudentsByClasses } from '@/lib/db/queries/students'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,15 +21,11 @@ function getLastNDaysDates(n: number) {
 // Seeding logic for historical attendance data
 async function seedHistoricalAttendance() {
   // Check target student count. If it is not exactly 250, clean seed them.
-  const targetStudentsCount = await Student.countDocuments({
-    class: { $in: ['11 - A', '11 - B', '10 - A', '10 - B'] }
-  })
-  
+  const targetStudentsCount = await countStudentsByClasses(['11 - A', '11 - B', '10 - A', '10 - B'])
+
   if (targetStudentsCount !== 250) {
     // Delete any old students in these target classes
-    await Student.deleteMany({
-      class: { $in: ['11 - A', '11 - B', '10 - A', '10 - B', 'Grade 11-A', 'Grade 11-B', 'Grade 10-A', 'Grade 10-B'] }
-    })
+    await deleteStudentsByClasses(['11 - A', '11 - B', '10 - A', '10 - B', 'Grade 11-A', 'Grade 11-B', 'Grade 10-A', 'Grade 10-B'])
 
     const firstNames = ['Karan', 'Isha', 'Rohan', 'Meera', 'Amit', 'Neha', 'Rahul', 'Priya', 'Sanjay', 'Deepa', 'Vijay', 'Anjali', 'Rajesh', 'Sunita', 'Vikram', 'Kavita', 'Arjun', 'Pooja', 'Aditya', 'Ritu']
     const lastNames = ['Sharma', 'Patel', 'Gupta', 'Kumar', 'Verma', 'Singh', 'Joshi', 'Mehta', 'Shah', 'Rao', 'Nair', 'Das', 'Sen', 'Reddy', 'Gowda', 'Mishra', 'Trivedi', 'Pandey', 'Choudhury', 'Gill']
@@ -101,7 +97,7 @@ async function seedHistoricalAttendance() {
       })
     }
 
-    await Student.insertMany(seedStudents)
+    await bulkInsertStudents(seedStudents)
   }
 
   // Clear and re-seed attendance sheets if sheet count < 100
@@ -111,10 +107,7 @@ async function seedHistoricalAttendance() {
   // Delete any old attendance sheets
   await Attendance.deleteMany({})
 
-  const activeStudents = await Student.find({
-    class: { $in: ['11 - A', '11 - B', '10 - A', '10 - B'] },
-    isActive: true
-  }).sort({ rollNo: 1, name: 1 }).lean()
+  const activeStudents = await findStudentsByClasses(['11 - A', '11 - B', '10 - A', '10 - B'], true)
 
   const dates = getLastNDaysDates(30) // last 30 days
   const batches = ['Grade 11-A', 'Grade 11-B', 'Grade 10-A', 'Grade 10-B']
@@ -138,7 +131,7 @@ async function seedHistoricalAttendance() {
       const secPart = batch.substring(9) // 'A' or 'B'
       const targetClass = `${classPart} - ${secPart}`
 
-      const batchStudents = activeStudents.filter(s => s.class === targetClass)
+      const batchStudents = activeStudents.filter((s) => s.class === targetClass)
       if (batchStudents.length === 0) continue
 
       for (const subject of subjects) {
@@ -152,8 +145,8 @@ async function seedHistoricalAttendance() {
           targetRate = 0.72
         }
 
-        const perfectCountInBatch = batch === 'Grade 11-A' || batch === 'Grade 10-A' 
-          ? batchStudents.length 
+        const perfectCountInBatch = batch === 'Grade 11-A' || batch === 'Grade 10-A'
+          ? batchStudents.length
           : (batch === 'Grade 11-B' ? 12 : 0)
 
         const imperfectCountInBatch = batchStudents.length - perfectCountInBatch
@@ -167,7 +160,7 @@ async function seedHistoricalAttendance() {
 
         const imperfectPresentChance = imperfectCountInBatch > 0 ? (targetImperfectPresent / imperfectCountInBatch) : 0
 
-        const records = batchStudents.map((student, idx) => {
+        const records = batchStudents.map((student, idx: number) => {
           const isPerfect = batch === 'Grade 11-A' || batch === 'Grade 10-A' || (batch === 'Grade 11-B' && idx < 12)
           let status: 'Present' | 'Absent' | 'Late' = 'Present'
 
@@ -183,7 +176,7 @@ async function seedHistoricalAttendance() {
           }
 
           return {
-            studentId: student._id,
+            studentId: student.id,
             studentName: student.name,
             rollNo: student.rollNo || '',
             status,
@@ -258,11 +251,11 @@ export async function GET(req: NextRequest) {
 
     // Group rates per day for Heatmap
     const dailyStats: Record<string, { present: number; total: number }> = {}
-    dates.forEach(d => {
+    dates.forEach((d) => {
       dailyStats[d] = { present: 0, total: 0 }
     })
 
-    sheets.forEach(sheet => {
+    sheets.forEach((sheet: any) => {
       const key = `${sheet.batch} • ${sheet.subject}`
       if (!batchSubjectStats[key]) {
         batchSubjectStats[key] = { present: 0, total: 0, batch: sheet.batch, subject: sheet.subject }
@@ -270,7 +263,7 @@ export async function GET(req: NextRequest) {
 
       sheet.records.forEach((r: any) => {
         const isPresent = r.status === 'Present' || r.status === 'Late'
-        
+
         // Overall
         totalRecords++
         if (isPresent) totalPresent++
@@ -316,10 +309,10 @@ export async function GET(req: NextRequest) {
     let batchesBelow75 = 0
     const batchesAttention: any[] = []
 
-    Object.keys(batchSubjectStats).forEach(key => {
+    Object.keys(batchSubjectStats).forEach((key) => {
       const stat = batchSubjectStats[key]
       const rate = stat.total > 0 ? Math.round((stat.present / stat.total) * 100) : 0
-      
+
       if (rate < 75) {
         batchesBelow75++
         batchesAttention.push({
@@ -345,7 +338,7 @@ export async function GET(req: NextRequest) {
     let perfectAttendanceCount = 0
     const studentTableData: any[] = []
 
-    Object.keys(studentStats).forEach(id => {
+    Object.keys(studentStats).forEach((id) => {
       const s = studentStats[id]
       if (s.absent === 0) {
         perfectAttendanceCount++
@@ -365,7 +358,7 @@ export async function GET(req: NextRequest) {
     studentTableData.sort((a, b) => a.rate - b.rate)
 
     // 4. Map dailyStats to heatmap array format [{ date, rate }]
-    const heatmap = Object.keys(dailyStats).map(d => {
+    const heatmap = Object.keys(dailyStats).map((d) => {
       const stat = dailyStats[d]
       const rate = stat.total > 0 ? Math.round((stat.present / stat.total) * 100) : null
       return {

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import PaymentRecord from '@/models/PaymentRecord'
-import Student from '@/models/Student'
 import FeeType from '@/models/FeeType'
 import { auth } from '@/lib/auth'
+import { getStudentById } from '@/lib/db/queries/students'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch student & fee type details
-    const student = await Student.findById(studentId)
+    const student = await getStudentById(studentId)
     if (!student) return NextResponse.json({ error: 'Student not found.' }, { status: 404 })
 
     const feeType = await FeeType.findById(feeTypeId)

@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose'
 
 export interface IStudentResult {
-  studentId?: mongoose.Types.ObjectId
+  studentId?: string
   studentName: string
   rollNo: string
   marksObtained?: number
@@ -21,7 +21,7 @@ export interface ITestResult extends Document {
 }
 
 const StudentResultSchema = new Schema({
-  studentId: { type: Schema.Types.ObjectId, ref: 'Student', required: false },
+  studentId: { type: String, required: false },
   studentName: { type: String, required: true },
   rollNo: { type: String, default: '' },
   marksObtained: { type: Number },

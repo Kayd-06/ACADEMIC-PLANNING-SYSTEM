@@ -1,7 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter } from 'lucide-react'
+import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter, Plus, Pencil, Trash2, Upload } from 'lucide-react'
+import StudentFormModal from './StudentFormModal'
+import CsvUploadModal from './CsvUploadModal'
 
 export default function StudentRosterView() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
@@ -16,6 +18,15 @@ export default function StudentRosterView() {
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
+  // Add Student modal
+  const [showAddModal, setShowAddModal] = useState(false)
+
+  // Edit/Delete
+  const [editingStudent, setEditingStudent] = useState<any>(null)
+
+  // CSV upload
+  const [showCsvModal, setShowCsvModal] = useState(false)
+
   useEffect(() => {
     fetchStudents()
   }, [])
@@ -25,7 +36,9 @@ export default function StudentRosterView() {
       const res = await fetch('/api/students/roster')
       if (res.ok) {
         const data = await res.json()
-        setStudents(data)
+        // /api/students/roster intentionally returns inactive students too;
+        // filter them out here so a soft-deleted student doesn't reappear on refresh.
+        setStudents(data.filter((s: any) => s.isActive !== false))
       }
     } catch (error) {
       console.error('Failed to fetch students', error)
@@ -37,6 +50,24 @@ export default function StudentRosterView() {
   const showToast = (msg: string) => {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 3000)
+  }
+
+  const handleDelete = async (student: any) => {
+    if (!confirm(`Remove ${student.name} from the active roster?`)) return
+    try {
+      const res = await fetch(`/api/students?id=${student._id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setStudents((prev) => prev.filter((s) => s._id !== student._id))
+        if (selectedStudent?._id === student._id) {
+          setSelectedStudent(null)
+        }
+        showToast(`${student.name} removed from roster`)
+      } else {
+        showToast('Failed to remove student')
+      }
+    } catch {
+      showToast('Failed to remove student')
+    }
   }
 
   // Get unique filter options
@@ -81,9 +112,17 @@ export default function StudentRosterView() {
               Manage student records, batches, and parent/guardian details
             </p>
           </div>
-          <button onClick={() => showToast('Syncing with SIS...')} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
-            <Filter className="w-4 h-4" /> Sync Data
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm">
+              <Plus className="w-4 h-4" /> Add Student
+            </button>
+            <button onClick={() => setShowCsvModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
+              <Upload className="w-4 h-4" /> Upload CSV
+            </button>
+            <button onClick={() => showToast('Syncing with SIS...')} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
+              <Filter className="w-4 h-4" /> Sync Data
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -141,8 +180,10 @@ export default function StudentRosterView() {
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Roll No</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Student Name</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Class & Sec</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Program</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Batch</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Contact</th>
+                    <th className="px-6 py-4 text-right text-[10px] font-bold text-slate-500 uppercase tracking-widest">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -162,6 +203,7 @@ export default function StudentRosterView() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-[13px] text-slate-700 font-medium">{student.class}</td>
+                      <td className="px-6 py-4 text-[13px] text-slate-700 font-medium">{student.program}</td>
                       <td className="px-6 py-4">
                         <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full uppercase tracking-wider ${
                           student.batchTheme === 'blue' ? 'bg-blue-50 text-blue-700' :
@@ -172,6 +214,22 @@ export default function StudentRosterView() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-[13px] text-slate-600">{student.contact}</td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditingStudent(student) }}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDelete(student) }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -257,7 +315,7 @@ export default function StudentRosterView() {
                 <div className="mb-8">
                   <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
                     <h4 className="text-[13px] font-bold text-slate-900">Parents / Guardians</h4>
-                    <button onClick={() => showToast('Edit mode enabled')} className="text-[11px] font-semibold text-indigo-600 hover:underline">Edit</button>
+                    <button onClick={() => setEditingStudent(selectedStudent)} className="text-[11px] font-semibold text-indigo-600 hover:underline">Edit</button>
                   </div>
                   
                   <div className="space-y-3">
@@ -291,9 +349,12 @@ export default function StudentRosterView() {
               </div>
 
               {/* Drawer Footer Actions */}
-              <div className="p-6 border-t border-slate-100 bg-white grid grid-cols-2 gap-3">
-                <button onClick={() => showToast('Opening edit modal...')} className="py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
+              <div className="p-6 border-t border-slate-100 bg-white grid grid-cols-3 gap-3">
+                <button onClick={() => setEditingStudent(selectedStudent)} className="py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
                   Edit Profile
+                </button>
+                <button onClick={() => handleDelete(selectedStudent)} className="py-2.5 bg-white border border-rose-200 text-rose-600 text-sm font-bold rounded-lg hover:bg-rose-50 transition-colors shadow-sm">
+                  Remove
                 </button>
                 <button onClick={() => showToast(`Drafting message to ${selectedStudent.contact}`)} className="py-2.5 bg-[#0b1320] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm">
                   Message Parent
@@ -304,6 +365,27 @@ export default function StudentRosterView() {
           </>
         )}
       </AnimatePresence>
+
+      {showAddModal && (
+        <StudentFormModal mode="add" onClose={() => setShowAddModal(false)} onSaved={fetchStudents} />
+      )}
+
+      {editingStudent && (
+        <StudentFormModal
+          mode="edit"
+          student={editingStudent}
+          onClose={() => setEditingStudent(null)}
+          onSaved={fetchStudents}
+        />
+      )}
+
+      {showCsvModal && (
+        <CsvUploadModal
+          students={students}
+          onClose={() => setShowCsvModal(false)}
+          onImported={fetchStudents}
+        />
+      )}
 
     </div>
   )

@@ -8,6 +8,20 @@
       "when": 1782138160769,
       "tag": "0000_curly_onslaught",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782316507478,
+      "tag": "0001_fixed_husk",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782452457727,
+      "tag": "0002_bumpy_robbie_robertson",
+      "breakpoints": true
     }
   ]
 }
