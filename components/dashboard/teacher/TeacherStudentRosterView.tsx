@@ -28,9 +28,12 @@ export default function TeacherStudentRosterView() {
       const res = await fetch('/api/students/roster')
       if (res.ok) {
         const data = await res.json()
-        setStudents(data)
-        if (data.length > 0) {
-          setActiveStudent(data[0])
+        // /api/students/roster intentionally returns inactive students too;
+        // filter them out here so a soft-deleted student doesn't show up to teachers.
+        const active = data.filter((s: any) => s.isActive !== false)
+        setStudents(active)
+        if (active.length > 0) {
+          setActiveStudent(active[0])
         }
       }
     } catch (error) {
