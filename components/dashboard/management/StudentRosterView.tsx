@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter } from 'lucide-react'
+import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter, Plus } from 'lucide-react'
+import StudentFormModal from './StudentFormModal'
 
 export default function StudentRosterView() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
@@ -16,6 +17,9 @@ export default function StudentRosterView() {
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
+  // Add Student modal
+  const [showAddModal, setShowAddModal] = useState(false)
+
   useEffect(() => {
     fetchStudents()
   }, [])
@@ -25,7 +29,9 @@ export default function StudentRosterView() {
       const res = await fetch('/api/students/roster')
       if (res.ok) {
         const data = await res.json()
-        setStudents(data)
+        // /api/students/roster intentionally returns inactive students too;
+        // filter them out here so a soft-deleted student doesn't reappear on refresh.
+        setStudents(data.filter((s: any) => s.isActive !== false))
       }
     } catch (error) {
       console.error('Failed to fetch students', error)
@@ -81,9 +87,14 @@ export default function StudentRosterView() {
               Manage student records, batches, and parent/guardian details
             </p>
           </div>
-          <button onClick={() => showToast('Syncing with SIS...')} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
-            <Filter className="w-4 h-4" /> Sync Data
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm">
+              <Plus className="w-4 h-4" /> Add Student
+            </button>
+            <button onClick={() => showToast('Syncing with SIS...')} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
+              <Filter className="w-4 h-4" /> Sync Data
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -304,6 +315,10 @@ export default function StudentRosterView() {
           </>
         )}
       </AnimatePresence>
+
+      {showAddModal && (
+        <StudentFormModal mode="add" onClose={() => setShowAddModal(false)} onSaved={fetchStudents} />
+      )}
 
     </div>
   )
