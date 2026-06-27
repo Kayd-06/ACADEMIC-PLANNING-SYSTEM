@@ -32,6 +32,5 @@ export const TEACHER_NAV = [
   { label: 'Assignments/DPP', href: '/teacher/assignments', icon: <ListTodo className="w-4 h-4" /> },
   { label: 'Academic Records', href: '/teacher/academic-records', icon: <FileCheck className="w-4 h-4" /> },
   { label: 'Counseling Log', href: '/teacher/counseling-log', icon: <HeartHandshake className="w-4 h-4" /> },
-  { label: 'Feedback', href: '/teacher/feedback', icon: <MessageSquare className="w-4 h-4" /> },
 ]
 

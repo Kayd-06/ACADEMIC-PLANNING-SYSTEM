@@ -196,6 +196,9 @@ export async function GET(req: NextRequest) {
       // Calculate ranks for the initial template records
       initialRecords = calculateRanks(initialRecords)
 
+      // Sort alphabetically by studentName before saving/returning
+      initialRecords.sort((a, b) => a.studentName.localeCompare(b.studentName))
+
       // Save initial result sheet if it was a Graded test
       if (test.status === 'Graded') {
         resultDoc = await TestResult.create({
@@ -212,9 +215,43 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Map existing results to real students to ensure consistent real names
+    const mappedResults = students.map((st, index) => {
+      const originalResult = resultDoc.studentResults.find((r: any) => r.studentId === st.id) || resultDoc.studentResults[index]
+      if (originalResult) {
+        return {
+          studentId: st.id,
+          studentName: st.name,
+          rollNo: st.rollNo || originalResult.rollNo,
+          marksObtained: originalResult.marksObtained,
+          correct: originalResult.correct,
+          incorrect: originalResult.incorrect,
+          unattempted: originalResult.unattempted,
+          percentage: originalResult.percentage,
+          absent: originalResult.absent,
+          rank: originalResult.rank
+        }
+      } else {
+        return {
+          studentId: st.id,
+          studentName: st.name,
+          rollNo: st.rollNo || `${resolvedClass.replace(/\s+/g, '')}-${String(index + 1).padStart(2, '0')}`,
+          marksObtained: undefined,
+          correct: undefined,
+          incorrect: undefined,
+          unattempted: undefined,
+          percentage: undefined,
+          absent: false
+        }
+      }
+    })
+
+    // Sort alphabetically by studentName
+    mappedResults.sort((a, b) => a.studentName.localeCompare(b.studentName))
+
     return NextResponse.json({
       test,
-      studentResults: resultDoc.studentResults,
+      studentResults: mappedResults,
       isNew: false
     })
   } catch (error: any) {

@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import Faculty from '@/models/Faculty'
 import StudyMaterial from '@/models/StudyMaterial'
-import CounselingSession from '@/models/CounselingSession'
+import { db } from '@/lib/db'
+import { counselingSessions } from '@/lib/db/schema'
+import { desc } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +15,7 @@ export async function GET() {
     const [faculty, materials, sessions] = await Promise.all([
       Faculty.find().sort({ name: 1 }).lean(),
       StudyMaterial.find().sort({ createdAt: -1 }).limit(5).lean(),
-      CounselingSession.find().sort({ date: -1, time: -1 }).limit(5).lean()
+      db.select().from(counselingSessions).orderBy(desc(counselingSessions.date), desc(counselingSessions.time)).limit(5)
     ])
 
     // KPIs
@@ -22,7 +24,8 @@ export async function GET() {
 
     // Date calculations for "This Week" - simplified to just count all for this demo, or filter by recent
     const recentMaterialsCount = await StudyMaterial.countDocuments() 
-    const recentSessionsCount = await CounselingSession.countDocuments()
+    const allSessions = await db.select().from(counselingSessions)
+    const recentSessionsCount = allSessions.length
 
     const kpis = {
       totalFaculty: faculty.length,
@@ -74,7 +77,7 @@ export async function GET() {
 
     // Counseling Mapping
     const mappedCounseling = sessions.map((sess: any) => ({
-      _id: sess._id.toString(),
+      _id: sess.id.toString(),
       student: sess.studentName,
       teacher: `with ${sess.counselor}`,
       date: new Date(sess.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })

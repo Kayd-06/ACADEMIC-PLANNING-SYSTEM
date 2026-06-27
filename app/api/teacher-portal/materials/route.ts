@@ -62,6 +62,32 @@ export async function POST(req: Request) {
   }
 }
 
+export async function PATCH(req: Request) {
+  try {
+    await connectDB()
+    const body = await req.json()
+    const { id, provider, subject, type, count } = body
+
+    if (!id) return NextResponse.json({ error: 'Missing material ID.' }, { status: 400 })
+
+    const updates: any = {}
+    if (provider !== undefined) {
+      updates.provider = provider
+      updates.initials = provider.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+    }
+    if (subject !== undefined) updates.subject = subject
+    if (type !== undefined) updates.type = type
+    if (count !== undefined) updates.count = parseInt(count as string || '1')
+
+    const updated = await StudyMaterial.findByIdAndUpdate(id, updates, { new: true })
+    if (!updated) return NextResponse.json({ error: 'Material not found.' }, { status: 404 })
+
+    return NextResponse.json(updated)
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url)

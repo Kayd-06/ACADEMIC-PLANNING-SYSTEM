@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import { getStudentById } from '@/lib/db/queries/students'
 import StudentReport from '@/models/StudentReport'
-import CounselingSession from '@/models/CounselingSession'
+import { db } from '@/lib/db'
+import { counselingSessions } from '@/lib/db/schema'
+import { eq, desc } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,7 +55,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }))
 
     // Fetch counseling sessions
-    const counseling = await CounselingSession.find({ studentName: student.name }).sort({ date: -1 }).lean()
+    const counseling = await db.select()
+      .from(counselingSessions)
+      .where(eq(counselingSessions.studentName, student.name))
+      .orderBy(desc(counselingSessions.date))
+
     const counselingNotes = counseling.map((c: any) => ({
       date: new Date(c.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       notes: c.notes || `Counseling session with ${c.counselor}`

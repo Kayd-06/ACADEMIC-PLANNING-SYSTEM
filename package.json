@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "jest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx migrate-http.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import Attendance from '@/models/Attendance'
 import { auth } from '@/lib/auth'
-import { countStudentsByClasses, findStudentsByClasses, bulkInsertStudents } from '@/lib/db/queries/students'
+import { countStudentsByClasses, findStudentsByClasses, upsertStudentByRollClassSection } from '@/lib/db/queries/students'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,13 +71,18 @@ export async function GET(req: NextRequest) {
           isActive: true
         })
       }
-      await bulkInsertStudents(newStudentsData)
+      for (const studentData of newStudentsData) {
+        await upsertStudentByRollClassSection(studentData)
+      }
     }
 
     // Try finding an existing marked attendance sheet
     const existing = await Attendance.findOne({ date, batch, subject }).lean()
 
     if (existing) {
+      if (existing.records && Array.isArray(existing.records)) {
+        existing.records.sort((a: any, b: any) => a.studentName.localeCompare(b.studentName))
+      }
       return NextResponse.json(existing)
     }
 
@@ -92,6 +97,9 @@ export async function GET(req: NextRequest) {
       status: '', // initially empty/unmarked
       notes: ''
     }))
+    
+    // Sort default records alphabetically by studentName
+    defaultRecords.sort((a, b) => a.studentName.localeCompare(b.studentName))
 
     // Return template attendance sheet
     return NextResponse.json({

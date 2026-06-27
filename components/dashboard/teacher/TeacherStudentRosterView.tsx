@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { ChevronDown, Filter, Mail, Phone, MessageSquare, User, Loader2 } from 'lucide-react'
+import { ChevronDown, Filter, Mail, Phone, MessageSquare, User, Loader2, Search } from 'lucide-react'
 
 export default function TeacherStudentRosterView() {
   const [students, setStudents] = useState<any[]>([])
@@ -8,6 +8,7 @@ export default function TeacherStudentRosterView() {
   const [studentDetails, setStudentDetails] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Filters
   const [classFilter, setClassFilter] = useState('All Classes')
@@ -31,6 +32,7 @@ export default function TeacherStudentRosterView() {
         // /api/students/roster intentionally returns inactive students too;
         // filter them out here so a soft-deleted student doesn't show up to teachers.
         const active = data.filter((s: any) => s.isActive !== false)
+        active.sort((a: any, b: any) => a.name.localeCompare(b.name))
         setStudents(active)
         if (active.length > 0) {
           setActiveStudent(active[0])
@@ -66,6 +68,10 @@ export default function TeacherStudentRosterView() {
   const filteredStudents = students.filter(s => {
     if (classFilter !== 'All Classes' && s.rawClass !== classFilter) return false
     if (batchFilter !== 'All Batches' && s.batch !== batchFilter) return false
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      return s.name.toLowerCase().includes(q) || (s.roll && s.roll.toLowerCase().includes(q))
+    }
     return true
   })
 
@@ -111,6 +117,19 @@ export default function TeacherStudentRosterView() {
             <button className="p-1 text-slate-400 hover:text-slate-600 transition-colors">
               <Filter className="w-4 h-4" />
             </button>
+          </div>
+          
+          <div className="p-3 border-b border-slate-100 bg-white">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search students..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 transition-all"
+              />
+            </div>
           </div>
           
           <div className="flex-1 overflow-y-auto p-2 space-y-1">

@@ -69,3 +69,26 @@ export const students = pgTable(
 
 export type Student = typeof students.$inferSelect
 export type NewStudent = typeof students.$inferInsert
+
+export const counselingSessionTypeEnum = pgEnum('counseling_session_type', ['Academic', 'Career', 'Personal', 'Disciplinary'])
+export const counselingSessionStatusEnum = pgEnum('counseling_session_status', ['Scheduled', 'Completed', 'No-Show', 'Cancelled'])
+
+export const counselingSessions = pgTable('counseling_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  studentName: varchar('student_name', { length: 255 }).notNull(),
+  studentInitials: varchar('student_initials', { length: 10 }).notNull(),
+  counselor: varchar('counselor', { length: 255 }).notNull(),
+  type: counselingSessionTypeEnum('type').notNull().default('Academic'),
+  date: varchar('date', { length: 255 }).notNull(), // YYYY-MM-DD format
+  time: varchar('time', { length: 255 }).notNull(), // e.g. "10:30 AM"
+  status: counselingSessionStatusEnum('status').notNull().default('Scheduled'),
+  notes: text('notes').default(''),
+  duration: varchar('duration', { length: 255 }).default('30 mins'),
+  flagged: boolean('flagged').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type CounselingSession = typeof counselingSessions.$inferSelect
+export type NewCounselingSession = typeof counselingSessions.$inferInsert
+
