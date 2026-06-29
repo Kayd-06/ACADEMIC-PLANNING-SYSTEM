@@ -51,3 +51,6 @@ next-env.d.ts
 
 # uploads
 /public/uploads
+
+# superpowers scratch (sdd ledger, task briefs/reports)
+.superpowers/
