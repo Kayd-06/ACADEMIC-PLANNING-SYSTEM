@@ -29,6 +29,13 @@
       "when": 1782570574952,
       "tag": "0003_cultured_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782709802024,
+      "tag": "0004_gorgeous_sentinels",
+      "breakpoints": true
     }
   ]
 }

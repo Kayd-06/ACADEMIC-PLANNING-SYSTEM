@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, varchar, timestamp, pgEnum, boolean, uniqueIndex } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, varchar, timestamp, pgEnum, boolean, uniqueIndex, integer } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 export const userRoleEnum = pgEnum('user_role', ['teacher', 'management'])
@@ -92,3 +92,32 @@ export const counselingSessions = pgTable('counseling_sessions', {
 export type CounselingSession = typeof counselingSessions.$inferSelect
 export type NewCounselingSession = typeof counselingSessions.$inferInsert
 
+export const studentReports = pgTable('student_reports', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  teacherId: uuid('teacher_id').notNull().references(() => users.id),
+  teacherName: varchar('teacher_name', { length: 255 }).notNull(),
+  className: varchar('class_name', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  term: varchar('term', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type StudentReport = typeof studentReports.$inferSelect
+export type NewStudentReport = typeof studentReports.$inferInsert
+
+export const studentReportEntries = pgTable('student_report_entries', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  reportId: uuid('report_id')
+    .notNull()
+    .references(() => studentReports.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  rollNo: varchar('roll_no', { length: 255 }).notNull().default(''),
+  marks: integer('marks').notNull(),
+  maxMarks: integer('max_marks').notNull().default(100),
+  grade: varchar('grade', { length: 10 }).notNull(),
+  attendance: integer('attendance'),
+  remarks: varchar('remarks', { length: 1000 }),
+})
+
+export type StudentReportEntry = typeof studentReportEntries.$inferSelect
+export type NewStudentReportEntry = typeof studentReportEntries.$inferInsert
