@@ -6,8 +6,19 @@ config({ path: '.env.local' })
 
 const sql = neon(process.env.DATABASE_URL)
 
-const migration = readFileSync('./lib/db/migrations/0005_drop_teacher_fk.sql', 'utf8')
+const migration = readFileSync('./lib/db/migrations/0006_faculty_study_materials.sql', 'utf8')
 
-console.log('Applying migration...')
-await sql.query(migration)
+// Split on Drizzle statement-breakpoint markers or semicolons
+const statements = migration
+  .split(/--> statement-breakpoint/)
+  .map(s => s.trim())
+  .filter(s => s.length > 0)
+
+console.log(`Applying ${statements.length} statements...`)
+
+for (const stmt of statements) {
+  console.log('Running:', stmt.slice(0, 60) + '...')
+  await sql.query(stmt)
+}
+
 console.log('Done.')

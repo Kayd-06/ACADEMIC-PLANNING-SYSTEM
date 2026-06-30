@@ -1,94 +1,70 @@
 import { NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
-import Faculty from '@/models/Faculty'
-import StudyMaterial from '@/models/StudyMaterial'
 import { db } from '@/lib/db'
-import { counselingSessions } from '@/lib/db/schema'
+import { counselingSessions, faculty, studyMaterials } from '@/lib/db/schema'
 import { desc } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    await connectDB()
-
-    const [faculty, materials, sessions] = await Promise.all([
-      Faculty.find().sort({ name: 1 }).lean(),
-      StudyMaterial.find().sort({ createdAt: -1 }).limit(5).lean(),
-      db.select().from(counselingSessions).orderBy(desc(counselingSessions.date), desc(counselingSessions.time)).limit(5)
+    const [facultyList, materials, sessions] = await Promise.all([
+      db.select().from(faculty).orderBy(faculty.name),
+      db.select().from(studyMaterials).orderBy(desc(studyMaterials.createdAt)).limit(5),
+      db.select().from(counselingSessions).orderBy(desc(counselingSessions.date), desc(counselingSessions.time)).limit(5),
     ])
 
-    // KPIs
-    let activeBatches = 0
-    faculty.forEach((f: any) => { activeBatches += (f.batches || 0) })
-
-    // Date calculations for "This Week" - simplified to just count all for this demo, or filter by recent
-    const recentMaterialsCount = await StudyMaterial.countDocuments() 
+    const totalBatches = facultyList.reduce((sum, f) => sum + (f.batches ?? 0), 0)
     const allSessions = await db.select().from(counselingSessions)
-    const recentSessionsCount = allSessions.length
 
     const kpis = {
-      totalFaculty: faculty.length,
-      activeBatches,
-      materialsThisWeek: recentMaterialsCount,
-      counselingSessions: recentSessionsCount
+      totalFaculty: facultyList.length,
+      activeBatches: totalBatches,
+      materialsThisWeek: await db.select().from(studyMaterials).then(r => r.length),
+      counselingSessions: allSessions.length,
     }
 
-    // Faculty Mapping
-    const mappedFaculty = faculty.map((fac: any) => {
-      const colors = ['bg-indigo-600 text-white', 'bg-emerald-600 text-white', 'bg-amber-500 text-white', 'bg-rose-600 text-white', 'bg-blue-600 text-white']
-      const initials = fac.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+    const colors = ['bg-indigo-600 text-white', 'bg-emerald-600 text-white', 'bg-amber-500 text-white', 'bg-rose-600 text-white', 'bg-blue-600 text-white']
+
+    const mappedFaculty = facultyList.map(fac => {
+      const initials = fac.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
       const color = colors[fac.name.length % colors.length]
-      
       let specTheme = 'blue'
       if (fac.specialization.toLowerCase().includes('neet')) specTheme = 'green'
       if (fac.specialization.toLowerCase().includes('found')) specTheme = 'purple'
-
-      return {
-        _id: fac._id.toString(),
-        name: fac.name,
-        sub: fac.subject,
-        spec: fac.specialization,
-        specTheme,
-        batches: fac.batches,
-        exp: fac.experience,
-        status: fac.status,
-        initials,
-        color
-      }
+      return { _id: fac.id, name: fac.name, sub: fac.subject, spec: fac.specialization, specTheme, batches: fac.batches, exp: fac.experience, status: fac.status, initials, color }
     })
 
-    // Materials Mapping
-    const mappedMaterials = materials.map((mat: any) => {
+    const mappedMaterials = materials.map(mat => {
       const isDoc = mat.type.toLowerCase().includes('doc') || mat.type.toLowerCase().includes('word')
       return {
-        _id: mat._id.toString(),
-        title: mat.fileName || mat.provider + ' Upload',
-        type: mat.type || 'PDF',
-        fileUrl: mat.fileUrl || '',
+        _id: mat.id,
+        title: mat.fileName,
+        type: mat.type,
+        fileUrl: mat.fileUrl ?? '',
         spec: mat.subject.includes('JEE') ? 'JEE' : (mat.subject.includes('NEET') ? 'NEET' : 'GENERAL'),
         specTheme: mat.subject.includes('NEET') ? 'green' : 'blue',
         author: mat.provider,
         time: new Date(mat.createdAt).toLocaleDateString(),
         iconColor: isDoc ? 'text-blue-500' : 'text-red-500',
-        iconBg: isDoc ? 'bg-blue-50' : 'bg-red-50'
+        iconBg: isDoc ? 'bg-blue-50' : 'bg-red-50',
       }
     })
 
-    // Counseling Mapping
-    const mappedCounseling = sessions.map((sess: any) => ({
-      _id: sess.id.toString(),
+    const mappedCounseling = sessions.map(sess => ({
+      _id: sess.id,
       student: sess.studentName,
       teacher: `with ${sess.counselor}`,
-      date: new Date(sess.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      date: new Date(sess.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      notes: sess.notes,
+      status: sess.status,
+      type: sess.type,
+      counselor: sess.counselor,
+      time: sess.time,
+      duration: sess.duration,
+      flagged: sess.flagged,
     }))
 
-    return NextResponse.json({
-      kpis,
-      faculty: mappedFaculty,
-      materials: mappedMaterials,
-      counseling: mappedCounseling
-    })
+    return NextResponse.json({ kpis, faculty: mappedFaculty, materials: mappedMaterials, counseling: mappedCounseling })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

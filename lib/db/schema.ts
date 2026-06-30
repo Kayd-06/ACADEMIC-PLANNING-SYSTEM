@@ -121,3 +121,34 @@ export const studentReportEntries = pgTable('student_report_entries', {
 
 export type StudentReportEntry = typeof studentReportEntries.$inferSelect
 export type NewStudentReportEntry = typeof studentReportEntries.$inferInsert
+
+export const facultyStatusEnum = pgEnum('faculty_status', ['ACTIVE', 'ON_LEAVE', 'INACTIVE'])
+
+export const faculty = pgTable('faculty', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  specialization: varchar('specialization', { length: 255 }).notNull(),
+  batches: integer('batches').notNull().default(0),
+  experience: varchar('experience', { length: 255 }).notNull().default(''),
+  status: facultyStatusEnum('status').notNull().default('ACTIVE'),
+  email: varchar('email', { length: 255 }),
+  phone: varchar('phone', { length: 50 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Faculty = typeof faculty.$inferSelect
+export type NewFaculty = typeof faculty.$inferInsert
+
+export const studyMaterials = pgTable('study_materials', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  type: varchar('type', { length: 50 }).notNull().default('PDF'),
+  fileUrl: text('file_url'),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  provider: varchar('provider', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type StudyMaterial = typeof studyMaterials.$inferSelect
+export type NewStudyMaterial = typeof studyMaterials.$inferInsert
