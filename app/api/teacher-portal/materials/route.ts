@@ -1,86 +1,65 @@
-import { NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
-import StudyMaterial from '@/models/StudyMaterial'
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { studyMaterials } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  try {
-    await connectDB()
-    const materials = await StudyMaterial.find().sort({ createdAt: 1 })
-    return NextResponse.json(materials, {
-      headers: {
-        'Cache-Control': 'no-store, max-age=0, must-revalidate'
-      }
-    })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  const list = await db.select().from(studyMaterials).orderBy(studyMaterials.createdAt)
+  return NextResponse.json(list, { headers: { 'Cache-Control': 'no-store' } })
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    await connectDB()
     const formData = await req.formData()
-    
-    const body: any = {
-      provider: formData.get('provider'),
-      subject: formData.get('subject'),
-      type: formData.get('type'),
-      count: parseInt(formData.get('count') as string || '1'),
-      fileName: formData.get('fileName'),
-      fileSize: formData.get('fileSize')
-    }
+
+    const provider = (formData.get('provider') as string) || ''
+    const subject = (formData.get('subject') as string) || ''
+    const type = (formData.get('type') as string) || 'PDF'
+    const fileName = (formData.get('fileName') as string) || ''
+
+    let fileUrl: string | null = null
 
     const file = formData.get('file') as File | null
     if (file && file.name) {
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
-      
       const uploadDir = path.join(process.cwd(), 'public/uploads')
-      try {
-        await mkdir(uploadDir, { recursive: true })
-      } catch (e) {}
-      
+      await mkdir(uploadDir, { recursive: true })
       const uniqueName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-      const filePath = path.join(uploadDir, uniqueName)
-      await writeFile(filePath, buffer)
-      
-      body.fileUrl = `/uploads/${uniqueName}`
+      await writeFile(path.join(uploadDir, uniqueName), buffer)
+      fileUrl = `/uploads/${uniqueName}`
     }
 
-    if (!body.initials && body.provider) {
-      body.initials = body.provider.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-    }
+    const [created] = await db.insert(studyMaterials).values({
+      fileName: fileName || file?.name || provider,
+      type,
+      fileUrl,
+      subject,
+      provider,
+    }).returning()
 
-    const material = await StudyMaterial.create(body)
-    return NextResponse.json(material)
+    return NextResponse.json(created)
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(req: NextRequest) {
   try {
-    await connectDB()
-    const body = await req.json()
-    const { id, provider, subject, type, count } = body
-
-    if (!id) return NextResponse.json({ error: 'Missing material ID.' }, { status: 400 })
+    const { id, provider, subject, type } = await req.json()
+    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
     const updates: any = {}
-    if (provider !== undefined) {
-      updates.provider = provider
-      updates.initials = provider.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-    }
+    if (provider !== undefined) updates.provider = provider
     if (subject !== undefined) updates.subject = subject
     if (type !== undefined) updates.type = type
-    if (count !== undefined) updates.count = parseInt(count as string || '1')
 
-    const updated = await StudyMaterial.findByIdAndUpdate(id, updates, { new: true })
-    if (!updated) return NextResponse.json({ error: 'Material not found.' }, { status: 404 })
+    const [updated] = await db.update(studyMaterials).set(updates).where(eq(studyMaterials.id, id)).returning()
+    if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     return NextResponse.json(updated)
   } catch (error: any) {
@@ -88,14 +67,12 @@ export async function PATCH(req: Request) {
   }
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-
-    await connectDB()
-    await StudyMaterial.findByIdAndDelete(id)
+    await db.delete(studyMaterials).where(eq(studyMaterials.id, id))
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
