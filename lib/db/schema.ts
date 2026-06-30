@@ -152,3 +152,23 @@ export const studyMaterials = pgTable('study_materials', {
 
 export type StudyMaterial = typeof studyMaterials.$inferSelect
 export type NewStudyMaterial = typeof studyMaterials.$inferInsert
+
+export const dailyReports = pgTable('daily_reports', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  teacherName: varchar('teacher_name', { length: 255 }).notNull(),
+  teacherEmail: varchar('teacher_email', { length: 255 }).notNull(),
+  date: varchar('date', { length: 10 }).notNull(), // YYYY-MM-DD
+  batch: varchar('batch', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  chapter: varchar('chapter', { length: 255 }).notNull().default(''),
+  topicsCovered: text('topics_covered').notNull().default(''),
+  presentCount: integer('present_count').notNull().default(0),
+  absentCount: integer('absent_count').notNull().default(0),
+  homeworkGiven: text('homework_given').default(''),
+  observations: text('observations').default(''),
+  isLate: boolean('is_late').notNull().default(false),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type DailyReport = typeof dailyReports.$inferSelect
+export type NewDailyReport = typeof dailyReports.$inferInsert

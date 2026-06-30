@@ -1,94 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
-import DailyReport from '@/models/DailyReport'
+import { db } from '@/lib/db'
+import { dailyReports, students } from '@/lib/db/schema'
+import { eq, and, desc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-// GET — fetch reports (admin gets all; teacher gets own)
+function isLateSubmission(reportDate: string): boolean {
+  const today = new Date().toISOString().split('T')[0]
+  if (reportDate < today) return true
+  if (reportDate === today) {
+    const hour = new Date().getHours()
+    return hour >= 20 // after 8 PM is late
+  }
+  return false
+}
+
 export async function GET(req: NextRequest) {
-  try {
-    const session = await auth()
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    await connectDB()
+  const { searchParams } = new URL(req.url)
+  const date = searchParams.get('date')
 
-    const { searchParams } = new URL(req.url)
-    const date = searchParams.get('date')
-    const teacherEmail = searchParams.get('teacherEmail')
-
-    const query: Record<string, any> = {}
-
-    // If the user is a teacher, scope to their own reports
-    if ((session.user as any).role === 'teacher') {
-      query.teacherEmail = session.user.email
-    } else {
-      // Admin can filter by teacher email if provided
-      if (teacherEmail) query.teacherEmail = teacherEmail
-    }
-
-    if (date) query.date = date
-
-    const reports = await DailyReport.find(query).sort({ date: -1, createdAt: -1 })
-    return NextResponse.json(reports)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  let query
+  if ((session.user as any).role === 'teacher') {
+    query = date
+      ? db.select().from(dailyReports).where(and(eq(dailyReports.teacherEmail, session.user.email!), eq(dailyReports.date, date))).orderBy(desc(dailyReports.submittedAt))
+      : db.select().from(dailyReports).where(eq(dailyReports.teacherEmail, session.user.email!)).orderBy(desc(dailyReports.submittedAt))
+  } else {
+    query = date
+      ? db.select().from(dailyReports).where(eq(dailyReports.date, date)).orderBy(desc(dailyReports.submittedAt))
+      : db.select().from(dailyReports).orderBy(desc(dailyReports.submittedAt))
   }
+
+  const reports = await query
+  return NextResponse.json(reports)
 }
 
-// POST — teacher submits or saves a draft report (upsert by teacher+date)
 export async function POST(req: NextRequest) {
-  try {
-    const session = await auth()
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    await connectDB()
+  const body = await req.json()
+  const { date, batch, subject, chapter, topicsCovered, presentCount, absentCount, homeworkGiven, observations } = body
 
-    const body = await req.json()
-    const { date, classesHeld, activitiesConducted, materialsUsed, studentsAttended, remarks, status } = body
-
-    if (!date) return NextResponse.json({ error: 'Date is required' }, { status: 400 })
-
-    const report = await DailyReport.findOneAndUpdate(
-      { teacherEmail: session.user.email, date },
-      {
-        teacherName: session.user.name,
-        teacherEmail: session.user.email,
-        date,
-        classesHeld: classesHeld || [],
-        activitiesConducted: activitiesConducted || '',
-        materialsUsed: materialsUsed || '',
-        studentsAttended: studentsAttended || '',
-        remarks: remarks || '',
-        status: status || 'draft',
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    )
-
-    return NextResponse.json(report)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!date || !batch || !subject) {
+    return NextResponse.json({ error: 'date, batch, and subject are required' }, { status: 400 })
   }
+
+  const isLate = isLateSubmission(date)
+
+  const [report] = await db.insert(dailyReports).values({
+    teacherName: session.user.name ?? 'Faculty',
+    teacherEmail: session.user.email!,
+    date,
+    batch,
+    subject,
+    chapter: chapter || '',
+    topicsCovered: topicsCovered || '',
+    presentCount: Number(presentCount) || 0,
+    absentCount: Number(absentCount) || 0,
+    homeworkGiven: homeworkGiven || '',
+    observations: observations || '',
+    isLate,
+  }).returning()
+
+  return NextResponse.json(report, { status: 201 })
 }
 
-// PATCH — update a specific report field (e.g. status toggle)
-export async function PATCH(req: NextRequest) {
-  try {
-    const session = await auth()
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    await connectDB()
-
-    const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
-    if (!id) return NextResponse.json({ error: 'Report ID is required' }, { status: 400 })
-
-    const body = await req.json()
-    const report = await DailyReport.findByIdAndUpdate(id, body, { new: true })
-    if (!report) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
-
-    return NextResponse.json(report)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+// GET distinct batches from students table
+export async function PUT() {
+  const rows = await db.selectDistinct({ class: students.class }).from(students).where(eq(students.isActive, true))
+  const batches = rows.map(r => r.class).filter(Boolean).sort()
+  return NextResponse.json(batches)
 }
