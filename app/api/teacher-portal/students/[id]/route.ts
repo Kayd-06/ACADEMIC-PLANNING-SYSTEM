@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import { getStudentById } from '@/lib/db/queries/students'
-import StudentReport from '@/models/StudentReport'
 import { db } from '@/lib/db'
-import { counselingSessions } from '@/lib/db/schema'
+import { counselingSessions, studentReports, studentReportEntries } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await connectDB()
     const { id } = await params
@@ -18,51 +17,48 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
-    // Find reports for this student. A report has a `students` array containing `{ name, rollNo, marks, maxMarks, grade }`
-    // We match by rollNo or name
-    const reports = await StudentReport.find({
-      'students.rollNo': student.rollNo
-    }).lean()
+    // Find report entries matching this student by rollNo
+    const entries = await db
+      .select({
+        marks: studentReportEntries.marks,
+        maxMarks: studentReportEntries.maxMarks,
+        subject: studentReports.subject,
+        term: studentReports.term,
+        createdAt: studentReports.createdAt,
+      })
+      .from(studentReportEntries)
+      .innerJoin(studentReports, eq(studentReportEntries.reportId, studentReports.id))
+      .where(eq(studentReportEntries.rollNo, student.rollNo ?? ''))
+      .orderBy(desc(studentReports.createdAt))
 
-    // Map recent tests
-    const recentTests = reports.map((r: any) => {
-      const studentData = r.students.find((s: any) => s.rollNo === student.rollNo)
-      return {
-        test: `${r.term} - ${r.subject}`,
-        date: new Date(r.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        score: studentData ? `${studentData.marks}/${studentData.maxMarks}` : 'N/A',
-        percentage: studentData ? (studentData.marks / studentData.maxMarks) * 100 : 0
-      }
-    })
-
-    // Calculate current performance averages by subject
-    const subjectAverages: Record<string, { totalPercentage: number, count: number }> = {}
-    reports.forEach((r: any) => {
-      const studentData = r.students.find((s: any) => s.rollNo === student.rollNo)
-      if (studentData) {
-        const percentage = (studentData.marks / studentData.maxMarks) * 100
-        if (!subjectAverages[r.subject]) {
-          subjectAverages[r.subject] = { totalPercentage: 0, count: 0 }
-        }
-        subjectAverages[r.subject].totalPercentage += percentage
-        subjectAverages[r.subject].count += 1
-      }
-    })
-
-    const currentPerformance = Object.keys(subjectAverages).map(subject => ({
-      subject,
-      average: Math.round(subjectAverages[subject].totalPercentage / subjectAverages[subject].count)
+    const recentTests = entries.map(e => ({
+      test: `${e.term} - ${e.subject}`,
+      date: new Date(e.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      score: `${e.marks}/${e.maxMarks}`,
+      percentage: Math.round((e.marks / e.maxMarks) * 100),
     }))
 
-    // Fetch counseling sessions
-    const counseling = await db.select()
+    const subjectAverages: Record<string, { total: number; count: number }> = {}
+    for (const e of entries) {
+      if (!subjectAverages[e.subject]) subjectAverages[e.subject] = { total: 0, count: 0 }
+      subjectAverages[e.subject].total += (e.marks / e.maxMarks) * 100
+      subjectAverages[e.subject].count += 1
+    }
+
+    const currentPerformance = Object.entries(subjectAverages).map(([subject, { total, count }]) => ({
+      subject,
+      average: Math.round(total / count),
+    }))
+
+    const counseling = await db
+      .select()
       .from(counselingSessions)
       .where(eq(counselingSessions.studentName, student.name))
       .orderBy(desc(counselingSessions.date))
 
     const counselingNotes = counseling.map((c: any) => ({
       date: new Date(c.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      notes: c.notes || `Counseling session with ${c.counselor}`
+      notes: c.notes || `Counseling session with ${c.counselor}`,
     }))
 
     return NextResponse.json({
@@ -70,8 +66,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       recentTests,
       currentPerformance,
       counselingNotes,
-      attendance: 92, // Mocked for now since we don't have a detailed attendance model
-      attendanceDays: '42/45'
+      attendance: 92,
+      attendanceDays: '42/45',
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
