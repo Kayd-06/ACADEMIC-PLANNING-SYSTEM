@@ -172,3 +172,24 @@ export const dailyReports = pgTable('daily_reports', {
 
 export type DailyReport = typeof dailyReports.$inferSelect
 export type NewDailyReport = typeof dailyReports.$inferInsert
+
+export const assignments = pgTable('assignments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  chapter: varchar('chapter', { length: 255 }).notNull(),
+  batch: varchar('batch', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  type: varchar('type', { length: 20 }).notNull().default('Homework'),
+  dueDate: varchar('due_date', { length: 10 }).notNull(),
+  dueTime: varchar('due_time', { length: 20 }).notNull().default('11:59 PM'),
+  submittedCount: integer('submitted_count').notNull().default(0),
+  totalStudents: integer('total_students').notNull().default(40),
+  status: varchar('status', { length: 30 }).notNull().default('Active'),
+  teacherEmail: varchar('teacher_email', { length: 255 }).notNull(),
+  fileUrl: varchar('file_url', { length: 1000 }).default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Assignment = typeof assignments.$inferSelect
+export type NewAssignment = typeof assignments.$inferInsert

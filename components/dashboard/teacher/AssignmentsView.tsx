@@ -178,7 +178,7 @@ export default function AssignmentsView() {
       if (!data.error) {
         setSelectedAssignment(data)
         // Update local list
-        setAssignments(prev => prev.map(item => item._id === id ? data : item))
+        setAssignments(prev => prev.map(item => item.id === id ? data : item))
       }
     } catch (err) {
       console.error(err)
@@ -196,7 +196,7 @@ export default function AssignmentsView() {
       const data = await res.json()
       if (!data.error) {
         setSelectedAssignment(data)
-        setAssignments(prev => prev.map(item => item._id === id ? data : item))
+        setAssignments(prev => prev.map(item => item.id === id ? data : item))
       }
     } catch (err) {
       console.error(err)
@@ -210,10 +210,10 @@ export default function AssignmentsView() {
     try {
       const fd = new FormData()
       fd.append('file', uploadFile)
-      const res = await fetch(`/api/assignments/upload?id=${uploadTarget._id}`, { method: 'POST', body: fd })
+      const res = await fetch(`/api/assignments/upload?id=${uploadTarget.id}`, { method: 'POST', body: fd })
       const data = await res.json()
       if (res.ok && data.fileUrl) {
-        setAssignments(prev => prev.map(a => a._id === uploadTarget._id ? { ...a, fileUrl: data.fileUrl } : a))
+        setAssignments(prev => prev.map(a => a.id === uploadTarget.id ? { ...a, fileUrl: data.fileUrl } : a))
         setUploadTarget(null)
         setUploadFile(null)
       } else {
@@ -364,7 +364,7 @@ export default function AssignmentsView() {
                       : 0
 
                     return (
-                      <tr key={item._id} className="hover:bg-slate-50/20 transition-colors">
+                      <tr key={item.id} className="hover:bg-slate-50/20 transition-colors">
                         
                         {/* Title Column */}
                         <td className="px-6 py-4">
@@ -723,7 +723,7 @@ export default function AssignmentsView() {
                       min={0}
                       max={selectedAssignment.totalStudents}
                       value={selectedAssignment.submittedCount}
-                      onChange={(e) => handleUpdateSubmissions(selectedAssignment._id, Number(e.target.value))}
+                      onChange={(e) => handleUpdateSubmissions(selectedAssignment.id, Number(e.target.value))}
                       className="w-24 px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-bold outline-none focus:border-slate-400 text-center"
                     />
                     <span className="text-xs text-slate-500 font-bold">/ {selectedAssignment.totalStudents} students submitted</span>
@@ -735,7 +735,7 @@ export default function AssignmentsView() {
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-0.5">Evaluation Status</label>
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={() => handleUpdateStatus(selectedAssignment._id, 'Overdue Eval')}
+                      onClick={() => handleUpdateStatus(selectedAssignment.id, 'Overdue Eval')}
                       className={`flex-1 py-2 border rounded-xl text-xs font-bold transition-all ${
                         selectedAssignment.status === 'Overdue Eval'
                           ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
@@ -745,7 +745,7 @@ export default function AssignmentsView() {
                       Overdue Eval
                     </button>
                     <button 
-                      onClick={() => handleUpdateStatus(selectedAssignment._id, 'Evaluated')}
+                      onClick={() => handleUpdateStatus(selectedAssignment.id, 'Evaluated')}
                       className={`flex-1 py-2 border rounded-xl text-xs font-bold transition-all ${
                         selectedAssignment.status === 'Evaluated'
                           ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
@@ -762,7 +762,7 @@ export default function AssignmentsView() {
                 <button
                   onClick={async () => {
                     if (confirm('Are you sure you want to cancel and delete this assignment?')) {
-                      await deleteAssignment(selectedAssignment._id)
+                      await deleteAssignment(selectedAssignment.id)
                     }
                   }}
                   className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"

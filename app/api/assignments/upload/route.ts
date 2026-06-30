@@ -2,15 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { auth } from '@/lib/auth'
-import { connectDB } from '@/lib/mongodb'
-import Assignment from '@/models/Assignment'
+import { db } from '@/lib/db'
+import { assignments } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (session.user.role !== 'teacher') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if ((session.user as any).role !== 'teacher') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
@@ -27,13 +28,11 @@ export async function POST(req: NextRequest) {
   await mkdir(uploadDir, { recursive: true })
 
   const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-  const filePath = path.join(uploadDir, safeName)
-  await writeFile(filePath, buffer)
+  await writeFile(path.join(uploadDir, safeName), buffer)
 
   const fileUrl = `/uploads/assignments/${safeName}`
 
-  await connectDB()
-  const updated = await Assignment.findByIdAndUpdate(id, { fileUrl }, { new: true })
+  const [updated] = await db.update(assignments).set({ fileUrl, updatedAt: new Date() }).where(eq(assignments.id, id)).returning()
   if (!updated) return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
 
   return NextResponse.json({ fileUrl, assignment: updated })
