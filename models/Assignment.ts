@@ -12,6 +12,7 @@ export interface IAssignment extends Document {
   totalStudents: number
   status: 'Active' | 'Overdue Eval' | 'Evaluated'
   teacherEmail: string
+  fileUrl?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -33,7 +34,8 @@ const AssignmentSchema = new Schema<IAssignment>(
       enum: ['Active', 'Overdue Eval', 'Evaluated'],
       default: 'Active'
     },
-    teacherEmail: { type: String, required: true, lowercase: true }
+    teacherEmail: { type: String, required: true, lowercase: true },
+    fileUrl: { type: String, default: '' }
   },
   { timestamps: true }
 )

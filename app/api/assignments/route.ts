@@ -275,13 +275,14 @@ export async function PUT(req: NextRequest) {
 
     await connectDB()
     const body = await req.json()
-    const { id, status, submittedCount } = body
+    const { id, status, submittedCount, fileUrl } = body
 
     if (!id) return NextResponse.json({ error: 'Missing assignment ID' }, { status: 400 })
 
     const updateFields: Record<string, any> = {}
     if (status !== undefined) updateFields.status = status
     if (submittedCount !== undefined) updateFields.submittedCount = Number(submittedCount)
+    if (fileUrl !== undefined) updateFields.fileUrl = fileUrl
 
     const updated = await Assignment.findByIdAndUpdate(id, updateFields, { new: true })
     if (!updated) return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
