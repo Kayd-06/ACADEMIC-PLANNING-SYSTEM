@@ -21,6 +21,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
   const [schoolData, setSchoolData] = useState<any>(null)
   const [protocols, setProtocols] = useState<any[]>([])
   const [schedules, setSchedules] = useState<any[]>([])
+  const [announcements, setAnnouncements] = useState<any[]>([])
 
   useEffect(() => {
     fetch('/api/school')
@@ -37,6 +38,11 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
       .then(res => res.json())
       .then(data => {
         if (!data.error && data.schedule) setSchedules(data.schedule)
+      })
+    fetch('/api/announcements')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setAnnouncements(data)
       })
   }, [])
 
@@ -242,27 +248,31 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
               <h2 className="text-[15px] font-bold text-slate-900">Announcements</h2>
             </div>
             <div className="space-y-4">
-              {[
-                { title: 'Faculty Meeting', date: 'Oct 24', urgent: true, desc: 'Mandatory meeting at 4 PM in the main hall.' },
-                { title: 'Syllabus Update', date: 'Oct 23', urgent: false, desc: 'Revised physics syllabus for Grade 11.' },
-              ].map((ann, i) => (
-                <div key={i} className="flex gap-3 items-start pb-4 border-b border-slate-50 last:border-0 last:pb-0">
-                  <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${ann.urgent ? 'bg-red-500' : 'bg-slate-300'}`} />
-                  <div>
-                    <div className="flex gap-2 items-center mb-0.5">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${ann.urgent ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'}`}>
-                        {ann.urgent ? 'Urgent' : 'General'}
-                      </span>
-                      <span className="text-[11px] font-medium text-slate-400">{ann.date}</span>
+              {announcements.length === 0 ? (
+                <p className="text-[12px] text-slate-400 italic py-4 text-center">No recent announcements</p>
+              ) : (
+                announcements.slice(0, 4).map((ann, i) => {
+                  const title = ann.title || ann.label || 'Announcement'
+                  const desc = ann.content || ann.sub || ''
+                  const isUrgent = ann.type === 'Urgent' || ann.urgent
+                  const dateStr = ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : (ann.updatedAt ? new Date(ann.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Recent')
+                  return (
+                    <div key={ann._id || i} className="flex gap-3 items-start pb-4 border-b border-slate-50 last:border-0 last:pb-0">
+                      <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${isUrgent ? 'bg-red-500' : 'bg-indigo-500'}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex gap-2 items-center mb-0.5">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${isUrgent ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'}`}>
+                            {ann.type || (isUrgent ? 'Urgent' : 'General')}
+                          </span>
+                          <span className="text-[11px] font-medium text-slate-400 ml-auto">{dateStr}</span>
+                        </div>
+                        <h4 className="text-[13px] font-bold text-slate-800 leading-tight truncate">{title}</h4>
+                        <p className="text-[12px] text-slate-500 mt-1 leading-snug line-clamp-2">{desc}</p>
+                      </div>
                     </div>
-                    <h4 className="text-[13px] font-bold text-slate-800 leading-tight">{ann.title}</h4>
-                    <p className="text-[12px] text-slate-500 mt-1 leading-snug">{ann.desc}</p>
-                  </div>
-                </div>
-              ))}
-              <button className="w-full text-center text-[12px] font-bold text-indigo-600 hover:text-indigo-700 mt-2">
-                View All Announcements
-              </button>
+                  )
+                })
+              )}
             </div>
           </motion.div>
         </div>

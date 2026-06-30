@@ -13,7 +13,7 @@ export default async function ManagementStudentsPage() {
   const session = await auth()
   if (!session) redirect('/login')
   const initials = getInitials(session.user.name ?? 'EA')
-  
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar userName={session.user.name ?? ''} userRole="Academic Administration" navItems={MANAGEMENT_NAV} initials={initials} />

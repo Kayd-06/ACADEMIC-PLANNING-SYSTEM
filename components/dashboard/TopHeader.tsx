@@ -1,16 +1,7 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
-import { Bell, HelpCircle, Settings, X, CheckCircle, AlertCircle, BookOpen, Calendar, Mail, User, Shield, Info, Check, Globe } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { HelpCircle, Settings, X, CheckCircle, AlertCircle, BookOpen, Calendar, Mail, User, Shield, Info, Check, Globe } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-
-interface Announcement {
-  _id: string
-  label: string
-  sub: string
-  done: boolean
-  urgent: boolean
-  updatedAt: string
-}
 
 interface UserSession {
   user: {
@@ -66,14 +57,8 @@ export default function TopHeader({ initials }: TopHeaderProps) {
   const [session, setSession] = useState<UserSession | null>(null)
   
   // Modals & Popovers
-  const [showNotifications, setShowNotifications] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-
-  // Live Notifications Data
-  const [announcements, setAnnouncements] = useState<Announcement[]>([])
-  const [readIds, setReadIds] = useState<string[]>([])
-  const notificationRef = useRef<HTMLDivElement>(null)
 
   // Settings Mock Preferences
   const [prefEmail, setPrefEmail] = useState(true)
@@ -81,23 +66,13 @@ export default function TopHeader({ initials }: TopHeaderProps) {
   const [prefSyllabusNotify, setPrefSyllabusNotify] = useState(true)
   const [showSaveSuccess, setShowSaveSuccess] = useState(false)
 
-  // Fetch Session & Announcements
+  // Fetch Session
   useEffect(() => {
-    // 1. Fetch Session Info
     fetch('/api/auth/session')
       .then(res => res.json())
       .then(data => {
         if (data?.user) {
           setSession(data)
-          // Load read notification IDs from localStorage (scoped by user email)
-          const stored = localStorage.getItem(`read_announcements_${data.user.email}`)
-          if (stored) {
-            try {
-              setReadIds(JSON.parse(stored))
-            } catch (e) {
-              console.error(e)
-            }
-          }
 
           // Load user settings preferences
           const storedPrefs = localStorage.getItem(`user_preferences_${data.user.email}`)
@@ -120,54 +95,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
         }
       })
       .catch(console.error)
-
-    // 2. Fetch Live Announcements
-    fetchAnnouncements()
   }, [])
-
-  const fetchAnnouncements = () => {
-    fetch('/api/announcements')
-      .then(res => res.json())
-      .then(data => {
-        if (!data.error) {
-          setAnnouncements(data)
-        }
-      })
-      .catch(console.error)
-  }
-
-  // Handle outside click for notification popover
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
-        setShowNotifications(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  // Mark single announcement as read
-  const markAsRead = (id: string) => {
-    if (readIds.includes(id)) return
-    const updated = [...readIds, id]
-    setReadIds(updated)
-    if (session?.user?.email) {
-      localStorage.setItem(`read_announcements_${session.user.email}`, JSON.stringify(updated))
-    }
-  }
-
-  // Mark all as read
-  const markAllAsRead = () => {
-    const allIds = announcements.map(a => a._id)
-    setReadIds(allIds)
-    if (session?.user?.email) {
-      localStorage.setItem(`read_announcements_${session.user.email}`, JSON.stringify(allIds))
-    }
-  }
-
-  // Calculate unread count
-  const unreadCount = announcements.filter(a => !readIds.includes(a._id)).length
 
   const savePreferences = () => {
     if (session?.user?.email) {
@@ -209,89 +137,8 @@ export default function TopHeader({ initials }: TopHeaderProps) {
 
       {/* Actions */}
       <div className="flex items-center gap-1 relative">
-        
-        {/* 1. Notification Bell */}
-        <div ref={notificationRef} className="relative">
-          <button 
-            onClick={() => setShowNotifications(!showNotifications)}
-            className={`p-2 rounded-full text-gray-500 hover:text-[#002045] hover:bg-slate-100 transition-all relative ${
-              showNotifications ? 'bg-slate-100 text-[#002045]' : ''
-            }`}
-          >
-            <Bell className="w-5 h-5" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white flex items-center justify-center animate-pulse" />
-            )}
-          </button>
 
-          {/* Notifications Dropdown */}
-          <AnimatePresence>
-            {showNotifications && (
-              <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute right-0 mt-2 w-80 bg-white border border-slate-200/80 rounded-2xl shadow-xl z-50 overflow-hidden"
-              >
-                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                  <h3 className="text-sm font-bold text-slate-800">Notifications</h3>
-                  {unreadCount > 0 && (
-                    <button 
-                      onClick={markAllAsRead}
-                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
-                    >
-                      Mark all read
-                    </button>
-                  )}
-                </div>
-                
-                <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
-                  {announcements.length === 0 ? (
-                    <div className="p-6 text-center text-slate-400 text-xs">
-                      No notifications available.
-                    </div>
-                  ) : (
-                    announcements.map((item) => {
-                      const isRead = readIds.includes(item._id)
-                      return (
-                        <div 
-                          key={item._id}
-                          onClick={() => markAsRead(item._id)}
-                          className={`p-3.5 hover:bg-slate-50/60 transition-colors cursor-pointer flex gap-3 items-start relative ${
-                            !isRead ? 'bg-indigo-50/20' : ''
-                          }`}
-                        >
-                          <div className={`mt-0.5 w-2 h-2 shrink-0 rounded-full ${
-                            !isRead 
-                              ? item.urgent ? 'bg-red-500 animate-ping' : 'bg-indigo-500' 
-                              : 'bg-transparent'
-                          }`} />
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[11px] font-bold tracking-wider uppercase ${
-                                item.urgent ? 'text-red-600 bg-red-50 px-1.5 py-0.5 rounded' : 'text-slate-400'
-                              }`}>
-                                {item.urgent ? 'URGENT' : 'Announcement'}
-                              </span>
-                              <span className="text-[10px] text-slate-400 font-medium ml-auto">
-                                {new Date(item.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                              </span>
-                            </div>
-                            <h4 className="text-xs font-bold text-slate-800 mt-1 leading-tight">{item.label}</h4>
-                            <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{item.sub}</p>
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* 2. Help Button */}
+        {/* 1. Help Button */}
         <button 
           onClick={() => setShowHelp(true)}
           className="p-2 rounded-full text-gray-500 hover:text-[#002045] hover:bg-slate-100 transition-colors"
@@ -299,7 +146,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
           <HelpCircle className="w-5 h-5" />
         </button>
 
-        {/* 3. Settings Button */}
+        {/* 2. Settings Button */}
         <button 
           onClick={() => setShowSettings(true)}
           className="p-2 rounded-full text-gray-500 hover:text-[#002045] hover:bg-slate-100 transition-colors"
