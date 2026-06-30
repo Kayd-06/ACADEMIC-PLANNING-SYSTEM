@@ -54,11 +54,11 @@ export default function TeacherCourses({ firstName: _firstName }: { firstName: s
 
   const fetchMaterials = (showLoading = false) => {
     if (showLoading) setLoading(true)
-    fetch('/api/teacher-portal')
+    fetch('/api/teacher-portal/materials')
       .then(res => res.json())
       .then(data => {
-        if (!data.error && data.materials) {
-          setMaterials(data.materials as Material[])
+        if (Array.isArray(data)) {
+          setMaterials(data as Material[])
         }
         setLoading(false)
       })
@@ -118,7 +118,7 @@ export default function TeacherCourses({ firstName: _firstName }: { firstName: s
                   <div key={m._id || i} className="p-5 border border-gray-100 rounded-2xl hover:border-indigo-200 hover:shadow-md transition-all group bg-gray-50/30">
                     <div className="flex items-start justify-between mb-4">
                       <div className="w-12 h-12 bg-white border border-gray-100 shadow-sm rounded-xl flex items-center justify-center text-sm font-bold text-gray-600 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-100 transition-colors">
-                        {m.initials}
+                        {m.initials || m.provider?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="px-2.5 py-1 bg-white border border-gray-200 text-gray-500 text-[10px] font-bold uppercase tracking-wider rounded-lg shadow-sm">
@@ -143,7 +143,7 @@ export default function TeacherCourses({ firstName: _firstName }: { firstName: s
                     
                     <div>
                       <h3 className="font-bold text-gray-900 text-lg mb-1">{m.provider}</h3>
-                      <p className="text-xs text-gray-500 font-medium">{m.subject} • {m.count} items</p>
+                      <p className="text-xs text-gray-500 font-medium">{m.subject}{m.count ? ` • ${m.count} items` : ''}</p>
                     </div>
 
                     {m.fileName && (
