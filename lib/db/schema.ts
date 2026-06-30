@@ -94,7 +94,7 @@ export type NewCounselingSession = typeof counselingSessions.$inferInsert
 
 export const studentReports = pgTable('student_reports', {
   id: uuid('id').defaultRandom().primaryKey(),
-  teacherId: uuid('teacher_id').notNull().references(() => users.id),
+  teacherId: uuid('teacher_id').notNull(),
   teacherName: varchar('teacher_name', { length: 255 }).notNull(),
   className: varchar('class_name', { length: 255 }).notNull(),
   subject: varchar('subject', { length: 255 }).notNull(),
