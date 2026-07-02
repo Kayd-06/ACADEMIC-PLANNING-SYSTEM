@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
-import Announcement from '@/models/Announcement'
+import { db } from '@/lib/db'
+import { announcements } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
+
+const isValidUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -11,29 +14,52 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     const { id } = await params
+    if (!isValidUUID(id)) {
+      return NextResponse.json({ error: 'Outdated record ID format. Please refresh your browser page (Ctrl+R or F5) to load the latest Postgres data.' }, { status: 400 })
+    }
+
     const data = await req.json()
     
-    await connectDB()
-    const announcement = await Announcement.findById(id)
-    if (!announcement) {
+    const [existing] = await db.select().from(announcements).where(eq(announcements.id, id))
+    if (!existing) {
       return NextResponse.json({ error: 'Announcement not found' }, { status: 404 })
     }
 
-    // Update fields
-    if (data.title !== undefined) announcement.title = data.title
-    if (data.content !== undefined) announcement.content = data.content
-    if (data.type !== undefined) announcement.type = data.type
-    if (data.scope !== undefined) announcement.scope = data.scope
-    if (data.pinned !== undefined) announcement.pinned = data.pinned
-    if (data.authorName !== undefined) announcement.authorName = data.authorName
-    if (data.authorRole !== undefined) announcement.authorRole = data.authorRole
-    if (data.expiryDate !== undefined) announcement.expiryDate = data.expiryDate
-    if (data.done !== undefined) announcement.done = data.done
+    const updateValues: Record<string, any> = { updatedAt: new Date() }
+    if (data.title !== undefined) {
+      updateValues.title = data.title
+      updateValues.label = data.title
+    }
+    if (data.content !== undefined) {
+      updateValues.content = data.content
+      updateValues.sub = data.content.slice(0, 100)
+    }
+    if (data.type !== undefined) {
+      updateValues.type = data.type
+      if (data.type === 'Urgent') updateValues.urgent = true
+    }
+    if (data.scope !== undefined) updateValues.scope = data.scope
+    if (data.pinned !== undefined) updateValues.pinned = data.pinned
+    if (data.authorName !== undefined) updateValues.authorName = data.authorName
+    if (data.authorRole !== undefined) updateValues.authorRole = data.authorRole
+    if (data.expiryDate !== undefined) updateValues.expiryDate = data.expiryDate
+    if (data.done !== undefined) updateValues.done = data.done
+    if (data.urgent !== undefined) updateValues.urgent = data.urgent
+    if (data.label !== undefined) updateValues.label = data.label
+    if (data.sub !== undefined) updateValues.sub = data.sub
 
-    announcement.updatedAt = new Date()
-    await announcement.save()
+    const [updatedRow] = await db.update(announcements)
+      .set(updateValues)
+      .where(eq(announcements.id, id))
+      .returning()
 
-    return NextResponse.json(announcement)
+    return NextResponse.json({
+      ...updatedRow,
+      _id: updatedRow.id,
+      label: updatedRow.title || updatedRow.label,
+      sub: updatedRow.content || updatedRow.sub,
+      urgent: updatedRow.type === 'Urgent' || updatedRow.urgent
+    })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to update announcement' }, { status: 500 })
   }
@@ -47,10 +73,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
 
     const { id } = await params
-    await connectDB()
-    await Announcement.findByIdAndDelete(id)
+    if (!isValidUUID(id)) {
+      return NextResponse.json({ error: 'Outdated record ID format. Please refresh your browser page (Ctrl+R or F5) to load the latest Postgres data.' }, { status: 400 })
+    }
+
+    await db.delete(announcements).where(eq(announcements.id, id))
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to delete announcement' }, { status: 500 })
   }
 }
+
+

@@ -21,7 +21,7 @@ export default function TeacherPortalView() {
 
   // Row 3-dot menu
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLTableSectionElement>(null)
 
   // Add Faculty modal
   const [showAddFaculty, setShowAddFaculty] = useState(false)

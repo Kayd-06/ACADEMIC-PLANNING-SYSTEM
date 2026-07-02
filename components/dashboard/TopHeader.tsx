@@ -55,7 +55,7 @@ interface TopHeaderProps {
 
 export default function TopHeader({ initials }: TopHeaderProps) {
   const [session, setSession] = useState<UserSession | null>(null)
-  
+
   // Modals & Popovers
   const [showHelp, setShowHelp] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -139,7 +139,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
       <div className="flex items-center gap-1 relative">
 
         {/* 1. Help Button */}
-        <button 
+        <button
           onClick={() => setShowHelp(true)}
           className="p-2 rounded-full text-gray-500 hover:text-[#002045] hover:bg-slate-100 transition-colors"
         >
@@ -147,7 +147,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
         </button>
 
         {/* 2. Settings Button */}
-        <button 
+        <button
           onClick={() => setShowSettings(true)}
           className="p-2 rounded-full text-gray-500 hover:text-[#002045] hover:bg-slate-100 transition-colors"
         >
@@ -239,7 +239,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
               </div>
 
               <div className="pt-4 border-t border-slate-100 shrink-0 text-center">
-                <button 
+                <button
                   onClick={() => setShowHelp(false)}
                   className="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-indigo-100"
                 >
@@ -291,22 +291,20 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                 {/* Preference Toggles */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2">Notification Options</h4>
-                  
+
                   {/* Email Toggle */}
                   <div className="flex items-center justify-between bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
                     <div>
                       <p className="text-xs font-bold text-slate-700">Email Notifications</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">Receive reports digest via email</p>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setPrefEmail(!prefEmail)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${
-                        prefEmail ? 'bg-indigo-500' : 'bg-slate-300'
-                      }`}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${prefEmail ? 'bg-indigo-500' : 'bg-slate-300'
+                        }`}
                     >
-                      <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${
-                        prefEmail ? 'translate-x-4' : 'translate-x-0'
-                      }`} />
+                      <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${prefEmail ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
                     </button>
                   </div>
 
@@ -316,15 +314,13 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                       <p className="text-xs font-bold text-slate-700">Syllabus Updates</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">Alerts for syllabus coverage changes</p>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setPrefSyllabusNotify(!prefSyllabusNotify)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${
-                        prefSyllabusNotify ? 'bg-indigo-500' : 'bg-slate-300'
-                      }`}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${prefSyllabusNotify ? 'bg-indigo-500' : 'bg-slate-300'
+                        }`}
                     >
-                      <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${
-                        prefSyllabusNotify ? 'translate-x-4' : 'translate-x-0'
-                      }`} />
+                      <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${prefSyllabusNotify ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
                     </button>
                   </div>
 
@@ -341,11 +337,10 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                         <button
                           key={t.id}
                           onClick={() => setPrefTheme(t.id)}
-                          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-[11px] font-bold transition-all ${
-                            prefTheme === t.id 
-                              ? 'bg-slate-900 border-slate-900 text-white shadow' 
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                          }`}
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-[11px] font-bold transition-all ${prefTheme === t.id
+                            ? 'bg-slate-900 border-slate-900 text-white shadow'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
                         >
                           <span className={`w-2 h-2 rounded-full ${t.bg}`} />
                           {t.name}
@@ -357,7 +352,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
               </div>
 
               <div className="pt-4 border-t border-slate-100 text-center">
-                <button 
+                <button
                   onClick={savePreferences}
                   disabled={showSaveSuccess}
                   className="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-85 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-indigo-100 flex items-center justify-center gap-1.5 mx-auto"

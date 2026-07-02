@@ -193,3 +193,25 @@ export const assignments = pgTable('assignments', {
 
 export type Assignment = typeof assignments.$inferSelect
 export type NewAssignment = typeof assignments.$inferInsert
+
+export const announcements = pgTable('announcements', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  content: text('content').notNull(),
+  label: varchar('label', { length: 255 }).default(''),
+  sub: text('sub').default(''),
+  type: varchar('type', { length: 50 }).notNull().default('General'),
+  scope: varchar('scope', { length: 255 }).notNull().default('All'),
+  pinned: boolean('pinned').notNull().default(false),
+  urgent: boolean('urgent').notNull().default(false),
+  authorName: varchar('author_name', { length: 255 }).notNull().default('Admin'),
+  authorRole: varchar('author_role', { length: 255 }).notNull().default('Staff'),
+  expiryDate: varchar('expiry_date', { length: 50 }),
+  done: boolean('done').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Announcement = typeof announcements.$inferSelect
+export type NewAnnouncement = typeof announcements.$inferInsert
+
