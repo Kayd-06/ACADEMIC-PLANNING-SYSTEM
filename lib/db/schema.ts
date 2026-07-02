@@ -194,6 +194,25 @@ export const assignments = pgTable('assignments', {
 export type Assignment = typeof assignments.$inferSelect
 export type NewAssignment = typeof assignments.$inferInsert
 
+export const feedback = pgTable('feedback', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  senderName: varchar('sender_name', { length: 255 }).notNull().default(''),
+  isAnonymous: boolean('is_anonymous').notNull().default(false),
+  rating: integer('rating').notNull().default(5),
+  content: text('content').notNull().default(''),
+  type: varchar('type', { length: 50 }).notNull().default('Student -> Teacher'),
+  status: varchar('status', { length: 30 }).notNull().default('Submitted'),
+  subject: varchar('subject', { length: 255 }).default(''),
+  batch: varchar('batch', { length: 255 }).default(''),
+  category: varchar('category', { length: 255 }).default(''),
+  date: varchar('date', { length: 10 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Feedback = typeof feedback.$inferSelect
+export type NewFeedback = typeof feedback.$inferInsert
+
 export const announcements = pgTable('announcements', {
   id: uuid('id').defaultRandom().primaryKey(),
   title: varchar('title', { length: 255 }).notNull(),
