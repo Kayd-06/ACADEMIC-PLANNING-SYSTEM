@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { Building2, Zap, FileText, TrendingUp, Plus, Filter, Download, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck } from 'lucide-react'
+import { Building2, Zap, FileText, TrendingUp, Plus, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Copy, Check } from 'lucide-react'
 import SchoolDetailsModal from './SchoolDetailsModal'
 import ProtocolsModal from './ProtocolsModal'
 
@@ -38,8 +38,10 @@ export default function InstitutionalDashboard() {
     board: 'CBSE Affiliated',
     classes: 'Nursery – XII',
     programs: 'STEM, Humanities, Arts',
-    mouStatus: 'Active (2025)'
+    mouStatus: 'Active (2025)',
+    joinCode: '' as string,
   })
+  const [codeCopied, setCodeCopied] = useState(false)
   const [audits, setAudits] = useState(auditRows)
   const [protocols, setProtocols] = useState<Protocol[]>([])
 
@@ -64,6 +66,13 @@ export default function InstitutionalDashboard() {
     })
     const data = await res.json()
     if (!data.error) setSchoolData(data)
+  }
+
+  function copyCode() {
+    if (!schoolData.joinCode) return
+    navigator.clipboard.writeText(schoolData.joinCode)
+    setCodeCopied(true)
+    setTimeout(() => setCodeCopied(false), 2000)
   }
 
   const protocolIcon = (status: Protocol['status']) => {
@@ -133,6 +142,21 @@ export default function InstitutionalDashboard() {
               </div>
             ))}
           </div>
+          {schoolData.joinCode && (
+            <div className="mt-4 rounded-xl p-4 border border-amber-200 bg-amber-50/60 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">School Invite Code</p>
+                <p className="text-[15px] font-black text-amber-900 tracking-widest font-mono">{schoolData.joinCode}</p>
+                <p className="text-[11px] text-amber-600 mt-0.5">Share this code with teachers &amp; staff to join your school</p>
+              </div>
+              <button
+                onClick={copyCode}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 text-[12px] font-bold transition-all"
+              >
+                {codeCopied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+              </button>
+            </div>
+          )}
         </motion.div>
 
         {/* Quick Actions — 3 cols */}
