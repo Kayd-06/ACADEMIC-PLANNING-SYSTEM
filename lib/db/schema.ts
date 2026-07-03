@@ -13,6 +13,7 @@ export const users = pgTable('users', {
   status: userStatusEnum('status').notNull().default('pending_verification'),
   department: varchar('department', { length: 255 }),
   employeeId: varchar('employee_id', { length: 255 }),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
@@ -39,11 +40,28 @@ export const schools = pgTable('schools', {
   classes: varchar('classes', { length: 255 }).notNull().default('Nursery – XII'),
   programs: varchar('programs', { length: 255 }).notNull().default('STEM, Humanities, Arts'),
   mouStatus: varchar('mou_status', { length: 255 }).notNull().default('Active (2025)'),
+  joinCode: varchar('join_code', { length: 20 }).unique(),
+  adminEmail: varchar('admin_email', { length: 255 }).default(''),
+  isActive: boolean('is_active').notNull().default(true),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
 export type School = typeof schools.$inferSelect
 export type NewSchool = typeof schools.$inferInsert
+
+export const schoolInvites = pgTable('school_invites', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  schoolId: uuid('school_id').notNull().references(() => schools.id, { onDelete: 'cascade' }),
+  email: varchar('email', { length: 255 }).notNull(),
+  role: varchar('role', { length: 20 }).notNull().default('teacher'),
+  token: varchar('token', { length: 255 }).notNull().unique(),
+  used: boolean('used').notNull().default(false),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type SchoolInvite = typeof schoolInvites.$inferSelect
+export type NewSchoolInvite = typeof schoolInvites.$inferInsert
 
 export const students = pgTable(
   'students',
@@ -57,6 +75,7 @@ export const students = pgTable(
     batch: varchar('batch', { length: 255 }).notNull().default(''),
     parentContact: varchar('parent_contact', { length: 255 }),
     isActive: boolean('is_active').notNull().default(true),
+    schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -79,12 +98,13 @@ export const counselingSessions = pgTable('counseling_sessions', {
   studentInitials: varchar('student_initials', { length: 10 }).notNull(),
   counselor: varchar('counselor', { length: 255 }).notNull(),
   type: counselingSessionTypeEnum('type').notNull().default('Academic'),
-  date: varchar('date', { length: 255 }).notNull(), // YYYY-MM-DD format
-  time: varchar('time', { length: 255 }).notNull(), // e.g. "10:30 AM"
+  date: varchar('date', { length: 255 }).notNull(),
+  time: varchar('time', { length: 255 }).notNull(),
   status: counselingSessionStatusEnum('status').notNull().default('Scheduled'),
   notes: text('notes').default(''),
   duration: varchar('duration', { length: 255 }).default('30 mins'),
   flagged: boolean('flagged').default(false).notNull(),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
@@ -99,6 +119,7 @@ export const studentReports = pgTable('student_reports', {
   className: varchar('class_name', { length: 255 }).notNull(),
   subject: varchar('subject', { length: 255 }).notNull(),
   term: varchar('term', { length: 255 }).notNull(),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
@@ -134,6 +155,7 @@ export const faculty = pgTable('faculty', {
   status: facultyStatusEnum('status').notNull().default('ACTIVE'),
   email: varchar('email', { length: 255 }),
   phone: varchar('phone', { length: 50 }),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
@@ -147,6 +169,7 @@ export const studyMaterials = pgTable('study_materials', {
   fileUrl: text('file_url'),
   subject: varchar('subject', { length: 255 }).notNull(),
   provider: varchar('provider', { length: 255 }).notNull(),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
@@ -157,7 +180,7 @@ export const dailyReports = pgTable('daily_reports', {
   id: uuid('id').defaultRandom().primaryKey(),
   teacherName: varchar('teacher_name', { length: 255 }).notNull(),
   teacherEmail: varchar('teacher_email', { length: 255 }).notNull(),
-  date: varchar('date', { length: 10 }).notNull(), // YYYY-MM-DD
+  date: varchar('date', { length: 10 }).notNull(),
   batch: varchar('batch', { length: 255 }).notNull(),
   subject: varchar('subject', { length: 255 }).notNull(),
   chapter: varchar('chapter', { length: 255 }).notNull().default(''),
@@ -167,6 +190,7 @@ export const dailyReports = pgTable('daily_reports', {
   homeworkGiven: text('homework_given').default(''),
   observations: text('observations').default(''),
   isLate: boolean('is_late').notNull().default(false),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   submittedAt: timestamp('submitted_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
@@ -187,6 +211,7 @@ export const assignments = pgTable('assignments', {
   status: varchar('status', { length: 30 }).notNull().default('Active'),
   teacherEmail: varchar('teacher_email', { length: 255 }).notNull(),
   fileUrl: varchar('file_url', { length: 1000 }).default(''),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
@@ -206,6 +231,7 @@ export const feedback = pgTable('feedback', {
   batch: varchar('batch', { length: 255 }).default(''),
   category: varchar('category', { length: 255 }).default(''),
   date: varchar('date', { length: 10 }).notNull(),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
