@@ -9,6 +9,37 @@ type CounselingLog = { _id: string; student: string; teacher: string; date: stri
 
 const EMPTY_FACULTY_FORM = { name: '', subject: '', specialization: '', batches: '0', experience: '', status: 'ACTIVE', email: '', phone: '' }
 
+function FacultyFormFields({ form, setForm }: { form: typeof EMPTY_FACULTY_FORM; setForm: (f: typeof EMPTY_FACULTY_FORM) => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Full Name *</label>
+          <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="Dr. John Smith" /></div>
+        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Subject *</label>
+          <input value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="Physics" /></div>
+      </div>
+      <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Specialization *</label>
+        <input value={form.specialization} onChange={e => setForm({ ...form, specialization: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="JEE Advanced" /></div>
+      <div className="grid grid-cols-3 gap-4">
+        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Batches</label>
+          <input type="number" min="0" value={form.batches} onChange={e => setForm({ ...form, batches: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" /></div>
+        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Experience</label>
+          <input value={form.experience} onChange={e => setForm({ ...form, experience: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="5 years" /></div>
+        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</label>
+          <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            <option value="ACTIVE">Active</option><option value="ON_LEAVE">On Leave</option><option value="INACTIVE">Inactive</option>
+          </select></div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</label>
+          <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="john@school.edu" /></div>
+        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Phone</label>
+          <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="+91 98765 43210" /></div>
+      </div>
+    </div>
+  )
+}
+
 export default function TeacherPortalView() {
   const [data, setData] = useState<{ kpis: any; faculty: FacultyMember[]; materials: Material[]; counseling: CounselingLog[] } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -128,35 +159,6 @@ export default function TeacherPortalView() {
     { label: 'Materials Uploaded', value: data.kpis.materialsThisWeek.toString(), icon: FileText },
     { label: 'Counseling Sessions Logged', value: data.kpis.counselingSessions.toString(), icon: MessageSquare },
   ] : []
-
-  const FacultyFormFields = ({ form, setForm }: { form: typeof EMPTY_FACULTY_FORM; setForm: (f: typeof EMPTY_FACULTY_FORM) => void }) => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Full Name *</label>
-          <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="Dr. John Smith" /></div>
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Subject *</label>
-          <input value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="Physics" /></div>
-      </div>
-      <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Specialization *</label>
-        <input value={form.specialization} onChange={e => setForm({ ...form, specialization: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="JEE Advanced" /></div>
-      <div className="grid grid-cols-3 gap-4">
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Batches</label>
-          <input type="number" min="0" value={form.batches} onChange={e => setForm({ ...form, batches: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" /></div>
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Experience</label>
-          <input value={form.experience} onChange={e => setForm({ ...form, experience: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="5 years" /></div>
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</label>
-          <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-            <option value="ACTIVE">Active</option><option value="ON_LEAVE">On Leave</option><option value="INACTIVE">Inactive</option>
-          </select></div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</label>
-          <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="john@school.edu" /></div>
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Phone</label>
-          <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="+91 98765 43210" /></div>
-      </div>
-    </div>
-  )
 
   return (
     <div className="flex-1 p-8 overflow-auto bg-slate-50 min-h-screen relative">
