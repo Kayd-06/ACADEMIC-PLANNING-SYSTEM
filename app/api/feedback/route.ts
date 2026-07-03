@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { feedback } from '@/lib/db/schema'
-import { eq, count } from 'drizzle-orm'
+import { eq, and, count } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -13,8 +13,11 @@ function getRelativeDateStr(offsetDays: number): string {
   return d.toISOString().split('T')[0]
 }
 
-async function seedFeedback() {
-  const [{ value: cnt }] = await db.select({ value: count() }).from(feedback)
+async function seedFeedback(schoolId: string | null) {
+  const conditions = schoolId ? [eq(feedback.schoolId, schoolId)] : []
+  const [{ value: cnt }] = conditions.length
+    ? await db.select({ value: count() }).from(feedback).where(and(...conditions))
+    : await db.select({ value: count() }).from(feedback)
   if (Number(cnt) > 0) return
 
   const contents = {
@@ -70,6 +73,7 @@ async function seedFeedback() {
     const row: Record<string, any> = {
       senderName, isAnonymous: isAnon, rating, content, type, status,
       date: getRelativeDateStr(-1 - Math.floor(i / 4)),
+      schoolId,
     }
     if (type === 'Student -> Teacher') {
       row.subject = subjects[i % subjects.length]
@@ -90,13 +94,16 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if ((session.user as any).role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  await seedFeedback()
+  const schoolId = (session.user as any).schoolId as string | null
+  await seedFeedback(schoolId)
 
   const { searchParams } = new URL(req.url)
   const type = searchParams.get('type') || 'All'
-  const view = searchParams.get('view') || 'pending' // 'pending' | 'actioned'
+  const view = searchParams.get('view') || 'pending'
 
-  const allItems = await db.select().from(feedback)
+  const allItems = schoolId
+    ? await db.select().from(feedback).where(eq(feedback.schoolId, schoolId))
+    : await db.select().from(feedback)
 
   const totalCount = allItems.length
   const avgRating = totalCount > 0
@@ -134,11 +141,13 @@ export async function PUT(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if ((session.user as any).role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const schoolId = (session.user as any).schoolId as string | null
   const body = await req.json()
   const { id, status } = body
   if (!id || !status) return NextResponse.json({ error: 'Missing id or status' }, { status: 400 })
 
-  const [updated] = await db.update(feedback).set({ status, updatedAt: new Date() }).where(eq(feedback.id, id)).returning()
+  const condition = schoolId ? and(eq(feedback.id, id), eq(feedback.schoolId, schoolId)) : eq(feedback.id, id)
+  const [updated] = await db.update(feedback).set({ status, updatedAt: new Date() }).where(condition).returning()
   if (!updated) return NextResponse.json({ error: 'Feedback not found' }, { status: 404 })
 
   return NextResponse.json(updated)

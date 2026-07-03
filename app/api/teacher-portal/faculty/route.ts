@@ -1,21 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { faculty } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+function schoolFilter(schoolId: string | null) {
+  return schoolId ? eq(faculty.schoolId, schoolId) : undefined
+}
+
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const list = await db.select().from(faculty).orderBy(faculty.name)
+  const schoolId = (session.user as any).schoolId as string | null
+
+  const list = schoolId
+    ? await db.select().from(faculty).where(eq(faculty.schoolId, schoolId)).orderBy(faculty.name)
+    : await db.select().from(faculty).orderBy(faculty.name)
+
   return NextResponse.json(list)
 }
 
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const schoolId = (session.user as any).schoolId as string | null
 
   const body = await req.json()
   const { name, subject, specialization, batches, experience, status, email, phone } = body
@@ -31,6 +41,7 @@ export async function POST(req: NextRequest) {
     status: status || 'ACTIVE',
     email: email || null,
     phone: phone || null,
+    schoolId,
   }).returning()
 
   return NextResponse.json(created, { status: 201 })
@@ -39,11 +50,13 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const schoolId = (session.user as any).schoolId as string | null
 
   const body = await req.json()
   const { id, name, subject, specialization, batches, experience, status, email, phone } = body
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
+  const condition = schoolId ? and(eq(faculty.id, id), eq(faculty.schoolId, schoolId)) : eq(faculty.id, id)
   const [updated] = await db.update(faculty).set({
     name, subject, specialization,
     batches: Number(batches) || 0,
@@ -51,7 +64,7 @@ export async function PATCH(req: NextRequest) {
     status,
     email: email || null,
     phone: phone || null,
-  }).where(eq(faculty.id, id)).returning()
+  }).where(condition).returning()
 
   return NextResponse.json(updated)
 }
@@ -59,11 +72,13 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const schoolId = (session.user as any).schoolId as string | null
 
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
-  await db.delete(faculty).where(eq(faculty.id, id))
+  const condition = schoolId ? and(eq(faculty.id, id), eq(faculty.schoolId, schoolId)) : eq(faculty.id, id)
+  await db.delete(faculty).where(condition)
   return NextResponse.json({ success: true })
 }

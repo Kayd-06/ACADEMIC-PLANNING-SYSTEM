@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { User, Lock, Mail, Building2, ChevronRight } from 'lucide-react'
+import { User, Lock, Mail, Building2, ChevronRight, Hash } from 'lucide-react'
 
 type Mode = 'login' | 'signup'
 type SignupStep = 'select' | 'teacher' | 'management'
@@ -146,7 +146,7 @@ function RoleSelect({ onSelect }: { onSelect: (s: SignupStep) => void }) {
 // ─── Teacher signup ───────────────────────────────────────────────────────────
 
 function TeacherForm({ onBack }: { onBack: () => void }) {
-  const [form, setForm] = useState({ name: '', email: '', password: '', department: '' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', department: '', joinCode: '' })
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -180,6 +180,7 @@ function TeacherForm({ onBack }: { onBack: () => void }) {
           <FieldInput icon={<Mail className="w-4 h-4" />} type="email" value={form.email} onChange={set('email')} required placeholder="Institutional email" />
           <FieldInput icon={<Lock className="w-4 h-4" />} type="password" value={form.password} onChange={set('password')} required placeholder="Password (min. 8 chars)" minLength={8} />
           <FieldInput icon={<Building2 className="w-4 h-4" />} type="text" value={form.department} onChange={set('department')} placeholder="Department (optional)" />
+          <FieldInput icon={<Hash className="w-4 h-4" />} type="text" value={form.joinCode} onChange={set('joinCode')} placeholder="School join code (e.g. EDUA-4821)" />
           <div className="pt-1"><PrimaryBtn loading={loading}>Create Account</PrimaryBtn></div>
         </form>
       )}
@@ -190,7 +191,7 @@ function TeacherForm({ onBack }: { onBack: () => void }) {
 // ─── Management signup ────────────────────────────────────────────────────────
 
 function ManagementForm({ onBack, onSuccess }: { onBack: () => void, onSuccess: () => void }) {
-  const [form, setForm] = useState({ name: '', email: '', password: '', employeeId: '', inviteCode: '' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', employeeId: '', inviteCode: '', joinCode: '' })
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -226,7 +227,8 @@ function ManagementForm({ onBack, onSuccess }: { onBack: () => void, onSuccess: 
           <FieldInput icon={<Mail className="w-4 h-4" />} type="email" value={form.email} onChange={set('email')} required placeholder="Email" />
           <FieldInput icon={<Lock className="w-4 h-4" />} type="password" value={form.password} onChange={set('password')} required placeholder="Password (min. 8 chars)" minLength={8} />
           <FieldInput icon={<Building2 className="w-4 h-4" />} type="text" value={form.employeeId} onChange={set('employeeId')} placeholder="Employee ID (optional)" />
-          <FieldInput icon={<Lock className="w-4 h-4" />} type="text" value={form.inviteCode} onChange={set('inviteCode')} required placeholder="Invite code" />
+          <FieldInput icon={<Lock className="w-4 h-4" />} type="text" value={form.inviteCode} onChange={set('inviteCode')} required placeholder="Admin invite code" />
+          <FieldInput icon={<Hash className="w-4 h-4" />} type="text" value={form.joinCode} onChange={set('joinCode')} placeholder="School join code (e.g. EDUA-4821)" />
           <div className="pt-1"><PrimaryBtn loading={loading}>Create Account</PrimaryBtn></div>
         </form>
       )}

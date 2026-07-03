@@ -13,8 +13,10 @@ function getRelativeDateStr(offsetDays: number): string {
   return d.toISOString().split('T')[0]
 }
 
-async function seedAssignments(teacherEmail: string) {
-  const [{ value: cnt }] = await db.select({ value: count() }).from(assignments).where(eq(assignments.teacherEmail, teacherEmail))
+async function seedAssignments(teacherEmail: string, schoolId: string | null) {
+  const conditions = [eq(assignments.teacherEmail, teacherEmail)]
+  if (schoolId) conditions.push(eq(assignments.schoolId, schoolId))
+  const [{ value: cnt }] = await db.select({ value: count() }).from(assignments).where(and(...conditions))
   if (Number(cnt) > 0) return
 
   const base = [
@@ -52,7 +54,7 @@ async function seedAssignments(teacherEmail: string) {
     })
   }
 
-  await db.insert(assignments).values(base.map(a => ({ ...a, teacherEmail })))
+  await db.insert(assignments).values(base.map(a => ({ ...a, teacherEmail, schoolId })))
 }
 
 const STATUS_PRIORITY: Record<string, number> = { Active: 1, 'Overdue Eval': 2, Evaluated: 3 }
@@ -63,13 +65,15 @@ export async function GET(req: NextRequest) {
   if ((session.user as any).role !== 'teacher') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const email = session.user.email!.toLowerCase()
-  await seedAssignments(email)
+  const schoolId = (session.user as any).schoolId as string | null
+  await seedAssignments(email, schoolId)
 
   const { searchParams } = new URL(req.url)
   const type = searchParams.get('type') || 'All'
   const batch = searchParams.get('batch') || 'All'
 
   const conditions = [eq(assignments.teacherEmail, email)]
+  if (schoolId) conditions.push(eq(assignments.schoolId, schoolId))
   if (type !== 'All') conditions.push(eq(assignments.type, type))
   if (batch !== 'All') conditions.push(eq(assignments.batch, batch))
 
@@ -92,6 +96,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const { title, chapter, batch, subject, type, dueDate, dueTime, totalStudents } = body
+  const schoolId = (session.user as any).schoolId as string | null
 
   if (!title || !chapter || !batch || !subject || !type || !dueDate) {
     return NextResponse.json({ error: 'Missing required assignment fields' }, { status: 400 })
@@ -109,6 +114,7 @@ export async function POST(req: NextRequest) {
     totalStudents: Number(totalStudents) || 40,
     status: 'Active',
     teacherEmail: session.user.email!.toLowerCase(),
+    schoolId,
   }).returning()
 
   return NextResponse.json(created, { status: 201 })
@@ -121,6 +127,7 @@ export async function PUT(req: NextRequest) {
 
   const body = await req.json()
   const { id, status, submittedCount, fileUrl } = body
+  const schoolId = (session.user as any).schoolId as string | null
 
   if (!id) return NextResponse.json({ error: 'Missing assignment ID' }, { status: 400 })
 
@@ -129,7 +136,8 @@ export async function PUT(req: NextRequest) {
   if (submittedCount !== undefined) updateFields.submittedCount = Number(submittedCount)
   if (fileUrl !== undefined) updateFields.fileUrl = fileUrl
 
-  const [updated] = await db.update(assignments).set(updateFields).where(eq(assignments.id, id)).returning()
+  const condition = schoolId ? and(eq(assignments.id, id), eq(assignments.schoolId, schoolId)) : eq(assignments.id, id)
+  const [updated] = await db.update(assignments).set(updateFields).where(condition).returning()
   if (!updated) return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
 
   return NextResponse.json(updated)
@@ -142,9 +150,11 @@ export async function DELETE(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
+  const schoolId = (session.user as any).schoolId as string | null
   if (!id) return NextResponse.json({ error: 'Missing assignment ID' }, { status: 400 })
 
-  const [deleted] = await db.delete(assignments).where(eq(assignments.id, id)).returning()
+  const condition = schoolId ? and(eq(assignments.id, id), eq(assignments.schoolId, schoolId)) : eq(assignments.id, id)
+  const [deleted] = await db.delete(assignments).where(condition).returning()
   if (!deleted) return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
 
   return NextResponse.json({ success: true })

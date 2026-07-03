@@ -1,25 +1,41 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { counselingSessions, faculty, studyMaterials } from '@/lib/db/schema'
-import { desc } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
+import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = (session.user as any).schoolId as string | null
+
     const [facultyList, materials, sessions] = await Promise.all([
-      db.select().from(faculty).orderBy(faculty.name),
-      db.select().from(studyMaterials).orderBy(desc(studyMaterials.createdAt)).limit(5),
-      db.select().from(counselingSessions).orderBy(desc(counselingSessions.date), desc(counselingSessions.time)).limit(5),
+      schoolId
+        ? db.select().from(faculty).where(eq(faculty.schoolId, schoolId)).orderBy(faculty.name)
+        : db.select().from(faculty).orderBy(faculty.name),
+      schoolId
+        ? db.select().from(studyMaterials).where(eq(studyMaterials.schoolId, schoolId)).orderBy(desc(studyMaterials.createdAt)).limit(5)
+        : db.select().from(studyMaterials).orderBy(desc(studyMaterials.createdAt)).limit(5),
+      schoolId
+        ? db.select().from(counselingSessions).where(eq(counselingSessions.schoolId, schoolId)).orderBy(desc(counselingSessions.date), desc(counselingSessions.time)).limit(5)
+        : db.select().from(counselingSessions).orderBy(desc(counselingSessions.date), desc(counselingSessions.time)).limit(5),
     ])
 
     const totalBatches = facultyList.reduce((sum, f) => sum + (f.batches ?? 0), 0)
-    const allSessions = await db.select().from(counselingSessions)
+    const allSessions = schoolId
+      ? await db.select().from(counselingSessions).where(eq(counselingSessions.schoolId, schoolId))
+      : await db.select().from(counselingSessions)
+    const allMaterials = schoolId
+      ? await db.select().from(studyMaterials).where(eq(studyMaterials.schoolId, schoolId))
+      : await db.select().from(studyMaterials)
 
     const kpis = {
       totalFaculty: facultyList.length,
       activeBatches: totalBatches,
-      materialsThisWeek: await db.select().from(studyMaterials).then(r => r.length),
+      materialsThisWeek: allMaterials.length,
       counselingSessions: allSessions.length,
     }
 
