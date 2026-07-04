@@ -9,11 +9,14 @@ export const authConfig: NextAuthConfig = {
     error: '/login',
   },
   callbacks: {
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id as string
         token.role = (user as any).role
         token.schoolId = (user as any).schoolId ?? null
+      }
+      if (trigger === 'update' && (session as any)?.schoolId !== undefined) {
+        token.schoolId = (session as any).schoolId
       }
       return token
     },

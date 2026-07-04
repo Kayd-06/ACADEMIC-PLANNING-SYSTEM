@@ -14,6 +14,7 @@ export const users = pgTable('users', {
   department: varchar('department', { length: 255 }),
   employeeId: varchar('employee_id', { length: 255 }),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'set null' }),
+  activeSchoolId: uuid('active_school_id').references(() => schools.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
@@ -259,4 +260,17 @@ export const announcements = pgTable('announcements', {
 
 export type Announcement = typeof announcements.$inferSelect
 export type NewAnnouncement = typeof announcements.$inferInsert
+
+export const adminSchools = pgTable('admin_schools', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  schoolId: uuid('school_id').notNull().references(() => schools.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull().default('member'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userSchoolUnique: uniqueIndex('admin_schools_user_school_unique').on(table.userId, table.schoolId),
+}))
+
+export type AdminSchool = typeof adminSchools.$inferSelect
+export type NewAdminSchool = typeof adminSchools.$inferInsert
 

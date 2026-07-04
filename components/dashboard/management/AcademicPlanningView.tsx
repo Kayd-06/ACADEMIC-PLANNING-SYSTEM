@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Plus, MoreVertical, X, Loader2, CheckCircle } from 'lucide-react'
+import SchoolsTab from './SchoolsTab'
 
 interface ProgramData {
   _id?: string
@@ -161,7 +162,7 @@ export default function AcademicPlanningView() {
       {/* Tabs */}
       <div className="border-b border-slate-200 mb-8">
         <div className="flex gap-8">
-          {['Programs', 'Batches', 'Syllabus Tracker'].map((tab) => (
+          {['Programs', 'Batches', 'Syllabus Tracker', 'Schools'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -253,6 +254,8 @@ export default function AcademicPlanningView() {
           <button onClick={() => showToast('Syncing syllabus...')} className="mt-4 px-4 py-2 bg-slate-100 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-200">Sync Now</button>
         </div>
       )}
+
+      {activeTab === 'Schools' && <SchoolsTab />}
     </div>
   )
 }

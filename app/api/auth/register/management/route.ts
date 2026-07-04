@@ -4,6 +4,7 @@ import { findUserByEmail, createUser } from '@/lib/db/queries/users'
 import { db } from '@/lib/db'
 import { schools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { addSchoolToAdmin } from '@/lib/db/queries/adminSchools'
 
 export async function POST(req: Request) {
   try {
@@ -19,7 +20,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
     }
 
-    // Resolve school from join code
     let schoolId: string | null = null
     if (joinCode) {
       const [school] = await db.select().from(schools).where(eq(schools.joinCode, joinCode.trim().toUpperCase()))
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12)
-    await createUser({
+    const user = await createUser({
       name,
       email,
       password: hashedPassword,
@@ -42,7 +42,12 @@ export async function POST(req: Request) {
       status: 'active',
       employeeId,
       schoolId,
+      activeSchoolId: schoolId,
     })
+
+    if (schoolId && user?.id) {
+      await addSchoolToAdmin(user.id, schoolId, 'member')
+    }
 
     return NextResponse.json(
       { message: 'Management account created successfully. You can now log in.' },
