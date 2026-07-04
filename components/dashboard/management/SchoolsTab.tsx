@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import { Plus, X, Loader2, Copy, Check, Building2, Pencil, Trash2, LogOut, Hash, CheckCircle2, ArrowRightLeft } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -24,7 +23,6 @@ function CopyButton({ text }: { text: string }) {
 
 export default function SchoolsTab() {
   const { data: session, update } = useSession()
-  const router = useRouter()
   const [schools, setSchools] = useState<SchoolEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<{ msg: string; type?: 'error' | 'ok' } | null>(null)
@@ -72,8 +70,7 @@ export default function SchoolsTab() {
       const data = await res.json()
       if (data.error) { showMsg(data.error, 'error'); return }
       await update({ schoolId })
-      router.refresh()
-      showMsg(`Switched to "${data.schoolName}"`)
+      window.location.reload()
     } finally { setSwitching(null) }
   }
 
@@ -133,10 +130,10 @@ export default function SchoolsTab() {
     await fetchSchools()
     if (data.newSchoolId) {
       await update({ schoolId: data.newSchoolId })
-      router.refresh()
+      window.location.reload()
     } else if (activeSchoolId === school.id) {
       await update({ schoolId: null })
-      router.refresh()
+      window.location.reload()
     }
     showMsg(school.role === 'owner' ? 'School deleted' : 'Left school')
   }

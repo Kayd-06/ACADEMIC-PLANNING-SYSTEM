@@ -38,7 +38,7 @@ function SchoolSwitcher() {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ schoolId })
       })
       const data = await res.json()
-      if (!data.error) { await update({ schoolId }); router.refresh() }
+      if (!data.error) { await update({ schoolId }); window.location.reload() }
     } finally { setSwitching(null); setOpen(false) }
   }
 
