@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
 import { listStudents } from '@/lib/db/queries/students'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {
-    // Fetch all students (active and inactive), sorted by class, then section, then name
-    // to match the original Mongoose route's { class: 1, section: 1, name: 1 } sort
-    const students = await listStudents({ activeOnly: false })
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = (session.user as any).schoolId as string | null
+
+    const students = await listStudents({ activeOnly: false, schoolId })
     students.sort((a, b) => {
       const classCompare = (a.class || '').localeCompare(b.class || '')
       if (classCompare !== 0) return classCompare

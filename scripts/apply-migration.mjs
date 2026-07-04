@@ -6,7 +6,7 @@ config({ path: '.env.local' })
 
 const sql = neon(process.env.DATABASE_URL)
 
-const migration = readFileSync('./lib/db/migrations/0011_multi_school.sql', 'utf8')
+const migration = readFileSync('./lib/db/migrations/0012_student_school_unique.sql', 'utf8') // latest migration
 
 // Split on Drizzle statement-breakpoint markers or semicolons
 const statements = migration

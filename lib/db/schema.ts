@@ -81,9 +81,12 @@ export const students = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    rollClassSectionUnique: uniqueIndex('students_roll_no_class_section_unique')
+    rollClassSectionSchoolUnique: uniqueIndex('students_roll_no_class_section_school_unique')
+      .on(table.rollNo, table.class, table.section, table.schoolId)
+      .where(sql`${table.rollNo} <> '' AND ${table.class} <> '' AND ${table.section} <> '' AND ${table.schoolId} IS NOT NULL`),
+    rollClassSectionNullSchoolUnique: uniqueIndex('students_roll_no_class_section_null_school_unique')
       .on(table.rollNo, table.class, table.section)
-      .where(sql`${table.rollNo} <> '' AND ${table.class} <> '' AND ${table.section} <> ''`),
+      .where(sql`${table.rollNo} <> '' AND ${table.class} <> '' AND ${table.section} <> '' AND ${table.schoolId} IS NULL`),
   })
 )
 

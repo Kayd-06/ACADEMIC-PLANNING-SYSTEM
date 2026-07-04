@@ -14,11 +14,9 @@ function getRelativeDateStr(offsetDays: number): string {
 }
 
 async function seedFeedback(schoolId: string | null) {
-  const conditions = schoolId ? [eq(feedback.schoolId, schoolId)] : []
-  const [{ value: cnt }] = conditions.length
-    ? await db.select({ value: count() }).from(feedback).where(and(...conditions))
-    : await db.select({ value: count() }).from(feedback)
-  if (Number(cnt) > 0) return
+  // Only seed once for a completely empty table — skip if any feedback exists across all schools
+  const [{ value: totalCnt }] = await db.select({ value: count() }).from(feedback)
+  if (Number(totalCnt) > 0) return
 
   const contents = {
     'Student -> Teacher': [

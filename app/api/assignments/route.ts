@@ -14,10 +14,9 @@ function getRelativeDateStr(offsetDays: number): string {
 }
 
 async function seedAssignments(teacherEmail: string, schoolId: string | null) {
-  const conditions = [eq(assignments.teacherEmail, teacherEmail)]
-  if (schoolId) conditions.push(eq(assignments.schoolId, schoolId))
-  const [{ value: cnt }] = await db.select({ value: count() }).from(assignments).where(and(...conditions))
-  if (Number(cnt) > 0) return
+  // Only seed once for a completely empty table — skip if any assignments exist across all schools
+  const [{ value: totalCnt }] = await db.select({ value: count() }).from(assignments)
+  if (Number(totalCnt) > 0) return
 
   const base = [
     { title: 'Calculus Integration DPP 04', chapter: 'Chapter 5: Definite Integrals', batch: 'Grade 11-A', subject: 'Mathematics', type: 'DPP', dueDate: getRelativeDateStr(2), dueTime: '11:59 PM', submittedCount: 34, totalStudents: 40, status: 'Active' },

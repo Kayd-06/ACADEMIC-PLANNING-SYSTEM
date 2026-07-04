@@ -23,12 +23,13 @@ export async function GET(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const schoolId = (session.user as any).schoolId as string | null
     const { searchParams } = new URL(req.url)
     const classFilter = searchParams.get('class')
     const sectionFilter = searchParams.get('section')
     const activeOnly = searchParams.get('activeOnly') !== 'false'
 
-    const filters: ListStudentsFilters = { activeOnly }
+    const filters: ListStudentsFilters = { activeOnly, schoolId }
     if (classFilter) filters.class = classFilter
     if (sectionFilter) filters.section = sectionFilter
 
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only staff can add students' }, { status: 403 })
     }
 
+    const schoolId = (session.user as any).schoolId as string | null
     const body = await req.json()
     const { name, rollNo, class: cls, section, program, batch, parentContact } = body
 
@@ -64,6 +66,7 @@ export async function POST(req: NextRequest) {
       program: program?.trim() || '',
       batch: batch?.trim() || '',
       parentContact: parentContact?.trim() || '',
+      schoolId,
     })
     return NextResponse.json(toApiShape(student), { status: 201 })
   } catch (error: any) {
@@ -83,6 +86,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Only management can edit students' }, { status: 403 })
     }
 
+    const schoolId = (session.user as any).schoolId as string | null
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Student ID is required' }, { status: 400 })
@@ -99,7 +103,7 @@ export async function PATCH(req: NextRequest) {
     if (parentContact !== undefined) updateData.parentContact = parentContact
     if (isActive !== undefined) updateData.isActive = isActive
 
-    const student = await updateStudent(id, updateData)
+    const student = await updateStudent(id, updateData, schoolId)
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
     return NextResponse.json(toApiShape(student))
@@ -117,6 +121,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Only management can remove students' }, { status: 403 })
     }
 
+    const schoolId = (session.user as any).schoolId as string | null
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     const permanent = searchParams.get('permanent') === 'true'
@@ -124,9 +129,9 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Student ID is required' }, { status: 400 })
 
     if (permanent) {
-      await deleteStudent(id)
+      await deleteStudent(id, schoolId)
     } else {
-      await deactivateStudent(id)
+      await deactivateStudent(id, schoolId)
     }
 
     return NextResponse.json({ success: true })

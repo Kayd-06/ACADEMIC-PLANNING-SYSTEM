@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only staff can import students' }, { status: 403 })
     }
 
+    const schoolId = (session.user as any).schoolId as string | null
     const body = await req.json()
     const { students, defaults } = body as { students: any[]; defaults?: BulkDefaults }
 
@@ -50,9 +51,9 @@ export async function POST(req: NextRequest) {
         // If rollNo + class + section all present → upsert (prevents duplicates)
         // Otherwise → plain insert (name-only rows are always added)
         if (rollNo && cls && section) {
-          return upsertStudentByRollClassSection({ name, rollNo, class: cls, section, program, batch, parentContact, isActive: true })
+          return upsertStudentByRollClassSection({ name, rollNo, class: cls, section, program, batch, parentContact, isActive: true, schoolId })
         } else {
-          return createStudent({ name, rollNo, class: cls, section, program, batch, parentContact, isActive: true })
+          return createStudent({ name, rollNo, class: cls, section, program, batch, parentContact, isActive: true, schoolId })
         }
       })
     )
@@ -82,7 +83,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Only staff can clear all rosters' }, { status: 403 })
     }
 
-    await deleteAllStudents()
+    const schoolId = (session.user as any).schoolId as string | null
+    await deleteAllStudents(schoolId)
 
     return NextResponse.json({ success: true, message: 'All students deleted successfully' })
   } catch (error: any) {
