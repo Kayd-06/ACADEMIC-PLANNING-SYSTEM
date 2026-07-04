@@ -1,16 +1,22 @@
 import { NextResponse } from 'next/server'
-import { getOrCreateSchool, updateSchool } from '@/lib/db/queries/school'
+import { getSchoolById, updateSchool } from '@/lib/db/queries/school'
 import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const school = await getOrCreateSchool()
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const schoolId = (session.user as any).schoolId as string | null
+    if (!schoolId) return NextResponse.json({ error: 'No active school' }, { status: 404 })
+
+    const school = await getSchoolById(schoolId)
+    if (!school) return NextResponse.json({ error: 'School not found' }, { status: 404 })
+
     return NextResponse.json(school, {
-      headers: {
-        'Cache-Control': 'no-store, max-age=0, must-revalidate',
-      },
+      headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' },
     })
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch school details' }, { status: 500 })
@@ -20,12 +26,15 @@ export async function GET() {
 export async function PATCH(req: Request) {
   try {
     const session = await auth()
-    if (!session || session.user.role !== 'management') {
+    if (!session || (session.user as any).role !== 'management') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const schoolId = (session.user as any).schoolId as string | null
+    if (!schoolId) return NextResponse.json({ error: 'No active school' }, { status: 404 })
+
     const data = await req.json()
-    const school = await updateSchool(data)
+    const school = await updateSchool(schoolId, data)
 
     return NextResponse.json(school)
   } catch (error) {

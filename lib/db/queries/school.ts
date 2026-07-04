@@ -12,6 +12,21 @@ function generateJoinCode(): string {
   return code
 }
 
+export async function getSchoolById(id: string): Promise<School | null> {
+  const rows = await db.select().from(schools).where(eq(schools.id, id))
+  return rows[0] ?? null
+}
+
+export async function updateSchool(id: string, data: Partial<NewSchool>): Promise<School> {
+  const [updated] = await db
+    .update(schools)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(schools.id, id))
+    .returning()
+  return updated
+}
+
+// Legacy: used only for initial single-school setup (before multi-school migration)
 export async function getOrCreateSchool(): Promise<School> {
   const existing = await db.select().from(schools).limit(1)
   if (existing[0]) {
@@ -27,14 +42,4 @@ export async function getOrCreateSchool(): Promise<School> {
 
   const [created] = await db.insert(schools).values({ joinCode: generateJoinCode() }).returning()
   return created
-}
-
-export async function updateSchool(data: Partial<NewSchool>): Promise<School> {
-  const school = await getOrCreateSchool()
-  const updated = await db
-    .update(schools)
-    .set({ ...data, updatedAt: new Date() })
-    .where(eq(schools.id, school.id))
-    .returning()
-  return updated[0]
 }
