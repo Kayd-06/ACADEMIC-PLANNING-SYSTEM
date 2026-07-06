@@ -1,63 +1,144 @@
 import { NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
-import Candidate from '@/models/Candidate'
+import { db } from '@/lib/db'
+import { recruitmentCandidates } from '@/lib/db/schema'
+import { desc, eq } from 'drizzle-orm'
+import { logAuditAction } from '@/lib/audit'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    await connectDB()
-    const candidates = await Candidate.find().sort({ createdAt: -1 })
-    
-    // If no candidates exist, seed some dummy data for the user to see immediately
-    if (candidates.length === 0) {
-      const dummyCandidates = [
-        { name: 'Dr. Sarah Jenkins', roleApplied: 'Associate Professor', department: 'Computer Science', status: 'Interview Scheduled', nextStep: 'Panel Review - Oct 10' },
-        { name: 'Michael Chang', roleApplied: 'Assistant Lecturer', department: 'Mathematics', status: 'Shortlisted', nextStep: 'Schedule Initial Call' },
-        { name: 'Dr. Emily Rostova', roleApplied: 'Head of Department', department: 'Physics', status: 'Offer Extended', nextStep: 'Awaiting Acceptance' },
-        { name: 'James Wilson', roleApplied: 'Research Fellow', department: 'Biology', status: 'Under Review', nextStep: 'Committee Evaluation' }
-      ]
-      await Candidate.insertMany(dummyCandidates)
-      return NextResponse.json(await Candidate.find().sort({ createdAt: -1 }))
-    }
-
-    return NextResponse.json(candidates)
+    const rows = await db.select().from(recruitmentCandidates).orderBy(desc(recruitmentCandidates.createdAt))
+    const formatted = rows.map(r => ({
+      ...r,
+      _id: r.id,
+      status: r.workflowStatus || 'Under Review'
+    }))
+    return NextResponse.json(formatted)
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Failed to fetch candidates' }, { status: 500 })
   }
 }
 
 export async function POST(req: Request) {
   try {
-    await connectDB()
     const body = await req.json()
-    const candidate = await Candidate.create(body)
-    return NextResponse.json(candidate)
+    const {
+      name = '',
+      contactEmail = '',
+      contactPhone = '',
+      qualification = '',
+      resumeLink = '',
+      yearsOfExperience = '0',
+      currentOrganization = '',
+      specialization = '',
+      expectedSalary = '',
+      appliedDate = '',
+      workflowStatus = '',
+      status = '',
+      roleApplied = '',
+      department = 'SCIENCE',
+      requirementId = null,
+      avatarInitials = '',
+      theme = 'blue',
+      schedule = ''
+    } = body
+
+    if (!name.trim()) {
+      return NextResponse.json({ error: 'Candidate name is required' }, { status: 400 })
+    }
+
+    const finalStatus = workflowStatus || status || 'Requirement'
+    const initials = avatarInitials || name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'XX'
+    const finalDate = appliedDate || new Date().toISOString().split('T')[0]
+
+    const [newCand] = await db.insert(recruitmentCandidates).values({
+      name: name.trim(),
+      contactEmail,
+      contactPhone,
+      qualification,
+      resumeLink,
+      yearsOfExperience: String(yearsOfExperience),
+      currentOrganization,
+      specialization,
+      expectedSalary,
+      appliedDate: finalDate,
+      workflowStatus: finalStatus,
+      roleApplied: roleApplied || 'General Candidate',
+      department,
+      requirementId: requirementId || null,
+      avatarInitials: initials,
+      theme,
+      schedule
+    }).returning()
+
+    await logAuditAction({
+      userActionType: 'CREATE_CANDIDATE',
+      tableName: 'recruitment_candidates',
+      recordId: newCand.id,
+      newValues: newCand,
+      req
+    })
+
+    return NextResponse.json({ ...newCand, _id: newCand.id, status: newCand.workflowStatus }, { status: 201 })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Failed to create candidate' }, { status: 500 })
   }
 }
 
 export async function PATCH(req: Request) {
   try {
-    await connectDB()
     const body = await req.json()
-    const { id, ...updates } = body
-    if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 })
-    const candidate = await Candidate.findByIdAndUpdate(id, updates, { new: true })
-    return NextResponse.json(candidate)
+    const { id, _id, status, ...updates } = body
+    const targetId = id || _id
+    if (!targetId) return NextResponse.json({ error: 'ID is required' }, { status: 400 })
+
+    const [oldCand] = await db.select().from(recruitmentCandidates).where(eq(recruitmentCandidates.id, targetId))
+    if (!oldCand) return NextResponse.json({ error: 'Candidate not found' }, { status: 404 })
+
+    const finalStatus = updates.workflowStatus || status || oldCand.workflowStatus
+
+    const [updatedCand] = await db.update(recruitmentCandidates).set({
+      ...updates,
+      workflowStatus: finalStatus,
+      updatedAt: new Date()
+    }).where(eq(recruitmentCandidates.id, targetId)).returning()
+
+    await logAuditAction({
+      userActionType: 'UPDATE_CANDIDATE',
+      tableName: 'recruitment_candidates',
+      recordId: updatedCand.id,
+      oldValues: oldCand,
+      newValues: updatedCand,
+      req
+    })
+
+    return NextResponse.json({ ...updatedCand, _id: updatedCand.id, status: updatedCand.workflowStatus })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Failed to update candidate' }, { status: 500 })
   }
 }
 
 export async function DELETE(req: Request) {
   try {
-    await connectDB()
     const url = new URL(req.url)
     const id = url.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 })
-    await Candidate.findByIdAndDelete(id)
+
+    const [oldCand] = await db.select().from(recruitmentCandidates).where(eq(recruitmentCandidates.id, id))
+    if (oldCand) {
+      await db.delete(recruitmentCandidates).where(eq(recruitmentCandidates.id, id))
+      await logAuditAction({
+        userActionType: 'DELETE_CANDIDATE',
+        tableName: 'recruitment_candidates',
+        recordId: id,
+        oldValues: oldCand,
+        req
+      })
+    }
+
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Failed to delete candidate' }, { status: 500 })
   }
 }
