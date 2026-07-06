@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import { getStudentById } from '@/lib/db/queries/students'
 import { db } from '@/lib/db'
-import { counselingSessions, studentReports, studentReportEntries } from '@/lib/db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { counselingSessions, studentReports, studentReportEntries, parentsGuardians, studentBatchEnrollments } from '@/lib/db/schema'
+import { eq, desc, asc } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +16,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if (!student) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
+
+    const [guardians, enrollments] = await Promise.all([
+      db.select().from(parentsGuardians)
+        .where(eq(parentsGuardians.studentId, id))
+        .orderBy(desc(parentsGuardians.isPrimary), asc(parentsGuardians.createdAt)),
+      db.select().from(studentBatchEnrollments)
+        .where(eq(studentBatchEnrollments.studentId, id))
+        .orderBy(desc(studentBatchEnrollments.createdAt)),
+    ])
 
     // Find report entries matching this student by rollNo
     const entries = await db
@@ -63,6 +72,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     return NextResponse.json({
       student,
+      guardians,
+      enrollments,
       recentTests,
       currentPerformance,
       counselingNotes,

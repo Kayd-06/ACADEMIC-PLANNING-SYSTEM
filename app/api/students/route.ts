@@ -17,6 +17,27 @@ function toApiShape(student: Student) {
   return { _id: id, ...rest }
 }
 
+// All writable student fields (chart: Identification, Contact & Address,
+// Personal Details, Academic History, Status & Metadata)
+const STUDENT_FIELDS = [
+  'name', 'admissionNumber', 'aadharNumber', 'rollNo',
+  'email', 'phone', 'addressLine1', 'city', 'state', 'pincode',
+  'dob', 'gender', 'bloodGroup', 'profileImgUrl',
+  'previousSchool', 'previousPercentage', 'class', 'section', 'program', 'batch', 'parentContact',
+  'admissionDate', 'status', 'notes', 'isActive',
+] as const
+
+function pickStudentFields(body: any): Partial<NewStudent> {
+  const data: Record<string, any> = {}
+  for (const f of STUDENT_FIELDS) {
+    if (body[f] !== undefined) data[f] = typeof body[f] === 'string' ? body[f].trim() : body[f]
+  }
+  // Keep status and isActive consistent when only one is sent
+  if (data.status !== undefined && data.isActive === undefined) data.isActive = data.status === 'active'
+  if (data.isActive !== undefined && data.status === undefined) data.status = data.isActive ? 'active' : 'inactive'
+  return data
+}
+
 // GET — fetch students, optionally filtered by class & section
 export async function GET(req: NextRequest) {
   try {
@@ -52,20 +73,20 @@ export async function POST(req: NextRequest) {
 
     const schoolId = (session.user as any).schoolId as string | null
     const body = await req.json()
-    const { name, rollNo, class: cls, section, program, batch, parentContact } = body
+    const data = pickStudentFields(body)
 
-    if (!name?.trim()) {
+    if (!data.name) {
       return NextResponse.json({ error: 'Student name is required.' }, { status: 400 })
     }
 
     const student = await createStudent({
-      name: name.trim(),
-      rollNo: rollNo?.trim() || '',
-      class: cls?.trim() || '',
-      section: section?.trim() || '',
-      program: program?.trim() || '',
-      batch: batch?.trim() || '',
-      parentContact: parentContact?.trim() || '',
+      ...data,
+      name: data.name,
+      rollNo: data.rollNo ?? '',
+      class: data.class ?? '',
+      section: data.section ?? '',
+      program: data.program ?? '',
+      batch: data.batch ?? '',
       schoolId,
     })
     return NextResponse.json(toApiShape(student), { status: 201 })
@@ -92,16 +113,10 @@ export async function PATCH(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Student ID is required' }, { status: 400 })
 
     const body = await req.json()
-    const { name, rollNo, class: cls, section, program, batch, parentContact, isActive } = body
-    const updateData: Partial<NewStudent> = {}
-    if (name !== undefined) updateData.name = name
-    if (rollNo !== undefined) updateData.rollNo = rollNo
-    if (cls !== undefined) updateData.class = cls
-    if (section !== undefined) updateData.section = section
-    if (program !== undefined) updateData.program = program
-    if (batch !== undefined) updateData.batch = batch
-    if (parentContact !== undefined) updateData.parentContact = parentContact
-    if (isActive !== undefined) updateData.isActive = isActive
+    const updateData = pickStudentFields(body)
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
 
     const student = await updateStudent(id, updateData, schoolId)
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })

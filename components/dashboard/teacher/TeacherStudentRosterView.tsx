@@ -1,6 +1,22 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { ChevronDown, Filter, Mail, Phone, MessageSquare, User, Loader2, Search } from 'lucide-react'
+import { ChevronDown, Filter, Mail, Phone, MessageSquare, User, Loader2, Search, Briefcase, MapPin } from 'lucide-react'
+
+function InfoField({ label, value }: { label: string; value: any }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-slate-500 mb-0.5">{label}</p>
+      <p className="text-[13px] font-medium text-slate-900 break-words">{value || <span className="text-slate-300">—</span>}</p>
+    </div>
+  )
+}
+
+const enrollmentStatusStyle: Record<string, string> = {
+  active: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  dropped: 'text-rose-700 bg-rose-50 border-rose-200',
+  transferred: 'text-amber-700 bg-amber-50 border-amber-200',
+  completed: 'text-indigo-700 bg-indigo-50 border-indigo-200',
+}
 
 export default function TeacherStudentRosterView() {
   const [students, setStudents] = useState<any[]>([])
@@ -183,28 +199,63 @@ export default function TeacherStudentRosterView() {
                <Loader2 className="w-8 h-8 animate-spin mb-4 text-indigo-500" />
                <p className="text-sm font-medium">Loading student details...</p>
             </div>
-          ) : studentDetails && (
+          ) : studentDetails && (() => {
+            const s = studentDetails.student ?? {}
+            const guardians = studentDetails.guardians ?? []
+            const enrollments = studentDetails.enrollments ?? []
+            const primary = guardians.find((g: any) => g.isPrimary) ?? guardians[0]
+            return (
             <>
               {/* Top Profile Card */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col sm:flex-row items-start justify-between gap-4">
                 <div className="flex items-center gap-6">
-                  <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold shadow-sm border-[3px] border-white ring-1 ring-slate-100 ${activeStudent.color}`}>
-                    {activeStudent.initials}
-                  </div>
+                  {s.profileImgUrl ? (
+                    <img src={s.profileImgUrl} alt={activeStudent.name} className="w-20 h-20 rounded-full object-cover shadow-sm border-[3px] border-white ring-1 ring-slate-100" />
+                  ) : (
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold shadow-sm border-[3px] border-white ring-1 ring-slate-100 ${activeStudent.color}`}>
+                      {activeStudent.initials}
+                    </div>
+                  )}
                   <div>
                     <h2 className="text-xl font-bold text-slate-900 mb-1">{activeStudent.name}</h2>
                     <p className="text-[13px] text-slate-600 font-medium mb-3">
                       Class {activeStudent.class} • {activeStudent.batch} Batch • Roll No. {activeStudent.roll}
+                      {s.admissionNumber ? ` • Adm. No. ${s.admissionNumber}` : ''}
                     </p>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 text-[12px] text-slate-500 font-medium">
-                      <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> parent@example.com</span>
-                      <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> {activeStudent.contact}</span>
+                      <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {primary?.email || s.email || 'No email on file'}</span>
+                      <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> {primary?.phone || s.phone || activeStudent.contact}</span>
                     </div>
                   </div>
                 </div>
                 <button className="flex items-center gap-2 px-5 py-2.5 bg-[#0b1320] text-white text-sm font-bold rounded-lg shadow-sm hover:bg-slate-800 transition-colors shrink-0">
                   <MessageSquare className="w-4 h-4" /> Message Parent
                 </button>
+              </div>
+
+              {/* Student Information */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <h3 className="text-sm font-bold text-slate-900 mb-6">Student Information</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-y-5 gap-x-4">
+                  <InfoField label="Date of Birth" value={s.dob} />
+                  <InfoField label="Gender" value={s.gender} />
+                  <InfoField label="Blood Group" value={s.bloodGroup} />
+                  <InfoField label="Aadhar Number" value={s.aadharNumber} />
+                  <InfoField label="Email" value={s.email} />
+                  <InfoField label="Phone" value={s.phone} />
+                  <InfoField label="Previous School" value={s.previousSchool} />
+                  <InfoField label="Previous %" value={s.previousPercentage} />
+                  <InfoField label="Admission Date" value={s.admissionDate} />
+                  <InfoField label="Status" value={s.status} />
+                  <div className="col-span-2">
+                    <InfoField label="Address" value={[s.addressLine1, s.city, s.state, s.pincode].filter(Boolean).join(', ')} />
+                  </div>
+                  {s.notes && (
+                    <div className="col-span-full">
+                      <InfoField label="Notes" value={s.notes} />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -245,6 +296,45 @@ export default function TeacherStudentRosterView() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Parents / Guardians */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                    <h3 className="text-sm font-bold text-slate-900 mb-6">Parents / Guardians</h3>
+                    {guardians.length === 0 ? (
+                      <p className="text-sm text-slate-500 italic">No guardian details on file.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {guardians.map((g: any) => (
+                          <div key={g.id} className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                            <div className="flex items-start gap-4">
+                              <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0">
+                                <User className="w-5 h-5" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1 gap-2">
+                                  <h5 className="text-[14px] font-bold text-slate-900 truncate">{g.name}</h5>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {g.isPrimary && (
+                                      <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Primary</span>
+                                    )}
+                                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest bg-white px-2 py-0.5 rounded border border-slate-200">{g.relationship}</span>
+                                  </div>
+                                </div>
+                                <div className="space-y-1 mt-2">
+                                  {g.phone && <p className="text-[12px] text-slate-600 flex items-center gap-2"><Phone className="w-3 h-3 shrink-0" /> {g.phone}{g.altPhone ? ` / ${g.altPhone}` : ''}</p>}
+                                  {g.email && <p className="text-[12px] text-slate-600 flex items-center gap-2"><Mail className="w-3 h-3 shrink-0" /> <span className="truncate">{g.email}</span></p>}
+                                  {g.occupation && <p className="text-[12px] text-slate-600 flex items-center gap-2"><Briefcase className="w-3 h-3 shrink-0" /> {g.occupation}</p>}
+                                  {(g.addressLine1 || g.city) && (
+                                    <p className="text-[12px] text-slate-600 flex items-center gap-2"><MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{[g.addressLine1, g.city, g.state, g.pincode].filter(Boolean).join(', ')}</span></p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Right Column in Detail */}
@@ -279,6 +369,30 @@ export default function TeacherStudentRosterView() {
                     )}
                   </div>
 
+                  {/* Batch Enrollments */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                    <h3 className="text-sm font-bold text-slate-900 mb-6">Batch Enrollments</h3>
+                    {enrollments.length === 0 ? (
+                      <p className="text-sm text-slate-500 italic">No batch enrollments recorded.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {enrollments.map((e: any) => (
+                          <div key={e.id} className="bg-slate-50 rounded-xl p-3.5 border border-slate-100 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-bold text-slate-900 truncate">{e.batchName}</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                {e.rollNumber ? `Roll ${e.rollNumber}` : 'No roll'}{e.enrollmentDate ? ` • Enrolled ${e.enrollmentDate}` : ''}
+                              </p>
+                            </div>
+                            <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full border shrink-0 ${enrollmentStatusStyle[e.status] ?? 'border-slate-200 text-slate-600 bg-white'}`}>
+                              {e.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Counseling Notes */}
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                     <h3 className="text-sm font-bold text-slate-900 mb-6">Counseling Notes</h3>
@@ -307,7 +421,8 @@ export default function TeacherStudentRosterView() {
                 </div>
               </div>
             </>
-          )}
+            )
+          })()}
 
         </div>
 

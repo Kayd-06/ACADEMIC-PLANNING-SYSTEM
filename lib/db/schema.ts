@@ -69,14 +69,37 @@ export const students = pgTable(
   'students',
   {
     id: uuid('id').defaultRandom().primaryKey(),
+    // Identification
     name: varchar('name', { length: 255 }).notNull(),
+    admissionNumber: varchar('admission_number', { length: 100 }),
+    aadharNumber: varchar('aadhar_number', { length: 20 }),
     rollNo: varchar('roll_no', { length: 255 }).notNull().default(''),
+    // Contact & Address
+    email: varchar('email', { length: 255 }),
+    phone: varchar('phone', { length: 50 }),
+    addressLine1: varchar('address_line1', { length: 500 }),
+    city: varchar('city', { length: 100 }),
+    state: varchar('state', { length: 100 }),
+    pincode: varchar('pincode', { length: 20 }),
+    // Personal Details
+    dob: varchar('dob', { length: 10 }),
+    gender: varchar('gender', { length: 20 }),
+    bloodGroup: varchar('blood_group', { length: 10 }),
+    profileImgUrl: text('profile_img_url'),
+    // Academic History (class = current_class)
+    previousSchool: varchar('previous_school', { length: 255 }),
+    previousPercentage: varchar('previous_percentage', { length: 20 }),
     class: varchar('class', { length: 255 }).notNull().default(''),
     section: varchar('section', { length: 255 }).notNull().default(''),
     program: varchar('program', { length: 255 }).notNull().default(''),
     batch: varchar('batch', { length: 255 }).notNull().default(''),
     parentContact: varchar('parent_contact', { length: 255 }),
+    // Status & Metadata
+    admissionDate: varchar('admission_date', { length: 10 }),
+    status: varchar('status', { length: 20 }).notNull().default('active'),
+    notes: text('notes'),
     isActive: boolean('is_active').notNull().default(true),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
     schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -93,6 +116,46 @@ export const students = pgTable(
 
 export type Student = typeof students.$inferSelect
 export type NewStudent = typeof students.$inferInsert
+
+export const parentsGuardians = pgTable('parents_guardians', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  // Identity & Relationship
+  studentId: uuid('student_id').notNull().references(() => students.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  relationship: varchar('relationship', { length: 50 }).notNull().default('Parent'),
+  isPrimary: boolean('is_primary').notNull().default(false),
+  // Communication
+  email: varchar('email', { length: 255 }),
+  phone: varchar('phone', { length: 50 }),
+  altPhone: varchar('alt_phone', { length: 50 }),
+  // Socio-Economic & Location
+  occupation: varchar('occupation', { length: 255 }),
+  annualIncome: varchar('annual_income', { length: 100 }),
+  addressLine1: varchar('address_line1', { length: 500 }),
+  city: varchar('city', { length: 100 }),
+  state: varchar('state', { length: 100 }),
+  pincode: varchar('pincode', { length: 20 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type ParentGuardian = typeof parentsGuardians.$inferSelect
+export type NewParentGuardian = typeof parentsGuardians.$inferInsert
+
+export const studentBatchEnrollments = pgTable('student_batch_enrollments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  studentId: uuid('student_id').notNull().references(() => students.id, { onDelete: 'cascade' }),
+  batchName: varchar('batch_name', { length: 255 }).notNull(),
+  rollNumber: varchar('roll_number', { length: 100 }).notNull().default(''),
+  enrollmentDate: varchar('enrollment_date', { length: 10 }),
+  status: varchar('status', { length: 20 }).notNull().default('active'), // active | dropped | transferred | completed
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type StudentBatchEnrollment = typeof studentBatchEnrollments.$inferSelect
+export type NewStudentBatchEnrollment = typeof studentBatchEnrollments.$inferInsert
 
 export const counselingSessionTypeEnum = pgEnum('counseling_session_type', ['Academic', 'Career', 'Personal', 'Disciplinary'])
 export const counselingSessionStatusEnum = pgEnum('counseling_session_status', ['Scheduled', 'Completed', 'No-Show', 'Cancelled'])

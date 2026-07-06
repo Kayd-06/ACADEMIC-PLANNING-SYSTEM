@@ -19,8 +19,9 @@ describe('school queries', () => {
     expect(second.id).toBe(first.id)
   })
 
-  it('updateSchool updates fields on the existing row', async () => {
-    const updated = await updateSchool({ board: 'ICSE Affiliated' })
+  it('updateSchool updates fields on the given school', async () => {
+    const school = await getOrCreateSchool()
+    const updated = await updateSchool(school.id, { board: 'ICSE Affiliated' })
     expect(updated.board).toBe('ICSE Affiliated')
   })
 })
