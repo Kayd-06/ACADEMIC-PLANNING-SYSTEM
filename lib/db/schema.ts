@@ -277,3 +277,111 @@ export const adminSchools = pgTable('admin_schools', {
 export type AdminSchool = typeof adminSchools.$inferSelect
 export type NewAdminSchool = typeof adminSchools.$inferInsert
 
+export const recruitmentRequirements = pgTable('recruitment_requirements', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  jobTitle: varchar('job_title', { length: 255 }).notNull(),
+  subjectProgram: varchar('subject_program', { length: 255 }).notNull(),
+  department: varchar('department', { length: 255 }).notNull().default('SCIENCE'),
+  experienceRequired: varchar('experience_required', { length: 255 }).notNull().default('3+ Years'),
+  qualificationRequired: varchar('qualification_required', { length: 255 }).notNull().default('Master\'s Degree'),
+  vacancies: integer('vacancies').notNull().default(1),
+  status: varchar('status', { length: 50 }).notNull().default('Open'), // Open, Closed, Draft
+  postingDate: varchar('posting_date', { length: 50 }).notNull().default(''),
+  closingDate: varchar('closing_date', { length: 50 }).notNull().default(''),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type RecruitmentRequirement = typeof recruitmentRequirements.$inferSelect
+export type NewRecruitmentRequirement = typeof recruitmentRequirements.$inferInsert
+
+export const recruitmentCandidates = pgTable('recruitment_candidates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  contactEmail: varchar('contact_email', { length: 255 }).notNull().default(''),
+  contactPhone: varchar('contact_phone', { length: 50 }).notNull().default(''),
+  qualification: varchar('qualification', { length: 255 }).notNull().default(''),
+  resumeLink: varchar('resume_link', { length: 1000 }).notNull().default(''),
+  yearsOfExperience: varchar('years_of_experience', { length: 50 }).notNull().default('0'),
+  currentOrganization: varchar('current_organization', { length: 255 }).notNull().default(''),
+  specialization: varchar('specialization', { length: 255 }).notNull().default(''),
+  expectedSalary: varchar('expected_salary', { length: 100 }).notNull().default(''),
+  appliedDate: varchar('applied_date', { length: 50 }).notNull().default(''),
+  workflowStatus: varchar('workflow_status', { length: 50 }).notNull().default('Requirement'), // Requirement, Shortlisted, Interview Scheduled, Under Review, Offer Extended, Rejected, Hired
+  roleApplied: varchar('role_applied', { length: 255 }).notNull().default(''),
+  department: varchar('department', { length: 255 }).notNull().default('SCIENCE'),
+  requirementId: uuid('requirement_id').references(() => recruitmentRequirements.id, { onDelete: 'set null' }),
+  avatarInitials: varchar('avatar_initials', { length: 10 }).notNull().default('XX'),
+  theme: varchar('theme', { length: 50 }).notNull().default('blue'),
+  schedule: varchar('schedule', { length: 255 }).default(''),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type RecruitmentCandidate = typeof recruitmentCandidates.$inferSelect
+export type NewRecruitmentCandidate = typeof recruitmentCandidates.$inferInsert
+
+export const recruitmentInterviews = pgTable('recruitment_interviews', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  candidateId: uuid('candidate_id').references(() => recruitmentCandidates.id, { onDelete: 'cascade' }),
+  candidateName: varchar('candidate_name', { length: 255 }).notNull().default(''),
+  dateTime: varchar('date_time', { length: 100 }).notNull().default(''),
+  mode: varchar('mode', { length: 50 }).notNull().default('In-person'), // In-person, Online
+  locationOrLink: varchar('location_or_link', { length: 500 }).notNull().default(''),
+  feedbackText: text('feedback_text').notNull().default(''),
+  rating: integer('rating').notNull().default(3), // 1-5
+  finalResult: varchar('final_result', { length: 50 }).notNull().default('Pending'), // Pending, Pass, Fail, Hold, Offer
+  interviewerName: varchar('interviewer_name', { length: 255 }).notNull().default('Panel'),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type RecruitmentInterview = typeof recruitmentInterviews.$inferSelect
+export type NewRecruitmentInterview = typeof recruitmentInterviews.$inferInsert
+
+export const teacherAppraisals = pgTable('teacher_appraisals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  teacherName: varchar('teacher_name', { length: 255 }).notNull(),
+  teacherEmail: varchar('teacher_email', { length: 255 }).default(''),
+  department: varchar('department', { length: 255 }).notNull().default('Science'),
+  appraiserName: varchar('appraiser_name', { length: 255 }).notNull().default('Head of Department'),
+  period: varchar('period', { length: 100 }).notNull().default('Annual'),
+  academicYear: varchar('academic_year', { length: 50 }).notNull().default('2025-2026'),
+  teachingRating: varchar('teaching_rating', { length: 50 }).notNull().default('5'),
+  punctualityRating: varchar('punctuality_rating', { length: 50 }).notNull().default('5'),
+  studentFeedbackAverage: varchar('student_feedback_average', { length: 50 }).notNull().default('4.8'),
+  overallRating: varchar('overall_rating', { length: 50 }).notNull().default('Excellent'),
+  remarksGoals: text('remarks_goals').notNull().default(''),
+  improvementAreas: text('improvement_areas').notNull().default(''),
+  reviewStatus: varchar('review_status', { length: 50 }).notNull().default('Pending'), // Pending, In Progress, Completed
+  scheduledDate: varchar('scheduled_date', { length: 100 }).default(''),
+  isCompleted: boolean('is_completed').notNull().default(false),
+  avatarInitials: varchar('avatar_initials', { length: 10 }).notNull().default('XX'),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type TeacherAppraisal = typeof teacherAppraisals.$inferSelect
+export type NewTeacherAppraisal = typeof teacherAppraisals.$inferInsert
+
+export const auditLogs = pgTable('audit_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userActionType: varchar('user_action_type', { length: 255 }).notNull(),
+  tableName: varchar('table_name', { length: 255 }).notNull(),
+  recordId: varchar('record_id', { length: 255 }).notNull().default(''),
+  oldValues: text('old_values').notNull().default(''),
+  newValues: text('new_values').notNull().default(''),
+  ipAddress: varchar('ip_address', { length: 100 }).notNull().default('127.0.0.1'),
+  userAgent: text('user_agent').notNull().default(''),
+  authorName: varchar('author_name', { length: 255 }).notNull().default('Admin'),
+  authorRole: varchar('author_role', { length: 255 }).notNull().default('Management'),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  timestamp: timestamp('timestamp', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type AuditLog = typeof auditLogs.$inferSelect
+export type NewAuditLog = typeof auditLogs.$inferInsert
