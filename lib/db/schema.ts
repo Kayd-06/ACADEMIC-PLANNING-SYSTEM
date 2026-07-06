@@ -1,3 +1,4 @@
+// Database schema definitions - updated with dailyReports and progressReports
 import { pgTable, uuid, text, varchar, timestamp, pgEnum, boolean, uniqueIndex, integer } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
@@ -200,6 +201,42 @@ export const dailyReports = pgTable('daily_reports', {
 
 export type DailyReport = typeof dailyReports.$inferSelect
 export type NewDailyReport = typeof dailyReports.$inferInsert
+
+export const progressReports = pgTable('progress_reports', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  studentId: uuid('student_id').references(() => students.id, { onDelete: 'set null' }),
+  studentName: varchar('student_name', { length: 255 }).notNull(),
+  rollNo: varchar('roll_no', { length: 100 }).notNull().default(''),
+  batch: varchar('batch', { length: 255 }).notNull(),
+  termType: varchar('term_type', { length: 100 }).notNull().default('Mid-Term'),
+  academicYear: varchar('academic_year', { length: 50 }).notNull().default('2025-2026'),
+  percentage: varchar('percentage', { length: 50 }).notNull().default('0%'),
+  rank: varchar('rank', { length: 50 }).notNull().default('-'),
+  teacherRemarks: text('teacher_remarks').notNull().default(''),
+  principalRemarks: text('principal_remarks').notNull().default(''),
+  teacherName: varchar('teacher_name', { length: 255 }).notNull().default('Faculty'),
+  teacherEmail: varchar('teacher_email', { length: 255 }).notNull().default(''),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type ProgressReport = typeof progressReports.$inferSelect
+export type NewProgressReport = typeof progressReports.$inferInsert
+
+export const progressReportSubjects = pgTable('progress_report_subjects', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  progressReportId: uuid('progress_report_id').notNull().references(() => progressReports.id, { onDelete: 'cascade' }),
+  subjectName: varchar('subject_name', { length: 255 }).notNull(),
+  marksObtained: integer('marks_obtained').notNull().default(0),
+  totalMarks: integer('total_marks').notNull().default(100),
+  grade: varchar('grade', { length: 20 }).notNull().default('A'),
+  rankInBatch: varchar('rank_in_batch', { length: 50 }).notNull().default('-'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type ProgressReportSubject = typeof progressReportSubjects.$inferSelect
+export type NewProgressReportSubject = typeof progressReportSubjects.$inferInsert
 
 export const assignments = pgTable('assignments', {
   id: uuid('id').defaultRandom().primaryKey(),
