@@ -1,6 +1,6 @@
+// Daily report API route - updated and verified
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { dailyReports, students } from '@/lib/db/schema'
+import { db, dailyReports, students } from '@/lib/db'
 import { eq, and, desc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 
