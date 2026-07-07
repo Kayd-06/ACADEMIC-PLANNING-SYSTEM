@@ -13,11 +13,16 @@ interface Announcement {
   content: string
   type: 'General' | 'Academic' | 'Exam' | 'Holiday' | 'Urgent' | 'Fee'
   scope: string
+  scopeValue: string
+  targetRoles: string
   pinned: boolean
   urgent: boolean
+  attachmentUrl: string
+  attachmentName: string
   authorName: string
   authorRole: string
   expiryDate?: string
+  expired?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -89,7 +94,11 @@ export default function AnnouncementsView() {
   const [formContent, setFormContent] = useState('')
   const [formType, setFormType] = useState<Announcement['type']>('General')
   const [formScope, setFormScope] = useState('All')
+  const [formScopeValue, setFormScopeValue] = useState('')
+  const [formTargetRoles, setFormTargetRoles] = useState('All')
   const [formPinned, setFormPinned] = useState(false)
+  const [formAttachmentUrl, setFormAttachmentUrl] = useState('')
+  const [formAttachmentName, setFormAttachmentName] = useState('')
   const [formAuthorName, setFormAuthorName] = useState('')
   const [formAuthorRole, setFormAuthorRole] = useState('')
   const [formExpiryDate, setFormExpiryDate] = useState('')
@@ -140,7 +149,11 @@ export default function AnnouncementsView() {
           content: formContent,
           type: formType,
           scope: formScope,
+          scopeValue: formScope === 'Program' || formScope === 'Batch' ? formScopeValue : '',
+          targetRoles: formScope === 'Role' ? formTargetRoles : 'All',
           pinned: formPinned,
+          attachmentUrl: formAttachmentUrl,
+          attachmentName: formAttachmentName,
           authorName: formAuthorName || undefined,
           authorRole: formAuthorRole || undefined,
           expiryDate: formExpiryDate || undefined
@@ -179,7 +192,11 @@ export default function AnnouncementsView() {
           content: formContent,
           type: formType,
           scope: formScope,
+          scopeValue: formScope === 'Program' || formScope === 'Batch' ? formScopeValue : '',
+          targetRoles: formScope === 'Role' ? formTargetRoles : 'All',
           pinned: formPinned,
+          attachmentUrl: formAttachmentUrl,
+          attachmentName: formAttachmentName,
           authorName: formAuthorName,
           authorRole: formAuthorRole,
           expiryDate: formExpiryDate || ''
@@ -227,7 +244,11 @@ export default function AnnouncementsView() {
     setFormContent('')
     setFormType('General')
     setFormScope('All')
+    setFormScopeValue('')
+    setFormTargetRoles('All')
     setFormPinned(false)
+    setFormAttachmentUrl('')
+    setFormAttachmentName('')
     setFormAuthorName('')
     setFormAuthorRole('')
     setFormExpiryDate('')
@@ -238,8 +259,12 @@ export default function AnnouncementsView() {
     setFormTitle(a.title)
     setFormContent(a.content)
     setFormType(a.type)
-    setFormScope(a.scope)
+    setFormScope(['All', 'Program', 'Batch', 'Role'].includes(a.scope) ? a.scope : 'All')
+    setFormScopeValue(a.scopeValue || '')
+    setFormTargetRoles(a.targetRoles || 'All')
     setFormPinned(a.pinned)
+    setFormAttachmentUrl(a.attachmentUrl || '')
+    setFormAttachmentName(a.attachmentName || '')
     setFormAuthorName(a.authorName || '')
     setFormAuthorRole(a.authorRole || '')
     setFormExpiryDate(a.expiryDate || '')
@@ -353,7 +378,14 @@ export default function AnnouncementsView() {
                     </span>
                     <span className="text-xs text-slate-400 font-medium">
                       • Scope: {ann.scope}
+                      {ann.scopeValue ? ` (${ann.scopeValue})` : ''}
+                      {ann.scope === 'Role' && ann.targetRoles && ann.targetRoles !== 'All' ? ` (${ann.targetRoles}s)` : ''}
                     </span>
+                    {ann.expired && (
+                      <span className="text-[9px] font-extrabold px-2 py-0.5 rounded border tracking-wider uppercase bg-slate-100 border-slate-200 text-slate-500">
+                        Expired
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -361,6 +393,18 @@ export default function AnnouncementsView() {
                 <p className="text-sm text-slate-600 mt-4 leading-relaxed font-normal whitespace-pre-wrap">
                   {ann.content}
                 </p>
+
+                {/* Attachment */}
+                {ann.attachmentUrl && (
+                  <a
+                    href={ann.attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition-colors self-start"
+                  >
+                    📎 {ann.attachmentName || 'Attachment'}
+                  </a>
+                )}
 
                 {/* Bottom Row: Author details, Date, Expiry date */}
                 <div className="border-t border-slate-100/80 mt-5 pt-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
@@ -439,12 +483,66 @@ export default function AnnouncementsView() {
                 </div>
                 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Scope Audience</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. All Staff & Students"
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Scope</label>
+                  <select
                     value={formScope}
                     onChange={(e) => setFormScope(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none"
+                  >
+                    <option value="All">All</option>
+                    <option value="Program">Program</option>
+                    <option value="Batch">Batch</option>
+                    <option value="Role">Role</option>
+                  </select>
+                </div>
+              </div>
+
+              {(formScope === 'Program' || formScope === 'Batch') && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">{formScope} Name</label>
+                  <input
+                    type="text"
+                    placeholder={formScope === 'Program' ? 'e.g. JEE 2-Year Integrated' : 'e.g. Grade 11-A'}
+                    value={formScopeValue}
+                    onChange={(e) => setFormScopeValue(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
+                  />
+                </div>
+              )}
+
+              {formScope === 'Role' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Target Role</label>
+                  <select
+                    value={formTargetRoles}
+                    onChange={(e) => setFormTargetRoles(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none"
+                  >
+                    <option value="All">All Roles</option>
+                    <option value="Teacher">Teachers</option>
+                    <option value="Parent">Parents</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Attachment URL (Opt)</label>
+                  <input
+                    type="text"
+                    placeholder="https://…"
+                    value={formAttachmentUrl}
+                    onChange={(e) => setFormAttachmentUrl(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Attachment Name (Opt)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Exam Timetable.pdf"
+                    value={formAttachmentName}
+                    onChange={(e) => setFormAttachmentName(e.target.value)}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
                   />
                 </div>
@@ -584,12 +682,66 @@ export default function AnnouncementsView() {
                 </div>
                 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Scope Audience</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. All Staff & Students"
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Scope</label>
+                  <select
                     value={formScope}
                     onChange={(e) => setFormScope(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none"
+                  >
+                    <option value="All">All</option>
+                    <option value="Program">Program</option>
+                    <option value="Batch">Batch</option>
+                    <option value="Role">Role</option>
+                  </select>
+                </div>
+              </div>
+
+              {(formScope === 'Program' || formScope === 'Batch') && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">{formScope} Name</label>
+                  <input
+                    type="text"
+                    placeholder={formScope === 'Program' ? 'e.g. JEE 2-Year Integrated' : 'e.g. Grade 11-A'}
+                    value={formScopeValue}
+                    onChange={(e) => setFormScopeValue(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
+                  />
+                </div>
+              )}
+
+              {formScope === 'Role' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Target Role</label>
+                  <select
+                    value={formTargetRoles}
+                    onChange={(e) => setFormTargetRoles(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none"
+                  >
+                    <option value="All">All Roles</option>
+                    <option value="Teacher">Teachers</option>
+                    <option value="Parent">Parents</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Attachment URL (Opt)</label>
+                  <input
+                    type="text"
+                    placeholder="https://…"
+                    value={formAttachmentUrl}
+                    onChange={(e) => setFormAttachmentUrl(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Attachment Name (Opt)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Exam Timetable.pdf"
+                    value={formAttachmentName}
+                    onChange={(e) => setFormAttachmentName(e.target.value)}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
                   />
                 </div>

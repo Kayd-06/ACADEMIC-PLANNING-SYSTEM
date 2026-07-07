@@ -14,14 +14,19 @@ interface Session {
   studentName: string
   studentInitials: string
   counselor: string
-  type: 'Academic' | 'Career' | 'Personal' | 'Disciplinary'
+  type: 'Academic' | 'Career' | 'Personal' | 'Disciplinary' | 'Parent Meeting'
   date: string
   time: string
   status: 'Scheduled' | 'Completed' | 'No-Show' | 'Cancelled'
   notes?: string
+  actionItems?: string
+  durationMinutes?: number
+  nextSessionDate?: string
   flagged: boolean
   createdAt: string
 }
+
+const SESSION_TYPES = ['Academic', 'Career', 'Personal', 'Disciplinary', 'Parent Meeting'] as const
 
 interface Stats {
   sessionsThisWeek: number
@@ -31,10 +36,11 @@ interface Stats {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  Academic:     'bg-indigo-50 text-indigo-700 border border-indigo-100',
-  Career:       'bg-violet-50 text-violet-700 border border-violet-100',
-  Personal:     'bg-emerald-50 text-emerald-700 border border-emerald-100',
-  Disciplinary: 'bg-rose-50 text-rose-700 border border-rose-100',
+  Academic:         'bg-indigo-50 text-indigo-700 border border-indigo-100',
+  Career:           'bg-violet-50 text-violet-700 border border-violet-100',
+  Personal:         'bg-emerald-50 text-emerald-700 border border-emerald-100',
+  Disciplinary:     'bg-rose-50 text-rose-700 border border-rose-100',
+  'Parent Meeting': 'bg-amber-50 text-amber-700 border border-amber-100',
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -83,6 +89,9 @@ const EMPTY_FORM = {
   date: '',
   time: '10:00 AM',
   notes: '',
+  actionItems: '',
+  durationMinutes: 30,
+  nextSessionDate: '',
 }
 
 export default function CounselingView() {
@@ -349,6 +358,7 @@ export default function CounselingView() {
                 <option value="Career">Career</option>
                 <option value="Personal">Personal</option>
                 <option value="Disciplinary">Disciplinary</option>
+                <option value="Parent Meeting">Parent Meeting</option>
               </select>
             </label>
 
@@ -522,7 +532,7 @@ export default function CounselingView() {
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Session Type *</label>
                     <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value as Session['type'] })}
                       className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer">
-                      {(['Academic', 'Career', 'Personal', 'Disciplinary'] as const).map(t => <option key={t} value={t}>{t}</option>)}
+                      {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
                   <div>
@@ -533,9 +543,23 @@ export default function CounselingView() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date *</label>
+                    <input required type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })}
+                      className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Duration (Minutes)</label>
+                    <input type="number" min={5} step={5} value={form.durationMinutes}
+                      onChange={e => setForm({ ...form, durationMinutes: Number(e.target.value) || 30 })}
+                      className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors" />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date *</label>
-                  <input required type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })}
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Next Session Date</label>
+                  <input type="date" value={form.nextSessionDate} onChange={e => setForm({ ...form, nextSessionDate: e.target.value })}
                     className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors" />
                 </div>
 
@@ -543,6 +567,13 @@ export default function CounselingView() {
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Notes</label>
                   <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
                     placeholder="Session purpose or observations…" rows={3}
+                    className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors resize-none" />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Action Items</label>
+                  <textarea value={form.actionItems} onChange={e => setForm({ ...form, actionItems: e.target.value })}
+                    placeholder="Follow-up tasks agreed in the session…" rows={2}
                     className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors resize-none" />
                 </div>
 
@@ -609,12 +640,27 @@ export default function CounselingView() {
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Time</p>
                     <p className="text-sm font-semibold text-slate-700">{selected.time}</p>
                   </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Duration</p>
+                    <p className="text-sm font-semibold text-slate-700">{selected.durationMinutes ?? 30} minutes</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Next Session</p>
+                    <p className="text-sm font-semibold text-slate-700">{selected.nextSessionDate ? fmtDate(selected.nextSessionDate) : '—'}</p>
+                  </div>
                 </div>
 
                 {selected.notes && (
                   <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Notes</p>
                     <p className="text-[12px] text-slate-700 leading-relaxed">{selected.notes}</p>
+                  </div>
+                )}
+
+                {selected.actionItems && (
+                  <div className="bg-amber-50/50 rounded-xl p-4 border border-amber-100">
+                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1.5">Action Items</p>
+                    <p className="text-[12px] text-slate-700 leading-relaxed whitespace-pre-wrap">{selected.actionItems}</p>
                   </div>
                 )}
 

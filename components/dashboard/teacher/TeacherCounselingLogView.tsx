@@ -12,12 +12,15 @@ interface Session {
   studentName: string
   studentInitials: string
   counselor: string
-  type: 'Academic' | 'Career' | 'Personal' | 'Disciplinary'
+  type: 'Academic' | 'Career' | 'Personal' | 'Disciplinary' | 'Parent Meeting'
   date: string
   time: string
   duration?: string
+  durationMinutes?: number
   status: 'Scheduled' | 'Completed' | 'No-Show' | 'Cancelled'
   notes?: string
+  actionItems?: string
+  nextSessionDate?: string
   flagged: boolean
   createdAt: string
 }
@@ -31,17 +34,19 @@ interface Student {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  Academic:     'bg-blue-50 text-blue-700 border border-blue-100',
-  Career:       'bg-amber-50 text-amber-700 border border-amber-100',
-  Personal:     'bg-emerald-50 text-emerald-700 border border-emerald-100',
-  Disciplinary: 'bg-rose-50 text-rose-700 border border-rose-100',
+  Academic:         'bg-blue-50 text-blue-700 border border-blue-100',
+  Career:           'bg-amber-50 text-amber-700 border border-amber-100',
+  Personal:         'bg-emerald-50 text-emerald-700 border border-emerald-100',
+  Disciplinary:     'bg-rose-50 text-rose-700 border border-rose-100',
+  'Parent Meeting': 'bg-violet-50 text-violet-700 border border-violet-100',
 }
 
 const TYPE_DOT_COLORS: Record<string, string> = {
-  Academic:     'bg-blue-600',
-  Career:       'bg-amber-500',
-  Personal:     'bg-emerald-600',
-  Disciplinary: 'bg-rose-600',
+  Academic:         'bg-blue-600',
+  Career:           'bg-amber-500',
+  Personal:         'bg-emerald-600',
+  Disciplinary:     'bg-rose-600',
+  'Parent Meeting': 'bg-violet-600',
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -93,11 +98,13 @@ export default function TeacherCounselingLogView({ counselorName }: { counselorN
   const [studentSearch, setStudentSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [showStudentDropdown, setShowStudentDropdown] = useState(false)
-  const [formType, setFormType] = useState<'Academic' | 'Career' | 'Personal' | 'Disciplinary'>('Academic')
+  const [formType, setFormType] = useState<Session['type']>('Academic')
   const [formDate, setFormDate] = useState(() => new Date().toISOString().split('T')[0])
   const [formTime, setFormTime] = useState('10:00 AM')
   const [formDuration, setFormDuration] = useState('30 mins')
   const [formNotes, setFormNotes] = useState('')
+  const [formActionItems, setFormActionItems] = useState('')
+  const [formNextSessionDate, setFormNextSessionDate] = useState('')
   const [formStatus, setFormStatus] = useState<Session['status']>('Scheduled')
 
   // Toast message
@@ -187,7 +194,9 @@ export default function TeacherCounselingLogView({ counselorName }: { counselorN
           date: formDate,
           time: formTime,
           duration: formDuration,
-          notes: formNotes
+          notes: formNotes,
+          actionItems: formActionItems,
+          nextSessionDate: formNextSessionDate
         })
       })
       
@@ -222,7 +231,9 @@ export default function TeacherCounselingLogView({ counselorName }: { counselorN
           id: selected._id,
           status: formStatus,
           notes: formNotes,
-          duration: formDuration
+          duration: formDuration,
+          actionItems: formActionItems,
+          nextSessionDate: formNextSessionDate
         })
       })
 
@@ -270,6 +281,8 @@ export default function TeacherCounselingLogView({ counselorName }: { counselorN
     setFormTime('10:00 AM')
     setFormDuration('30 mins')
     setFormNotes('')
+    setFormActionItems('')
+    setFormNextSessionDate('')
     setFormStatus('Scheduled')
   }
 
@@ -278,6 +291,8 @@ export default function TeacherCounselingLogView({ counselorName }: { counselorN
     setFormStatus(session.status)
     setFormDuration(session.duration || '30 mins')
     setFormNotes(session.notes || '')
+    setFormActionItems(session.actionItems || '')
+    setFormNextSessionDate(session.nextSessionDate || '')
     setShowEdit(true)
   }
 
@@ -347,6 +362,7 @@ export default function TeacherCounselingLogView({ counselorName }: { counselorN
             <option value="Career">Career</option>
             <option value="Personal">Personal</option>
             <option value="Disciplinary">Disciplinary</option>
+            <option value="Parent Meeting">Parent Meeting</option>
           </select>
         </div>
       </div>
@@ -545,6 +561,7 @@ export default function TeacherCounselingLogView({ counselorName }: { counselorN
                     <option value="Career">Career</option>
                     <option value="Personal">Personal</option>
                     <option value="Disciplinary">Disciplinary</option>
+                    <option value="Parent Meeting">Parent Meeting</option>
                   </select>
                 </div>
                 <div className="space-y-1">
@@ -592,11 +609,32 @@ export default function TeacherCounselingLogView({ counselorName }: { counselorN
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Notes & Observations</label>
                 <textarea
-                  placeholder="Describe notes, recommendations, or action items..."
+                  placeholder="Describe notes and observations..."
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
-                  rows={4}
+                  rows={3}
                   className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
+                />
+              </div>
+
+              {/* Action Items & Next Session */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Action Items</label>
+                <textarea
+                  placeholder="Follow-up tasks agreed in the session..."
+                  value={formActionItems}
+                  onChange={(e) => setFormActionItems(e.target.value)}
+                  rows={2}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Next Session Date (Opt)</label>
+                <input
+                  type="date"
+                  value={formNextSessionDate}
+                  onChange={(e) => setFormNextSessionDate(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
                 />
               </div>
 
@@ -694,11 +732,32 @@ export default function TeacherCounselingLogView({ counselorName }: { counselorN
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Notes & Observations</label>
                 <textarea
-                  placeholder="Describe notes, recommendations, or action items..."
+                  placeholder="Describe notes and observations..."
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
-                  rows={4}
+                  rows={3}
                   className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
+                />
+              </div>
+
+              {/* Action Items & Next Session */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Action Items</label>
+                <textarea
+                  placeholder="Follow-up tasks agreed in the session..."
+                  value={formActionItems}
+                  onChange={(e) => setFormActionItems(e.target.value)}
+                  rows={2}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Next Session Date (Opt)</label>
+                <input
+                  type="date"
+                  value={formNextSessionDate}
+                  onChange={(e) => setFormNextSessionDate(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
                 />
               </div>
 

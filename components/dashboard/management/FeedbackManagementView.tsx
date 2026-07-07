@@ -27,19 +27,34 @@ function formatShortDate(dateStr: string) {
 }
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  Submitted:    { label: 'Submitted',    color: 'bg-slate-100 text-slate-600 border-slate-200',      icon: <Clock className="w-3 h-3" /> },
-  'In Progress':{ label: 'Investigating',color: 'bg-amber-50 text-amber-700 border-amber-200',       icon: <AlertCircle className="w-3 h-3" /> },
-  Resolved:     { label: 'Reviewed',     color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: <CheckCircle2 className="w-3 h-3" /> },
-  Dismissed:    { label: 'Dismissed',    color: 'bg-slate-50 text-slate-400 border-slate-100',       icon: <XCircle className="w-3 h-3" /> },
+  Submitted: { label: 'Submitted', color: 'bg-slate-100 text-slate-600 border-slate-200',      icon: <Clock className="w-3 h-3" /> },
+  Reviewed:  { label: 'Reviewed',  color: 'bg-amber-50 text-amber-700 border-amber-200',       icon: <AlertCircle className="w-3 h-3" /> },
+  Actioned:  { label: 'Actioned',  color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: <CheckCircle2 className="w-3 h-3" /> },
+  Dismissed: { label: 'Dismissed', color: 'bg-slate-50 text-slate-400 border-slate-100',       icon: <XCircle className="w-3 h-3" /> },
+}
+
+const TYPE_BADGE: Record<string, string> = {
+  'Student -> Teacher': 'bg-blue-50 text-blue-700 border-blue-100',
+  'Parent -> School': 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  'Teacher -> Management': 'bg-indigo-50 text-indigo-700 border-indigo-100',
+  'Management -> Teacher': 'bg-violet-50 text-violet-700 border-violet-100',
 }
 
 export default function FeedbackManagementView() {
   const [data, setData] = useState<any>({ totalCount: 0, avgRating: 0, pendingCount: 0, actionedCount: 0, ratingDistribution: {}, feedbackList: [] })
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'pending' | 'actioned'>('pending')
-  const [activeTab, setActiveTab] = useState<'All' | 'Student -> Teacher' | 'Parent -> School' | 'Teacher -> Management'>('All')
+  const [activeTab, setActiveTab] = useState<'All' | 'Student -> Teacher' | 'Parent -> School' | 'Teacher -> Management' | 'Management -> Teacher'>('All')
   const [searchQuery, setSearchQuery] = useState('')
   const [ratingFilter, setRatingFilter] = useState<number | null>(null)
+
+  // Send feedback to teachers (Management -> Teacher flow)
+  const [showSendModal, setShowSendModal] = useState(false)
+  const [sendContent, setSendContent] = useState('')
+  const [sendRating, setSendRating] = useState(5)
+  const [sendCategory, setSendCategory] = useState('Academics')
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
 
   async function fetchFeedback() {
     setLoading(true)
@@ -56,7 +71,7 @@ export default function FeedbackManagementView() {
 
   useEffect(() => { fetchFeedback(); setSearchQuery(''); setRatingFilter(null) }, [activeTab, view])
 
-  async function handleUpdateStatus(id: string, newStatus: 'Resolved' | 'Dismissed' | 'In Progress') {
+  async function handleUpdateStatus(id: string, newStatus: 'Submitted' | 'Reviewed' | 'Actioned' | 'Dismissed') {
     try {
       const res = await fetch('/api/feedback', {
         method: 'PUT',
@@ -65,6 +80,39 @@ export default function FeedbackManagementView() {
       })
       if (res.ok) fetchFeedback()
     } catch (err) { console.error(err) }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this feedback entry permanently?')) return
+    try {
+      const res = await fetch(`/api/feedback?id=${id}`, { method: 'DELETE' })
+      if (res.ok) fetchFeedback()
+    } catch (err) { console.error(err) }
+  }
+
+  async function handleSendFeedback(e: React.FormEvent) {
+    e.preventDefault()
+    if (!sendContent.trim()) { setSendError('Feedback content is required.'); return }
+    setSending(true)
+    setSendError('')
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: sendContent, rating: sendRating, category: sendCategory }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setSendError(data.error || 'Failed to send feedback.')
+        return
+      }
+      setShowSendModal(false)
+      setSendContent('')
+      setSendRating(5)
+      fetchFeedback()
+    } finally {
+      setSending(false)
+    }
   }
 
   function renderStars(rating: number) {
@@ -109,9 +157,14 @@ export default function FeedbackManagementView() {
             <h1 className="text-2xl font-bold text-slate-900">Feedback Management</h1>
             <p className="text-[13px] text-slate-500 mt-1">Review feedback from students, parents, and staff</p>
           </div>
-          <button onClick={fetchFeedback} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-all">
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setSendError(''); setShowSendModal(true) }} className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-sm transition-all">
+              Send Feedback to Teachers
+            </button>
+            <button onClick={fetchFeedback} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-all">
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            </button>
+          </div>
         </div>
 
         {/* KPI Cards */}
@@ -162,6 +215,7 @@ export default function FeedbackManagementView() {
               { id: 'Student -> Teacher', label: 'Student → Teacher' },
               { id: 'Parent -> School', label: 'Parent → School' },
               { id: 'Teacher -> Management', label: 'Teacher → Management' },
+              { id: 'Management -> Teacher', label: 'Management → Teacher' },
             ] as const).map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-2.5 text-xs font-bold transition-all relative ${activeTab === tab.id ? 'text-slate-900 border-b-2 border-slate-950' : 'text-slate-400 hover:text-slate-700'}`}>
@@ -236,11 +290,7 @@ export default function FeedbackManagementView() {
                                 {item.category && <span className="text-[10px] text-slate-400 mt-0.5 block">{item.category}</span>}
                               </td>
                               <td className="px-5 py-3.5">
-                                <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border whitespace-nowrap ${
-                                  item.type === 'Student -> Teacher' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                  item.type === 'Parent -> School' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                                  'bg-indigo-50 text-indigo-700 border-indigo-100'
-                                }`}>{item.type}</span>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border whitespace-nowrap ${TYPE_BADGE[item.type] ?? 'bg-slate-50 text-slate-600 border-slate-100'}`}>{item.type}</span>
                               </td>
                               <td className="px-5 py-3.5">
                                 <div className="flex items-center gap-0.5">{renderStars(item.rating)}</div>
@@ -252,18 +302,24 @@ export default function FeedbackManagementView() {
                                 </span>
                               </td>
                               <td className="px-5 py-3.5">
-                                {item.status !== 'Dismissed' && (
-                                  <button onClick={() => handleUpdateStatus(item.id, 'Dismissed')}
-                                    className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors whitespace-nowrap">
-                                    Dismiss
+                                <div className="flex items-center gap-2">
+                                  {item.status !== 'Dismissed' && (
+                                    <button onClick={() => handleUpdateStatus(item.id, 'Dismissed')}
+                                      className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors whitespace-nowrap">
+                                      Dismiss
+                                    </button>
+                                  )}
+                                  {item.status === 'Dismissed' && (
+                                    <button onClick={() => handleUpdateStatus(item.id, 'Submitted')}
+                                      className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 transition-colors whitespace-nowrap">
+                                      Reopen
+                                    </button>
+                                  )}
+                                  <button onClick={() => handleDelete(item.id)}
+                                    className="text-[10px] font-bold text-slate-300 hover:text-rose-600 transition-colors whitespace-nowrap">
+                                    Delete
                                   </button>
-                                )}
-                                {item.status === 'Dismissed' && (
-                                  <button onClick={() => handleUpdateStatus(item.id, 'Submitted')}
-                                    className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 transition-colors whitespace-nowrap">
-                                    Reopen
-                                  </button>
-                                )}
+                                </div>
                               </td>
                             </tr>
                           )
@@ -284,11 +340,7 @@ export default function FeedbackManagementView() {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="text-[13px] font-bold text-slate-800">{item.isAnonymous ? 'Anonymous' : item.senderName}</span>
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${
-                              item.type === 'Student -> Teacher' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                              item.type === 'Parent -> School' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                              'bg-indigo-50 text-indigo-700 border-indigo-100'
-                            }`}>{item.type}</span>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${TYPE_BADGE[item.type] ?? 'bg-slate-50 text-slate-600 border-slate-100'}`}>{item.type}</span>
                           </div>
                           <div className="flex items-center gap-0.5 mt-1">{renderStars(item.rating)}</div>
                         </div>
@@ -320,7 +372,7 @@ export default function FeedbackManagementView() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {item.status !== 'Resolved' && item.status !== 'Dismissed' && (
+                      {item.status !== 'Actioned' && item.status !== 'Dismissed' && (
                         <button onClick={() => handleUpdateStatus(item.id, 'Dismissed')}
                           className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-50 rounded-lg transition-colors border border-transparent">
                           Dismiss
@@ -328,20 +380,20 @@ export default function FeedbackManagementView() {
                       )}
                       {item.status === 'Submitted' && (
                         <>
-                          <button onClick={() => handleUpdateStatus(item.id, 'In Progress')}
+                          <button onClick={() => handleUpdateStatus(item.id, 'Reviewed')}
                             className="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 bg-white rounded-lg text-xs font-bold shadow-sm transition-all">
-                            Investigate
-                          </button>
-                          <button onClick={() => handleUpdateStatus(item.id, 'Resolved')}
-                            className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-md transition-all">
                             Mark Reviewed
+                          </button>
+                          <button onClick={() => handleUpdateStatus(item.id, 'Actioned')}
+                            className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-md transition-all">
+                            Mark Actioned
                           </button>
                         </>
                       )}
-                      {item.status === 'In Progress' && (
-                        <button onClick={() => handleUpdateStatus(item.id, 'Resolved')}
+                      {item.status === 'Reviewed' && (
+                        <button onClick={() => handleUpdateStatus(item.id, 'Actioned')}
                           className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-md transition-all">
-                          Resolve Ticket
+                          Mark Actioned
                         </button>
                       )}
                     </div>
@@ -430,6 +482,61 @@ export default function FeedbackManagementView() {
       <div className="mt-8 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
         © 2026 EduAdmin Pro Suite • Secure Feedback Console
       </div>
+
+      {/* Send Feedback to Teachers Modal */}
+      {showSendModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Send Feedback to Teachers</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">Management → Teacher · visible to all faculty in this school</p>
+              </div>
+              <button onClick={() => setShowSendModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg">
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSendFeedback} className="p-5 space-y-4">
+              {sendError && <p className="text-sm text-rose-600 font-medium bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">{sendError}</p>}
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Feedback</label>
+                <textarea value={sendContent} onChange={e => setSendContent(e.target.value)} rows={4}
+                  placeholder="Share observations, appreciation, or improvement points with your faculty…"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors resize-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Rating</label>
+                  <div className="flex items-center gap-1 py-2">
+                    {[1, 2, 3, 4, 5].map(n => (
+                      <button key={n} type="button" onClick={() => setSendRating(n)}>
+                        <Star className={`w-6 h-6 transition-colors ${n <= sendRating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 fill-transparent hover:text-amber-200'}`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Category</label>
+                  <select value={sendCategory} onChange={e => setSendCategory(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400">
+                    {['Academics', 'Discipline', 'Punctuality', 'Teaching Quality', 'Administration', 'General'].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowSendModal(false)}
+                  className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" disabled={sending}
+                  className="flex-1 py-2.5 bg-slate-950 hover:bg-slate-800 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                  {sending && <RefreshCw className="w-4 h-4 animate-spin" />} Send Feedback
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

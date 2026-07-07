@@ -71,6 +71,165 @@ function formatFeedbackDate(dateStr: string) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+const EXCHANGE_STATUS_BADGE: Record<string, string> = {
+  Submitted: 'bg-slate-100 text-slate-600 border-slate-200',
+  Reviewed: 'bg-amber-50 text-amber-700 border-amber-200',
+  Actioned: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  Dismissed: 'bg-slate-50 text-slate-400 border-slate-100',
+}
+
+// Management <-> Teacher feedback exchange (chart flows: Management -> Teacher, Teacher -> Management)
+function ManagementExchange() {
+  const [received, setReceived] = useState<any[]>([])
+  const [sent, setSent] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showSend, setShowSend] = useState(false)
+  const [content, setContent] = useState('')
+  const [rating, setRating] = useState(5)
+  const [anonymous, setAnonymous] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
+
+  const fetchExchange = async () => {
+    try {
+      const res = await fetch('/api/feedback')
+      if (res.ok) {
+        const data = await res.json()
+        setReceived(data.received ?? [])
+        setSent(data.sent ?? [])
+      }
+    } catch { /* ignore */ } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchExchange() }, [])
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault()
+    if (!content.trim()) { setSendError('Feedback content is required.'); return }
+    setSending(true)
+    setSendError('')
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, rating, isAnonymous: anonymous, category: 'General' }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setSendError(data.error || 'Failed to send feedback.')
+        return
+      }
+      setShowSend(false)
+      setContent('')
+      setRating(5)
+      setAnonymous(false)
+      fetchExchange()
+    } finally {
+      setSending(false)
+    }
+  }
+
+  if (loading) return null
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900">Management Feedback Exchange</h3>
+          <p className="text-[11px] text-slate-400 mt-0.5">Feedback you received from management, and feedback you sent up</p>
+        </div>
+        <button onClick={() => { setSendError(''); setShowSend(v => !v) }}
+          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors">
+          {showSend ? 'Close' : 'Send Feedback to Management'}
+        </button>
+      </div>
+
+      {showSend && (
+        <form onSubmit={handleSend} className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-3">
+          {sendError && <p className="text-xs text-rose-600 font-semibold">{sendError}</p>}
+          <textarea value={content} onChange={e => setContent(e.target.value)} rows={3}
+            placeholder="Suggestions, requests, or concerns for management…"
+            className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 resize-none" />
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} type="button" onClick={() => setRating(n)}>
+                    <Star className={`w-5 h-5 transition-colors ${n <= rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 fill-transparent'}`} />
+                  </button>
+                ))}
+              </div>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer">
+                <input type="checkbox" checked={anonymous} onChange={e => setAnonymous(e.target.checked)} className="rounded accent-indigo-600" />
+                Send anonymously
+              </label>
+            </div>
+            <button type="submit" disabled={sending}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold disabled:opacity-50 flex items-center gap-1.5">
+              {sending && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Submit
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Received from management */}
+        <div>
+          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2.5">From Management ({received.length})</p>
+          {received.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">No feedback from management yet.</p>
+          ) : (
+            <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+              {received.map((f: any) => (
+                <div key={f.id} className="bg-violet-50/50 border border-violet-100 rounded-xl p-3.5">
+                  <div className="flex items-center justify-between mb-1.5 gap-2">
+                    <span className="text-xs font-bold text-slate-800">{f.senderName || 'Management'}</span>
+                    <div className="flex items-center gap-0.5">
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <Star key={i} className={`w-3 h-3 ${i < f.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 fill-transparent'}`} />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed italic">"{f.content}"</p>
+                  <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 font-semibold">
+                    {f.category && <span>{f.category}</span>}
+                    <span>· {formatFeedbackDate(f.date)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Sent to management */}
+        <div>
+          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2.5">Sent to Management ({sent.length})</p>
+          {sent.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">You haven't sent any feedback yet.</p>
+          ) : (
+            <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+              {sent.map((f: any) => (
+                <div key={f.id} className="bg-slate-50 border border-slate-100 rounded-xl p-3.5">
+                  <div className="flex items-center justify-between mb-1.5 gap-2">
+                    <span className="text-xs font-bold text-slate-800">{f.isAnonymous ? 'Anonymous' : f.senderName}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${EXCHANGE_STATUS_BADGE[f.status] ?? EXCHANGE_STATUS_BADGE.Submitted}`}>
+                      {f.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed italic">"{f.content}"</p>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-2">{formatFeedbackDate(f.date)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function TeacherFeedbackView() {
   const { showAlert } = useAlert()
   const [data, setData] = useState<StatsData | null>(null)
@@ -193,6 +352,9 @@ export default function TeacherFeedbackView() {
         <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Feedback</h1>
         <p className="text-sm text-slate-500 mt-1">View feedback received from students and respond if needed</p>
       </div>
+
+      {/* Management <-> Teacher feedback exchange */}
+      <ManagementExchange />
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

@@ -157,7 +157,7 @@ export const studentBatchEnrollments = pgTable('student_batch_enrollments', {
 export type StudentBatchEnrollment = typeof studentBatchEnrollments.$inferSelect
 export type NewStudentBatchEnrollment = typeof studentBatchEnrollments.$inferInsert
 
-export const counselingSessionTypeEnum = pgEnum('counseling_session_type', ['Academic', 'Career', 'Personal', 'Disciplinary'])
+export const counselingSessionTypeEnum = pgEnum('counseling_session_type', ['Academic', 'Career', 'Personal', 'Disciplinary', 'Parent Meeting'])
 export const counselingSessionStatusEnum = pgEnum('counseling_session_status', ['Scheduled', 'Completed', 'No-Show', 'Cancelled'])
 
 export const counselingSessions = pgTable('counseling_sessions', {
@@ -169,8 +169,12 @@ export const counselingSessions = pgTable('counseling_sessions', {
   date: varchar('date', { length: 255 }).notNull(),
   time: varchar('time', { length: 255 }).notNull(),
   status: counselingSessionStatusEnum('status').notNull().default('Scheduled'),
+  // Session records
   notes: text('notes').default(''),
+  actionItems: text('action_items').notNull().default(''),
   duration: varchar('duration', { length: 255 }).default('30 mins'),
+  durationMinutes: integer('duration_minutes').notNull().default(30),
+  nextSessionDate: varchar('next_session_date', { length: 10 }),
   flagged: boolean('flagged').default(false).notNull(),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -349,20 +353,47 @@ export const announcements = pgTable('announcements', {
   content: text('content').notNull(),
   label: varchar('label', { length: 255 }).default(''),
   sub: text('sub').default(''),
+  // Types: General | Academic | Exam | Holiday | Urgent | Fee
   type: varchar('type', { length: 50 }).notNull().default('General'),
+  // Scopes: All | Program | Batch | Role (scopeValue holds the program/batch name)
   scope: varchar('scope', { length: 255 }).notNull().default('All'),
+  scopeValue: varchar('scope_value', { length: 255 }).notNull().default(''),
+  // Target roles when scope = Role: All | Teacher | Parent
+  targetRoles: varchar('target_roles', { length: 100 }).notNull().default('All'),
   pinned: boolean('pinned').notNull().default(false),
   urgent: boolean('urgent').notNull().default(false),
+  // Attachments
+  attachmentUrl: varchar('attachment_url', { length: 1000 }).notNull().default(''),
+  attachmentName: varchar('attachment_name', { length: 255 }).notNull().default(''),
   authorName: varchar('author_name', { length: 255 }).notNull().default('Admin'),
   authorRole: varchar('author_role', { length: 255 }).notNull().default('Staff'),
   expiryDate: varchar('expiry_date', { length: 50 }),
   done: boolean('done').notNull().default(false),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
 export type Announcement = typeof announcements.$inferSelect
 export type NewAnnouncement = typeof announcements.$inferInsert
+
+// Per-user notification inbox with categories and read-status tracking
+export const notifications = pgTable('notifications', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // Categories: Announcement | Result | Assignment | Fee | Attendance | General
+  category: varchar('category', { length: 30 }).notNull().default('General'),
+  title: varchar('title', { length: 255 }).notNull(),
+  message: text('message').notNull().default(''),
+  link: varchar('link', { length: 500 }).notNull().default(''),
+  isRead: boolean('is_read').notNull().default(false),
+  readAt: timestamp('read_at', { withTimezone: true }),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Notification = typeof notifications.$inferSelect
+export type NewNotification = typeof notifications.$inferInsert
 
 export const adminSchools = pgTable('admin_schools', {
   id: uuid('id').defaultRandom().primaryKey(),

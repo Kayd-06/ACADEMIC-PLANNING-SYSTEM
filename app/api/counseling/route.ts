@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { counselingSessions, students, type CounselingSession } from '@/lib/db/schema'
 import { eq, and, or, ilike, desc, asc } from 'drizzle-orm'
+import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
+
+type SessionType = 'Academic' | 'Career' | 'Personal' | 'Disciplinary' | 'Parent Meeting'
+type SessionStatus = 'Scheduled' | 'Completed' | 'No-Show' | 'Cancelled'
 
 function getDateOffset(offsetDays: number): string {
   const d = new Date()
@@ -69,6 +73,10 @@ async function seedSessions() {
 // GET - fetch all sessions with optional filters
 export async function GET(req: NextRequest) {
   try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = (session.user as any).schoolId as string | null
+
     await seedSessions()
 
     const { searchParams } = new URL(req.url)
@@ -79,11 +87,12 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get('search')
 
     const conditions = []
+    if (schoolId) conditions.push(eq(counselingSessions.schoolId, schoolId))
     if (status && status !== 'All') {
-      conditions.push(eq(counselingSessions.status, status as "Scheduled" | "Completed" | "No-Show" | "Cancelled"))
+      conditions.push(eq(counselingSessions.status, status as SessionStatus))
     }
     if (type && type !== 'All') {
-      conditions.push(eq(counselingSessions.type, type as "Academic" | "Career" | "Personal" | "Disciplinary"))
+      conditions.push(eq(counselingSessions.type, type as SessionType))
     }
     if (counselor && counselor !== 'All') {
       conditions.push(eq(counselingSessions.counselor, counselor))
@@ -111,8 +120,10 @@ export async function GET(req: NextRequest) {
 
     const mappedSessions = sessionsList.map(s => toApiShape(s))
 
-    // Compute stats
-    const all = await db.select().from(counselingSessions)
+    // Compute stats (school-scoped)
+    const all = schoolId
+      ? await db.select().from(counselingSessions).where(eq(counselingSessions.schoolId, schoolId))
+      : await db.select().from(counselingSessions)
     const now = new Date()
     const startOfWeek = new Date(now)
     startOfWeek.setDate(now.getDate() - now.getDay())
@@ -156,8 +167,12 @@ export async function GET(req: NextRequest) {
 // POST - schedule a new session
 export async function POST(req: NextRequest) {
   try {
+    const authSession = await auth()
+    if (!authSession) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = (authSession.user as any).schoolId as string | null
+
     const body = await req.json()
-    const { studentName, counselor, type, date, time, notes, duration } = body
+    const { studentName, counselor, type, date, time, notes, duration, durationMinutes, actionItems, nextSessionDate } = body
 
     if (!studentName?.trim() || !counselor?.trim() || !type || !date || !time) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -168,17 +183,22 @@ export async function POST(req: NextRequest) {
       .slice(0, 2)
       .join('')
 
+    const minutes = Number(durationMinutes) || parseInt(String(duration || '').replace(/\D/g, ''), 10) || 30
     const [session] = await db.insert(counselingSessions).values({
       studentName: studentName.trim(),
       studentInitials: initials,
       counselor: counselor.trim(),
-      type: type as "Academic" | "Career" | "Personal" | "Disciplinary",
+      type: type as SessionType,
       date,
       time,
       status: 'Scheduled',
       notes: notes?.trim() || '',
-      duration: duration || '30 mins',
-      flagged: false
+      actionItems: actionItems?.trim() || '',
+      duration: duration || `${minutes} mins`,
+      durationMinutes: minutes,
+      nextSessionDate: nextSessionDate || null,
+      flagged: false,
+      schoolId,
     }).returning()
 
     return NextResponse.json(toApiShape(session), { status: 201 })
@@ -188,24 +208,42 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH - update session status or flag
+// PATCH - update session status, flag, or session records
 export async function PATCH(req: NextRequest) {
   try {
+    const authSession = await auth()
+    if (!authSession) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = (authSession.user as any).schoolId as string | null
+
     const body = await req.json()
-    const { id, status, flagged, notes, duration } = body
+    const { id, status, flagged, notes, duration, type, durationMinutes, actionItems, nextSessionDate } = body
 
     if (!id) return NextResponse.json({ error: 'Missing session ID.' }, { status: 400 })
 
     const updates: Partial<CounselingSession> = {}
-    if (status !== undefined) updates.status = status as "Scheduled" | "Completed" | "No-Show" | "Cancelled"
+    if (status !== undefined) updates.status = status as SessionStatus
+    if (type !== undefined) updates.type = type as SessionType
     if (flagged !== undefined) updates.flagged = flagged
     if (notes !== undefined) updates.notes = notes
-    if (duration !== undefined) updates.duration = duration
+    if (actionItems !== undefined) updates.actionItems = actionItems
+    if (nextSessionDate !== undefined) updates.nextSessionDate = nextSessionDate || null
+    if (durationMinutes !== undefined) {
+      const minutes = Number(durationMinutes) || 30
+      updates.durationMinutes = minutes
+      updates.duration = `${minutes} mins`
+    } else if (duration !== undefined) {
+      updates.duration = duration
+      const minutes = parseInt(String(duration).replace(/\D/g, ''), 10)
+      if (minutes) updates.durationMinutes = minutes
+    }
     updates.updatedAt = new Date()
 
+    const condition = schoolId
+      ? and(eq(counselingSessions.id, id), eq(counselingSessions.schoolId, schoolId))
+      : eq(counselingSessions.id, id)
     const [updated] = await db.update(counselingSessions)
       .set(updates)
-      .where(eq(counselingSessions.id, id))
+      .where(condition)
       .returning()
 
     if (!updated) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })
@@ -220,12 +258,19 @@ export async function PATCH(req: NextRequest) {
 // DELETE - remove a session
 export async function DELETE(req: NextRequest) {
   try {
+    const authSession = await auth()
+    if (!authSession) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = (authSession.user as any).schoolId as string | null
+
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Missing session ID.' }, { status: 400 })
 
+    const condition = schoolId
+      ? and(eq(counselingSessions.id, id), eq(counselingSessions.schoolId, schoolId))
+      : eq(counselingSessions.id, id)
     const [deleted] = await db.delete(counselingSessions)
-      .where(eq(counselingSessions.id, id))
+      .where(condition)
       .returning()
 
     if (!deleted) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })

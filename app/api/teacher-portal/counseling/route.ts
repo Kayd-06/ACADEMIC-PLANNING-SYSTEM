@@ -24,9 +24,10 @@ export async function POST(req: NextRequest) {
   const schoolId = (session.user as any).schoolId as string | null
 
   const body = await req.json()
-  const { studentName, counselor, type, date, time, status, notes, duration } = body
+  const { studentName, counselor, type, date, time, status, notes, duration, durationMinutes, actionItems, nextSessionDate } = body
   const initials = (studentName || '').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
 
+  const minutes = Number(durationMinutes) || parseInt(String(duration || '').replace(/\D/g, ''), 10) || 30
   const [created] = await db.insert(counselingSessions).values({
     studentName,
     studentInitials: initials,
@@ -36,7 +37,10 @@ export async function POST(req: NextRequest) {
     time: time || '10:00 AM',
     status: status || 'Scheduled',
     notes: notes || '',
-    duration: duration || '30 mins',
+    actionItems: actionItems || '',
+    duration: duration || `${minutes} mins`,
+    durationMinutes: minutes,
+    nextSessionDate: nextSessionDate || null,
     schoolId,
   }).returning()
 
@@ -49,12 +53,30 @@ export async function PATCH(req: NextRequest) {
   const schoolId = (session.user as any).schoolId as string | null
 
   const body = await req.json()
-  const { id, notes, status, date, time, duration } = body
+  const { id, notes, status, date, time, duration, type, durationMinutes, actionItems, nextSessionDate } = body
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+
+  const updateValues: Record<string, any> = { updatedAt: new Date() }
+  if (notes !== undefined) updateValues.notes = notes
+  if (status !== undefined) updateValues.status = status
+  if (date !== undefined) updateValues.date = date
+  if (time !== undefined) updateValues.time = time
+  if (type !== undefined) updateValues.type = type
+  if (actionItems !== undefined) updateValues.actionItems = actionItems
+  if (nextSessionDate !== undefined) updateValues.nextSessionDate = nextSessionDate || null
+  if (durationMinutes !== undefined) {
+    const minutes = Number(durationMinutes) || 30
+    updateValues.durationMinutes = minutes
+    updateValues.duration = `${minutes} mins`
+  } else if (duration !== undefined) {
+    updateValues.duration = duration
+    const minutes = parseInt(String(duration).replace(/\D/g, ''), 10)
+    if (minutes) updateValues.durationMinutes = minutes
+  }
 
   const condition = schoolId ? and(eq(counselingSessions.id, id), eq(counselingSessions.schoolId, schoolId)) : eq(counselingSessions.id, id)
   const [updated] = await db.update(counselingSessions)
-    .set({ notes, status, date, time, duration, updatedAt: new Date() })
+    .set(updateValues)
     .where(condition)
     .returning()
 

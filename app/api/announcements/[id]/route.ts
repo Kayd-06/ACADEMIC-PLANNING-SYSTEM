@@ -39,6 +39,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (data.type === 'Urgent') updateValues.urgent = true
     }
     if (data.scope !== undefined) updateValues.scope = data.scope
+    if (data.scopeValue !== undefined) updateValues.scopeValue = data.scopeValue
+    if (data.targetRoles !== undefined) updateValues.targetRoles = data.targetRoles
+    if (data.attachmentUrl !== undefined) updateValues.attachmentUrl = data.attachmentUrl
+    if (data.attachmentName !== undefined) updateValues.attachmentName = data.attachmentName
     if (data.pinned !== undefined) updateValues.pinned = data.pinned
     if (data.authorName !== undefined) updateValues.authorName = data.authorName
     if (data.authorRole !== undefined) updateValues.authorRole = data.authorRole
