@@ -59,6 +59,8 @@ export default function AssignmentsView() {
   const [newType, setNewType] = useState<'Homework' | 'DPP'>('Homework')
   const [newDueDate, setNewDueDate] = useState('')
   const [newDueTime, setNewDueTime] = useState('11:59 PM')
+  const [createFile, setCreateFile] = useState<File | null>(null)
+  const [createFileError, setCreateFileError] = useState('')
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -102,7 +104,7 @@ export default function AssignmentsView() {
   const paginatedList = searchedAssignments.slice(startIndex, startIndex + itemsPerPage)
 
   // Submit assignment helper to support retry
-  async function createAssignment(payload: any) {
+  async function createAssignment(payload: any, fileToUpload: File | null) {
     setSubmitting(true)
     try {
       const res = await fetch('/api/assignments', {
@@ -113,18 +115,38 @@ export default function AssignmentsView() {
 
       const data = await res.json()
       if (!data.error) {
+        // If there's an associated file, upload it now
+        if (fileToUpload) {
+          const fd = new FormData()
+          fd.append('file', fileToUpload)
+          const uploadRes = await fetch(`/api/assignments/upload?id=${data.id}`, {
+            method: 'POST',
+            body: fd
+          })
+          const uploadData = await uploadRes.json()
+          if (!uploadRes.ok || uploadData.error) {
+            showAlert({
+              title: 'Assignment Created, but File Upload Failed',
+              message: uploadData.error || 'Failed to upload document file.',
+              type: 'warning'
+            })
+          }
+        }
+
         setShowCreateModal(false)
         // Reset form
         setNewTitle('')
         setNewChapter('')
         setNewDueDate('')
+        setCreateFile(null)
+        setCreateFileError('')
         fetchAssignments()
       } else {
         showAlert({
           title: 'Failed to Create Assignment',
           message: data.error,
           type: 'book',
-          onRetry: () => createAssignment(payload)
+          onRetry: () => createAssignment(payload, fileToUpload)
         })
       }
     } catch (err) {
@@ -133,7 +155,7 @@ export default function AssignmentsView() {
         title: 'Error Creating Assignment',
         message: 'Network error. Could not create assignment.',
         type: 'book',
-        onRetry: () => createAssignment(payload)
+        onRetry: () => createAssignment(payload, fileToUpload)
       })
     } finally {
       setSubmitting(false)
@@ -163,7 +185,7 @@ export default function AssignmentsView() {
       dueTime: newDueTime,
       totalStudents
     }
-    await createAssignment(payload)
+    await createAssignment(payload, createFile)
   }
 
   // Handle evaluation status update
@@ -646,12 +668,37 @@ export default function AssignmentsView() {
                       className="w-full px-3.5 py-2 border border-slate-200 bg-slate-50/50 rounded-lg text-xs outline-none focus:border-slate-400 focus:bg-white transition-colors cursor-pointer"
                     />
                   </div>
+
+                  {/* Document Upload */}
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 pl-0.5">Upload Assignment File (PDF/Image/Doc)</label>
+                    <label className="flex flex-col items-center justify-center gap-2 border border-dashed border-slate-200 rounded-lg p-4 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/20 transition-colors">
+                      <Paperclip className="w-5 h-5 text-slate-400" />
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-slate-700">{createFile ? createFile.name : 'Choose file (optional)'}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">PDF, images, Word, or any document</p>
+                      </div>
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        onChange={e => { 
+                          setCreateFile(e.target.files?.[0] || null)
+                          setCreateFileError('') 
+                        }} 
+                      />
+                    </label>
+                    {createFileError && <p className="text-[11px] text-red-650 font-bold mt-1">{createFileError}</p>}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
                   <button 
                     type="button"
-                    onClick={() => setShowCreateModal(false)}
+                    onClick={() => {
+                      setShowCreateModal(false)
+                      setCreateFile(null)
+                      setCreateFileError('')
+                    }}
                     className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
                   >
                     Cancel

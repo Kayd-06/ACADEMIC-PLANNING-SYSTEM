@@ -13,49 +13,6 @@ function getRelativeDateStr(offsetDays: number): string {
   return d.toISOString().split('T')[0]
 }
 
-async function seedAssignments(teacherEmail: string, schoolId: string | null) {
-  // Only seed once for a completely empty table — skip if any assignments exist across all schools
-  const [{ value: totalCnt }] = await db.select({ value: count() }).from(assignments)
-  if (Number(totalCnt) > 0) return
-
-  const base = [
-    { title: 'Calculus Integration DPP 04', chapter: 'Chapter 5: Definite Integrals', batch: 'Grade 11-A', subject: 'Mathematics', type: 'DPP', dueDate: getRelativeDateStr(2), dueTime: '11:59 PM', submittedCount: 34, totalStudents: 40, status: 'Active' },
-    { title: 'Physics Kinematics Homework', chapter: 'Chapter 2: Motion in 1D', batch: 'Grade 11-B', subject: 'Physics', type: 'Homework', dueDate: getRelativeDateStr(-1), dueTime: '11:59 PM', submittedCount: 40, totalStudents: 40, status: 'Overdue Eval' },
-    { title: 'Organic Chemistry Nomenclature', chapter: 'Chapter 12: Basic Principles', batch: 'Grade 11-A', subject: 'Chemistry', type: 'DPP', dueDate: getRelativeDateStr(-3), dueTime: '11:59 PM', submittedCount: 38, totalStudents: 40, status: 'Evaluated' },
-    { title: 'Trigonometric Functions DPP 01', chapter: 'Chapter 3: Trigonometry', batch: 'Grade 11-A', subject: 'Mathematics', type: 'DPP', dueDate: getRelativeDateStr(-5), dueTime: '11:59 PM', submittedCount: 40, totalStudents: 40, status: 'Evaluated' },
-    { title: 'Rotational Mechanics Homework', chapter: 'Chapter 7: Rotational Motion', batch: 'Grade 11-B', subject: 'Physics', type: 'Homework', dueDate: getRelativeDateStr(4), dueTime: '11:59 PM', submittedCount: 15, totalStudents: 40, status: 'Active' },
-    { title: 'Chemical Equilibrium DPP 06', chapter: 'Chapter 6: Equilibrium', batch: 'Grade 11-A', subject: 'Chemistry', type: 'DPP', dueDate: getRelativeDateStr(-8), dueTime: '11:59 PM', submittedCount: 36, totalStudents: 40, status: 'Evaluated' },
-    { title: 'Limits & Derivatives Homework', chapter: 'Chapter 13: Calculus Basics', batch: 'Grade 11-B', subject: 'Mathematics', type: 'Homework', dueDate: getRelativeDateStr(-2), dueTime: '11:59 PM', submittedCount: 39, totalStudents: 40, status: 'Overdue Eval' },
-    { title: 'Thermodynamics DPP 03', chapter: 'Chapter 12: Heat & Thermodynamics', batch: 'Grade 11-A', subject: 'Physics', type: 'DPP', dueDate: getRelativeDateStr(5), dueTime: '11:59 PM', submittedCount: 12, totalStudents: 40, status: 'Active' },
-    { title: 'Atomic Structure DPP 02', chapter: 'Chapter 2: Structure of Atom', batch: 'Grade 11-B', subject: 'Chemistry', type: 'DPP', dueDate: getRelativeDateStr(-12), dueTime: '11:59 PM', submittedCount: 40, totalStudents: 40, status: 'Evaluated' },
-    { title: 'Probability Theory Homework', chapter: 'Chapter 16: Probability', batch: 'Grade 11-A', subject: 'Mathematics', type: 'Homework', dueDate: getRelativeDateStr(6), dueTime: '11:59 PM', submittedCount: 8, totalStudents: 40, status: 'Active' },
-  ]
-
-  const subjects = ['Mathematics', 'Physics', 'Chemistry']
-  const chapters = ['Chapter 1: Sets & Relations', 'Chapter 4: Quadratic Equations', 'Chapter 8: Gravitation', 'Chapter 10: Mechanical Properties of Fluids', 'Chapter 3: Classification of Elements', 'Chapter 4: Chemical Bonding']
-  const batches = ['Grade 11-A', 'Grade 11-B', 'Grade 10-A', 'Grade 10-B']
-
-  for (let i = 11; i <= 42; i++) {
-    const isDPP = i % 2 === 0
-    const total = batches[i % batches.length].startsWith('Grade 11') ? 60 : 65
-    const subCount = Math.floor(total * (0.6 + Math.random() * 0.4))
-    base.push({
-      title: `${isDPP ? 'DPP' : 'Homework'} Assessment #${i}`,
-      chapter: chapters[i % chapters.length],
-      batch: batches[i % batches.length],
-      subject: subjects[i % subjects.length],
-      type: isDPP ? 'DPP' : 'Homework',
-      dueDate: getRelativeDateStr(-1 * (i - 8)),
-      dueTime: '11:59 PM',
-      submittedCount: subCount,
-      totalStudents: total,
-      status: i % 5 === 0 ? 'Overdue Eval' : 'Evaluated',
-    })
-  }
-
-  await db.insert(assignments).values(base.map(a => ({ ...a, teacherEmail, schoolId })))
-}
-
 const STATUS_PRIORITY: Record<string, number> = { Active: 1, 'Overdue Eval': 2, Evaluated: 3 }
 
 export async function GET(req: NextRequest) {
@@ -65,14 +22,17 @@ export async function GET(req: NextRequest) {
 
   const email = session.user.email!.toLowerCase()
   const schoolId = (session.user as any).schoolId as string | null
-  await seedAssignments(email, schoolId)
 
   const { searchParams } = new URL(req.url)
   const type = searchParams.get('type') || 'All'
   const batch = searchParams.get('batch') || 'All'
 
-  const conditions = [eq(assignments.teacherEmail, email)]
-  if (schoolId) conditions.push(eq(assignments.schoolId, schoolId))
+  const conditions = []
+  if (schoolId) {
+    conditions.push(eq(assignments.schoolId, schoolId))
+  } else {
+    conditions.push(eq(assignments.teacherEmail, email))
+  }
   if (type !== 'All') conditions.push(eq(assignments.type, type))
   if (batch !== 'All') conditions.push(eq(assignments.batch, batch))
 
