@@ -19,7 +19,13 @@ function SchoolSwitcher() {
   const activeSchoolId = (session?.user as any)?.schoolId as string | null
 
   useEffect(() => {
-    fetch('/api/admin/schools').then(r => r.json()).then(d => { if (!d.error) setSchools(d) })
+    fetch('/api/admin/schools')
+      .then(r => {
+        if (!r.ok) return r.text().then(txt => { throw new Error(txt || 'Failed to fetch') })
+        return r.json()
+      })
+      .then(d => { if (d && !d.error) setSchools(d) })
+      .catch(err => console.error('SchoolSwitcher fetch error:', err))
   }, [])
 
   useEffect(() => {

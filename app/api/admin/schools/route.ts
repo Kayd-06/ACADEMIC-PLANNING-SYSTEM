@@ -18,12 +18,17 @@ function generateJoinCode(): string {
 }
 
 export async function GET() {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if ((session.user as any).role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if ((session.user as any).role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const list = await getAdminSchools(session.user.id!)
-  return NextResponse.json(list)
+    const list = await getAdminSchools(session.user.id!)
+    return NextResponse.json(list || [])
+  } catch (error: any) {
+    console.error('[GET /api/admin/schools] Error:', error)
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {

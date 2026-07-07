@@ -516,3 +516,45 @@ export const auditLogs = pgTable('audit_logs', {
 
 export type AuditLog = typeof auditLogs.$inferSelect
 export type NewAuditLog = typeof auditLogs.$inferInsert
+
+// ── Tests & Question Bank ────────────────────────────────────────────────────
+
+export const tests = pgTable('tests', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  batch: varchar('batch', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  date: varchar('date', { length: 10 }).notNull(),
+  time: varchar('time', { length: 20 }).notNull().default('10:00 AM'),
+  duration: integer('duration').notNull().default(60),
+  totalMarks: integer('total_marks').notNull().default(100),
+  status: varchar('status', { length: 30 }).notNull().default('Upcoming'), // Upcoming | Pending Grading | Graded
+  testType: varchar('test_type', { length: 30 }).notNull().default('Unit Test'), // Unit Test | Mock | DPP
+  averageScore: integer('average_score'),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Test = typeof tests.$inferSelect
+export type NewTest = typeof tests.$inferInsert
+
+export const questions = pgTable('questions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  topic: varchar('topic', { length: 255 }).notNull(),
+  difficulty: varchar('difficulty', { length: 20 }).notNull().default('Medium'), // Easy | Medium | Hard
+  type: varchar('type', { length: 30 }).notNull().default('MCQ'), // MCQ | Numerical | Integer | Subjective
+  text: text('text').notNull(),
+  // JSON array stored as text: ["Option A", "Option B", ...]
+  options: text('options').notNull().default('[]'),
+  correctAnswer: text('correct_answer').notNull().default(''),
+  marks: integer('marks').notNull().default(4),
+  source: varchar('source', { length: 100 }).notNull().default('Custom'),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Question = typeof questions.$inferSelect
+export type NewQuestion = typeof questions.$inferInsert

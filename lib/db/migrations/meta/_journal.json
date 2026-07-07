@@ -50,6 +50,27 @@
       "when": 1783418900000,
       "tag": "0014_progress_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783500000000,
+      "tag": "0015_student_full_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783500100000,
+      "tag": "0016_communication_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783500200000,
+      "tag": "0017_tests_questions",
+      "breakpoints": true
     }
   ]
 }

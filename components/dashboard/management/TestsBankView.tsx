@@ -20,8 +20,10 @@ import {
   BookOpen,
   ArrowRight,
   HelpCircle,
-  FileQuestion
+  FileQuestion,
+  Upload
 } from 'lucide-react'
+import UploadPdfModal from '@/components/dashboard/UploadPdfModal'
 
 // Simple helper to get the weekday name index (0 = Monday, 6 = Sunday)
 function getWeekdayIndex(dateStr: string) {
@@ -40,17 +42,13 @@ export default function TestsBankView() {
   
   // Data states
   const [stats, setStats] = useState({
-    scheduledThisWeek: 12,
-    totalQuestions: 8420,
-    avgScore: 74,
-    pendingGrading: 5,
-    batchAverages: [
-      { batch: 'JEE 2026-A', avgScore: 76 },
-      { batch: 'NEET 2025-B', avgScore: 68 },
-      { batch: 'JEE 2024-C', avgScore: 82 },
-      { batch: 'Foundation-X', avgScore: 70 }
-    ]
+    scheduledThisWeek: 0,
+    totalQuestions: 0,
+    avgScore: 0,
+    pendingGrading: 0,
+    batchAverages: [] as { batch: string; avgScore: number }[]
   })
+
   const [scheduledTests, setScheduledTests] = useState<any[]>([])
   const [questions, setQuestions] = useState<any[]>([])
 
@@ -64,6 +62,8 @@ export default function TestsBankView() {
   // Modal toggles
   const [showTestModal, setShowTestModal] = useState(false)
   const [showQuestionModal, setShowQuestionModal] = useState(false)
+  const [showUploadPdfModal, setShowUploadPdfModal] = useState(false)
+
 
   // Form states
   const [testForm, setTestForm] = useState({
@@ -567,12 +567,23 @@ export default function TestsBankView() {
                   </select>
                 </div>
 
-                <button 
-                  onClick={() => setShowQuestionModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm"
-                >
-                  <Plus className="w-4 h-4" /> Add Question
-                </button>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setShowUploadPdfModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all shadow-sm"
+                  >
+                    <Upload className="w-4 h-4 text-slate-500" /> Upload PDF
+                  </button>
+
+                  <button 
+                    onClick={() => setShowQuestionModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" /> Add Question
+                  </button>
+                </div>
+
+
 
               </div>
 
@@ -595,7 +606,7 @@ export default function TestsBankView() {
                   <tbody className="divide-y divide-slate-100">
                     {paginatedQuestions.length > 0 ? (
                       paginatedQuestions.map((q) => (
-                        <tr key={q._id} className="hover:bg-slate-50/50 transition-colors">
+                        <tr key={q.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4 text-[13px] font-bold text-[#0b1320]">{q.topic}</td>
                           <td className="px-6 py-4">
                             <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
@@ -926,6 +937,12 @@ export default function TestsBankView() {
           </div>
         )}
       </AnimatePresence>
+
+      <UploadPdfModal 
+        isOpen={showUploadPdfModal} 
+        onClose={() => setShowUploadPdfModal(false)} 
+        onSuccess={fetchStatsAndData} 
+      />
 
     </div>
   )

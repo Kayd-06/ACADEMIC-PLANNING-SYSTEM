@@ -18,8 +18,10 @@ import {
   Calendar,
   FileQuestion,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Upload
 } from 'lucide-react'
+import UploadPdfModal from '@/components/dashboard/UploadPdfModal'
 
 export default function TeacherTestsView() {
   const { showAlert } = useAlert()
@@ -50,6 +52,7 @@ export default function TeacherTestsView() {
   // Modals
   const [showQuestionModal, setShowQuestionModal] = useState(false)
   const [editingQuestion, setEditingQuestion] = useState<any>(null)
+  const [showUploadPdfModal, setShowUploadPdfModal] = useState(false)
   
   const [showTestModal, setShowTestModal] = useState(false)
   const [editingTest, setEditingTest] = useState<any>(null)
@@ -160,7 +163,7 @@ export default function TeacherTestsView() {
     if (!questionForm.topic || !questionForm.text) return
     const isEditing = !!editingQuestion
     const payload = isEditing 
-      ? { ...questionForm, id: editingQuestion._id } 
+      ? { ...questionForm, id: editingQuestion.id } 
       : questionForm
     submitQuestionData(payload, isEditing)
   }
@@ -280,7 +283,7 @@ export default function TeacherTestsView() {
     if (!testForm.title || !testForm.date || !testForm.time || !testForm.duration || !testForm.totalMarks) return
     const isEditing = !!editingTest
     const payload = isEditing 
-      ? { ...testForm, id: editingTest._id, status: editingTest.status } 
+      ? { ...testForm, id: editingTest.id, status: editingTest.status } 
       : testForm
     submitTestData(payload, isEditing)
   }
@@ -445,26 +448,35 @@ export default function TeacherTestsView() {
               {/* Add & Filter Control Bar */}
               <div className="flex flex-wrap items-center justify-between gap-4">
                 
-                <button 
-                  onClick={() => {
-                    setEditingQuestion(null)
-                    setQuestionForm({
-                      subject: 'Physics',
-                      topic: '',
-                      difficulty: 'Medium',
-                      type: 'MCQ',
-                      text: '',
-                      options: ['', '', '', ''],
-                      correctAnswer: '',
-                      marks: '4',
-                      source: 'Custom'
-                    })
-                    setShowQuestionModal(true)
-                  }}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm"
-                >
-                  <Plus className="w-4 h-4" /> Add Question
-                </button>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setShowUploadPdfModal(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all shadow-sm"
+                  >
+                    <Upload className="w-4 h-4 text-slate-500" /> Upload PDF
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      setEditingQuestion(null)
+                      setQuestionForm({
+                        subject: 'Physics',
+                        topic: '',
+                        difficulty: 'Medium',
+                        type: 'MCQ',
+                        text: '',
+                        options: ['', '', '', ''],
+                        correctAnswer: '',
+                        marks: '4',
+                        source: 'Custom'
+                      })
+                      setShowQuestionModal(true)
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" /> Add Question
+                  </button>
+                </div>
 
                 <div className="flex flex-wrap items-center gap-3">
                   
@@ -546,7 +558,7 @@ export default function TeacherTestsView() {
                   <tbody className="divide-y divide-slate-100">
                     {paginatedQuestions.length > 0 ? (
                       paginatedQuestions.map((q) => (
-                        <tr key={q._id} className="hover:bg-slate-50/40 transition-colors">
+                        <tr key={q.id} className="hover:bg-slate-50/40 transition-colors">
                           <td className="px-6 py-4 max-w-sm">
                             <div className="flex flex-col">
                               <span className="text-[12px] font-semibold text-slate-800 line-clamp-2">{q.text}</span>
@@ -584,7 +596,7 @@ export default function TeacherTestsView() {
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button 
-                                onClick={() => handleQuestionDelete(q._id)}
+                                onClick={() => handleQuestionDelete(q.id)}
                                 className="text-slate-400 hover:text-red-600 p-1 hover:bg-red-50 rounded transition-all"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -755,7 +767,7 @@ export default function TeacherTestsView() {
                       paginatedTests.map((t) => {
                         const statusMapped = t.status === 'Upcoming' ? 'Scheduled' : t.status === 'Pending Grading' ? 'Ongoing' : 'Completed'
                         return (
-                          <tr key={t._id} className="hover:bg-slate-50/40 transition-colors">
+                          <tr key={t.id} className="hover:bg-slate-50/40 transition-colors">
                             <td className="px-6 py-4">
                               <div className="flex flex-col">
                                 <span className="text-[12px] font-semibold text-slate-800">{t.title}</span>
@@ -794,7 +806,7 @@ export default function TeacherTestsView() {
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
                                 <button 
-                                  onClick={() => handleTestDelete(t._id)}
+                                  onClick={() => handleTestDelete(t.id)}
                                   className="text-slate-400 hover:text-red-600 p-1 hover:bg-red-50 rounded transition-all"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1154,6 +1166,12 @@ export default function TeacherTestsView() {
           </div>
         )}
       </AnimatePresence>
+
+      <UploadPdfModal 
+        isOpen={showUploadPdfModal} 
+        onClose={() => setShowUploadPdfModal(false)} 
+        onSuccess={loadData} 
+      />
 
     </div>
   )

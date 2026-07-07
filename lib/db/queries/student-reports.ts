@@ -91,6 +91,7 @@ export async function listReports(filters: ListReportsFilters = {}): Promise<Stu
       className: studentReports.className,
       subject: studentReports.subject,
       term: studentReports.term,
+      schoolId: studentReports.schoolId,
       createdAt: studentReports.createdAt,
       studentCount: sql<number>`count(${studentReportEntries.id})::int`,
     })
@@ -103,6 +104,7 @@ export async function listReports(filters: ListReportsFilters = {}): Promise<Stu
       studentReports.className,
       studentReports.subject,
       studentReports.term,
+      studentReports.schoolId,
       studentReports.createdAt
     )
     .orderBy(studentReports.createdAt)
