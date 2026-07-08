@@ -88,7 +88,7 @@ export default function AttendanceMarkingView() {
   }
 
   // Individual Marking
-  function markIndividual(index: number, status: 'Present' | 'Absent' | 'Late') {
+  function markIndividual(index: number, status: 'Present' | 'Absent' | 'Late' | 'Excused') {
     setRecords(prev => {
       const copy = [...prev]
       copy[index] = { ...copy[index], status }
@@ -188,6 +188,7 @@ export default function AttendanceMarkingView() {
   const presentCount = records.filter(r => r.status === 'Present').length
   const absentCount = records.filter(r => r.status === 'Absent').length
   const lateCount = records.filter(r => r.status === 'Late').length
+  const excusedCount = records.filter(r => r.status === 'Excused').length
 
   // Local Search Filter
   const filteredRecords = records.filter(r => 
@@ -383,15 +384,26 @@ export default function AttendanceMarkingView() {
                                 Absent
                               </button>
                               
-                              <button 
+                              <button
                                 onClick={() => markIndividual(actualIdx, 'Late')}
                                 className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${
-                                  record.status === 'Late' 
-                                    ? 'bg-amber-500 text-white shadow-sm' 
+                                  record.status === 'Late'
+                                    ? 'bg-amber-500 text-white shadow-sm'
                                     : 'text-slate-600 hover:bg-slate-50'
                                 }`}
                               >
                                 Late
+                              </button>
+
+                              <button
+                                onClick={() => markIndividual(actualIdx, 'Excused')}
+                                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${
+                                  record.status === 'Excused'
+                                    ? 'bg-sky-500 text-white shadow-sm'
+                                    : 'text-slate-600 hover:bg-slate-50'
+                                }`}
+                              >
+                                Excused
                               </button>
 
                             </div>
@@ -433,6 +445,7 @@ export default function AttendanceMarkingView() {
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-600" /> Present: <strong className="text-slate-800">{presentCount}</strong></span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Absent: <strong className="text-slate-800">{absentCount}</strong></span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Late: <strong className="text-slate-800">{lateCount}</strong></span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-sky-500" /> Excused: <strong className="text-slate-800">{excusedCount}</strong></span>
         </div>
         <button 
           onClick={submitAttendance}

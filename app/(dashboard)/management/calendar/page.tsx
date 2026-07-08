@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Sidebar from '@/components/dashboard/Sidebar'
 import TopHeader from '@/components/dashboard/TopHeader'
-import CalendarView from '@/components/dashboard/management/CalendarView'
+import CalendarPageTabs from '@/components/dashboard/management/CalendarPageTabs'
 import { MANAGEMENT_NAV } from '@/lib/navigation'
 
 function getInitials(name: string) {
@@ -28,7 +28,7 @@ export default async function CalendarPage() {
       />
       <div className="flex-1 flex flex-col min-w-0">
         <TopHeader initials={initials} />
-        <CalendarView />
+        <CalendarPageTabs />
       </div>
     </div>
   )
