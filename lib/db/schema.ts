@@ -242,6 +242,15 @@ export const studyMaterials = pgTable('study_materials', {
   subject: varchar('subject', { length: 255 }).notNull(),
   provider: varchar('provider', { length: 255 }).notNull(),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  uploadedBy: varchar('uploaded_by', { length: 255 }),
+  subjectId: varchar('subject_id', { length: 255 }),
+  chapterId: varchar('chapter_id', { length: 255 }),
+  programId: varchar('program_id', { length: 255 }),
+  batchId: varchar('batch_id', { length: 255 }),
+  title: varchar('title', { length: 255 }),
+  description: text('description'),
+  fileSize: integer('file_size'),
+  isPublic: boolean('is_public').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
@@ -319,6 +328,8 @@ export const assignments = pgTable('assignments', {
   status: varchar('status', { length: 30 }).notNull().default('Active'),
   teacherEmail: varchar('teacher_email', { length: 255 }).notNull(),
   fileUrl: varchar('file_url', { length: 1000 }).default(''),
+  description: text('description'),
+  totalMarks: integer('total_marks').default(100).notNull(),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -326,6 +337,24 @@ export const assignments = pgTable('assignments', {
 
 export type Assignment = typeof assignments.$inferSelect
 export type NewAssignment = typeof assignments.$inferInsert
+
+export const assignmentSubmissions = pgTable('assignment_submissions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assignmentId: uuid('assignment_id').notNull().references(() => assignments.id, { onDelete: 'cascade' }),
+  studentId: uuid('student_id').notNull().references(() => students.id, { onDelete: 'cascade' }),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  gradedAt: timestamp('graded_at', { withTimezone: true }),
+  gradedBy: varchar('graded_by', { length: 255 }),
+  fileUrl: text('file_url'),
+  marksObtained: integer('marks_obtained'),
+  feedback: text('feedback'),
+  status: varchar('status', { length: 50 }).notNull().default('Pending'), // Pending, Submitted, Graded, Late, Not Submitted
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type AssignmentSubmission = typeof assignmentSubmissions.$inferSelect
+export type NewAssignmentSubmission = typeof assignmentSubmissions.$inferInsert
 
 export const feedback = pgTable('feedback', {
   id: uuid('id').defaultRandom().primaryKey(),
