@@ -42,6 +42,7 @@ export default function ProgressReportView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [batches, setBatches] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -123,27 +124,57 @@ export default function ProgressReportView() {
     setErrorMsg('')
     setSuccessMsg('')
     try {
-      const res = await fetch('/api/progress-reports', {
-        method: 'POST',
+      const url = editingId ? `/api/progress-reports?id=${editingId}` : '/api/progress-reports'
+      const res = await fetch(url, {
+        method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, subjects }),
       })
       if (res.ok) {
-        setSuccessMsg('Progress report generated successfully!')
+        setSuccessMsg(editingId ? 'Progress report updated successfully!' : 'Progress report generated successfully!')
         setTimeout(() => {
           setShowModal(false)
+          setEditingId(null)
           setSuccessMsg('')
           fetchReports()
         }, 1200)
       } else {
         const err = await res.json()
-        setErrorMsg(err.error || 'Failed to generate report')
+        setErrorMsg(err.error || 'Failed to save report')
       }
     } catch {
       setErrorMsg('Network error occurred')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const openEdit = (report: ProgressReport) => {
+    setForm({
+      studentName: report.studentName,
+      rollNo: report.rollNo || '',
+      batch: report.batch,
+      termType: report.termType,
+      academicYear: report.academicYear,
+      teacherRemarks: report.teacherRemarks || '',
+      principalRemarks: report.principalRemarks || '',
+    })
+    setSubjects((report.subjects ?? []).map(s => ({
+      subjectName: s.subjectName,
+      marksObtained: s.marksObtained,
+      totalMarks: s.totalMarks,
+      grade: s.grade,
+      rankInBatch: s.rankInBatch,
+    })))
+    setEditingId(report.id)
+    setErrorMsg('')
+    setShowModal(true)
+  }
+
+  const handleDelete = async (report: ProgressReport) => {
+    if (!confirm(`Delete progress report for ${report.studentName} (${report.termType} ${report.academicYear})?`)) return
+    const res = await fetch(`/api/progress-reports?id=${report.id}`, { method: 'DELETE' })
+    if (res.ok) fetchReports()
   }
 
   const filtered = reports.filter(r => {
@@ -171,7 +202,12 @@ export default function ProgressReportView() {
           <button onClick={() => fetchReports()} className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-gray-700 border border-gray-200 bg-white rounded-xl shadow-sm hover:bg-gray-50 font-semibold transition-all">
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
-          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl shadow-sm hover:bg-indigo-700 font-semibold text-sm transition-all">
+          <button onClick={() => {
+            setEditingId(null)
+            setForm(f => ({ ...f, studentName: '', rollNo: '', teacherRemarks: '', principalRemarks: 'Good performance. Keep striving for excellence.' }))
+            setErrorMsg('')
+            setShowModal(true)
+          }} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl shadow-sm hover:bg-indigo-700 font-semibold text-sm transition-all">
             <Plus className="w-4 h-4" /> Generate Report
           </button>
         </div>
@@ -314,6 +350,16 @@ export default function ProgressReportView() {
                             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Principal Remarks</p>
                             <p className="text-xs font-semibold text-gray-800 leading-relaxed">{report.principalRemarks || 'No remarks provided.'}</p>
                           </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => openEdit(report)}
+                              className="flex-1 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-50 transition-colors shadow-sm">
+                              Edit Report
+                            </button>
+                            <button onClick={() => handleDelete(report)}
+                              className="flex-1 py-2 bg-white border border-rose-200 text-rose-600 text-xs font-bold rounded-xl hover:bg-rose-50 transition-colors shadow-sm">
+                              Delete Report
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </motion.div>
@@ -333,10 +379,10 @@ export default function ProgressReportView() {
               className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
               <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Generate Progress Report</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Enter student marks and generate term performance report.</p>
+                  <h2 className="text-lg font-bold text-gray-900">{editingId ? 'Edit Progress Report' : 'Generate Progress Report'}</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">{editingId ? 'Update student marks, term info, and official remarks.' : 'Enter student marks and generate term performance report.'}</p>
                 </div>
-                <button onClick={() => setShowModal(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                <button onClick={() => { setShowModal(false); setEditingId(null) }} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
                   <X className="w-5 h-5" />
                 </button>
               </div>

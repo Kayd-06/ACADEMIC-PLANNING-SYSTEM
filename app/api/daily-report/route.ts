@@ -75,6 +75,54 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(report, { status: 201 })
 }
 
+// PATCH — edit a daily report (?id=) (management any, teacher their own)
+export async function PATCH(req: NextRequest) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const role = (session.user as any).role
+  const schoolId = (session.user as any).schoolId as string | null
+
+  const id = req.nextUrl.searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+
+  const conditions = [eq(dailyReports.id, id)]
+  if (schoolId) conditions.push(eq(dailyReports.schoolId, schoolId))
+  if (role === 'teacher') conditions.push(eq(dailyReports.teacherEmail, session.user.email!))
+  else if (role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await req.json()
+  const updates: Record<string, any> = {}
+  for (const f of ['date', 'batch', 'subject', 'chapter', 'topicsCovered', 'homeworkGiven', 'observations'] as const) {
+    if (body[f] !== undefined) updates[f] = body[f]
+  }
+  if (body.presentCount !== undefined) updates.presentCount = Number(body.presentCount) || 0
+  if (body.absentCount !== undefined) updates.absentCount = Number(body.absentCount) || 0
+  if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+
+  const [updated] = await db.update(dailyReports).set(updates).where(and(...conditions)).returning()
+  if (!updated) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
+  return NextResponse.json(updated)
+}
+
+// DELETE — remove a daily report (?id=) (management any, teacher their own)
+export async function DELETE(req: NextRequest) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const role = (session.user as any).role
+  const schoolId = (session.user as any).schoolId as string | null
+
+  const id = req.nextUrl.searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+
+  const conditions = [eq(dailyReports.id, id)]
+  if (schoolId) conditions.push(eq(dailyReports.schoolId, schoolId))
+  if (role === 'teacher') conditions.push(eq(dailyReports.teacherEmail, session.user.email!))
+  else if (role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  await db.delete(dailyReports).where(and(...conditions))
+  return NextResponse.json({ success: true })
+}
+
 // GET distinct batches from students table
 export async function PUT() {
   const session = await auth()

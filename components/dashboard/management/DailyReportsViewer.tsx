@@ -1,7 +1,73 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { CalendarDays, Users, BookOpen, ClipboardList, CheckCircle2, Flag, Loader2, RefreshCw, TrendingUp } from 'lucide-react'
+import { CalendarDays, Users, BookOpen, ClipboardList, CheckCircle2, Flag, Loader2, RefreshCw, TrendingUp, Pencil, Trash2, X } from 'lucide-react'
+
+const EMPTY_EDIT = { subject: '', chapter: '', topicsCovered: '', presentCount: 0, absentCount: 0, homeworkGiven: '', observations: '' }
+
+function EditReportModal({ initial, saving, error, onSubmit, onClose }: {
+  initial: typeof EMPTY_EDIT
+  saving: boolean
+  error: string
+  onSubmit: (form: typeof EMPTY_EDIT) => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState(initial)
+  const set = (f: string) => (e: React.ChangeEvent<any>) =>
+    setForm(prev => ({ ...prev, [f]: f === 'presentCount' || f === 'absentCount' ? Number(e.target.value) || 0 : e.target.value }))
+  const inputClass = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
+  const labelClass = 'block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1'
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
+          <h2 className="text-lg font-bold text-gray-900">Edit Daily Report</h2>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-5 space-y-4 overflow-y-auto">
+          {error && <p className="text-sm text-rose-600 font-medium bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">{error}</p>}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Subject</label>
+              <input value={form.subject} onChange={set('subject')} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Chapter</label>
+              <input value={form.chapter} onChange={set('chapter')} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Present Count</label>
+              <input type="number" min={0} value={form.presentCount} onChange={set('presentCount')} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Absent Count</label>
+              <input type="number" min={0} value={form.absentCount} onChange={set('absentCount')} className={inputClass} />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>Topics Covered</label>
+            <textarea value={form.topicsCovered} onChange={set('topicsCovered')} rows={2} className={inputClass + ' resize-none'} />
+          </div>
+          <div>
+            <label className={labelClass}>Homework Given</label>
+            <textarea value={form.homeworkGiven} onChange={set('homeworkGiven')} rows={2} className={inputClass + ' resize-none'} />
+          </div>
+          <div>
+            <label className={labelClass}>Observations</label>
+            <textarea value={form.observations} onChange={set('observations')} rows={2} className={inputClass + ' resize-none'} />
+          </div>
+        </div>
+        <div className="flex gap-3 p-5 border-t border-gray-100 shrink-0">
+          <button onClick={onClose} className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50">Cancel</button>
+          <button onClick={() => onSubmit(form)} disabled={saving} className="flex-1 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />} Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -51,6 +117,35 @@ export default function DailyReportsViewer() {
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<'All' | 'Submitted' | 'Late'>('All')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [editingReport, setEditingReport] = useState<DailyReport | null>(null)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
+
+  async function saveEdit(form: typeof EMPTY_EDIT) {
+    if (!editingReport) return
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const res = await fetch(`/api/daily-report?id=${editingReport.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setEditError(data.error || 'Failed to update report')
+        return
+      }
+      setEditingReport(null)
+      fetchReports(selectedDate)
+    } finally { setEditSaving(false) }
+  }
+
+  async function deleteReport(report: DailyReport) {
+    if (!confirm(`Delete ${report.teacherName}'s report for ${report.batch} · ${report.subject}?`)) return
+    const res = await fetch(`/api/daily-report?id=${report.id}`, { method: 'DELETE' })
+    if (res.ok) fetchReports(selectedDate)
+  }
 
   const fetchReports = useCallback(async (date: string) => {
     setLoading(true)
@@ -178,6 +273,16 @@ export default function DailyReportsViewer() {
                         <div><p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Observations</p>
                           <p className="text-sm text-gray-700">{report.observations}</p></div>
                       )}
+                      <div className="flex items-center gap-2 pt-1">
+                        <button onClick={() => { setEditError(''); setEditingReport(report) }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-50 shadow-sm">
+                          <Pencil className="w-3 h-3" /> Edit
+                        </button>
+                        <button onClick={() => deleteReport(report)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-rose-200 text-rose-600 text-xs font-bold rounded-lg hover:bg-rose-50 shadow-sm">
+                          <Trash2 className="w-3 h-3" /> Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -186,6 +291,24 @@ export default function DailyReportsViewer() {
           </div>
         )}
       </motion.div>
+
+      {editingReport && (
+        <EditReportModal
+          initial={{
+            subject: editingReport.subject,
+            chapter: editingReport.chapter || '',
+            topicsCovered: editingReport.topicsCovered || '',
+            presentCount: editingReport.presentCount,
+            absentCount: editingReport.absentCount,
+            homeworkGiven: editingReport.homeworkGiven || '',
+            observations: editingReport.observations || '',
+          }}
+          saving={editSaving}
+          error={editError}
+          onSubmit={saveEdit}
+          onClose={() => setEditingReport(null)}
+        />
+      )}
     </div>
   )
 }
