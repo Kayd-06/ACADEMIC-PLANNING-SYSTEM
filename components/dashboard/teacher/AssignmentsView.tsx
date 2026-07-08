@@ -138,9 +138,26 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
   const [gradingFeedback, setGradingFeedback] = useState<Record<string, string>>({})
   const [savingGradeId, setSavingGradeId] = useState<string | null>(null)
 
-  // File Inputs references
   const asgFileRef = useRef<HTMLInputElement>(null)
   const matFileRef = useRef<HTMLInputElement>(null)
+
+  // Custom Delete Confirmation State
+  const [asgToDelete, setAsgToDelete] = useState<string | null>(null)
+
+  // Edit Assignment Form Fields
+  const [showEditAssignmentModal, setShowEditAssignmentModal] = useState(false)
+  const [selectedAssignment, setSelectedAssignment] = useState<any | null>(null)
+  const [editAsgTitle, setEditAsgTitle] = useState('')
+  const [editAsgDescription, setEditAsgDescription] = useState('')
+  const [editAsgChapter, setEditAsgChapter] = useState('')
+  const [editAsgBatch, setEditAsgBatch] = useState('')
+  const [editAsgSubject, setEditAsgSubject] = useState('')
+  const [editAsgType, setEditAsgType] = useState('Homework')
+  const [editAsgDueDate, setEditAsgDueDate] = useState('')
+  const [editAsgDueTime, setEditAsgDueTime] = useState('11:59 PM')
+  const [editAsgTotalMarks, setEditAsgTotalMarks] = useState('100')
+  const [editAsgFile, setEditAsgFile] = useState<File | null>(null)
+  const editAsgFileRef = useRef<HTMLInputElement>(null)
 
   // --- Fetch Actions ---
 
@@ -314,7 +331,6 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
 
   // Delete Assignment
   async function handleDeleteAssignment(id: string) {
-    if (!confirm('Are you sure you want to delete this assignment and all its submissions permanently?')) return
     try {
       const res = await fetch(`/api/assignments?id=${id}`, { method: 'DELETE' })
       if (res.ok) {
@@ -324,10 +340,87 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
           setSelectedGradingAssignmentId('')
         }
       } else {
-        showAlert({ title: 'Error', message: 'Failed to delete assignment.', type: 'warning' })
+        const data = await res.json()
+        showAlert({ title: 'Error', message: data.error || 'Failed to delete assignment.', type: 'warning' })
       }
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  // Open Edit Assignment Modal
+  function handleOpenEditAssignment(asg: any) {
+    setSelectedAssignment(asg)
+    setEditAsgTitle(asg.title || '')
+    setEditAsgDescription(asg.description || '')
+    setEditAsgChapter(asg.chapter || '')
+    setEditAsgBatch(asg.batch || '')
+    setEditAsgSubject(asg.subject || '')
+    setEditAsgType(asg.type || 'Homework')
+    setEditAsgDueDate(asg.dueDate || '')
+    setEditAsgDueTime(asg.dueTime || '11:59 PM')
+    setEditAsgTotalMarks(String(asg.totalMarks || 100))
+    setEditAsgFile(null)
+    setShowEditAssignmentModal(true)
+  }
+
+  // Submit Edit Assignment
+  async function handleEditAssignment(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editAsgTitle || !editAsgChapter || !editAsgBatch || !editAsgSubject || !editAsgType || !editAsgDueDate) {
+      showAlert({ title: 'Validation Error', message: 'Please fill in all required fields.', type: 'warning' })
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      let fileUrl = selectedAssignment.fileUrl || ''
+      if (editAsgFile) {
+        const uploadFormData = new FormData()
+        uploadFormData.append('file', editAsgFile)
+        const uploadRes = await fetch('/api/assignments/upload', {
+          method: 'POST',
+          body: uploadFormData
+        })
+        const uploadData = await uploadRes.json()
+        if (uploadRes.ok && uploadData.fileUrl) {
+          fileUrl = uploadData.fileUrl
+        }
+      }
+
+      const payload = {
+        id: selectedAssignment.id,
+        title: editAsgTitle,
+        description: editAsgDescription,
+        chapter: editAsgChapter,
+        batch: editAsgBatch,
+        subject: editAsgSubject,
+        type: editAsgType,
+        dueDate: editAsgDueDate,
+        dueTime: editAsgDueTime,
+        totalMarks: Number(editAsgTotalMarks) || 100,
+        fileUrl
+      }
+
+      const res = await fetch('/api/assignments', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const data = await res.json()
+
+      if (res.ok) {
+        showAlert({ title: 'Success', message: 'Assignment updated successfully.', type: 'success' })
+        setShowEditAssignmentModal(false)
+        fetchAssignments()
+      } else {
+        showAlert({ title: 'Error', message: data.error || 'Failed to update assignment.', type: 'warning' })
+      }
+    } catch (err) {
+      console.error(err)
+      showAlert({ title: 'Network Error', message: 'Failed to connect to assignments endpoint.', type: 'warning' })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -790,7 +883,14 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => handleDeleteAssignment(asg.id)}
+                                  onClick={() => handleOpenEditAssignment(asg)}
+                                  title="Edit assignment"
+                                  className="p-1.5 border border-slate-200 hover:border-indigo-100 hover:bg-indigo-50 text-slate-400 hover:text-indigo-650 rounded-lg cursor-pointer transition-colors"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => setAsgToDelete(asg.id)}
                                   title="Delete assignment"
                                   className="p-1.5 border border-slate-200 hover:border-red-100 hover:bg-red-50 text-slate-400 hover:text-red-650 rounded-lg cursor-pointer transition-colors"
                                 >
@@ -1333,6 +1433,237 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* E. Edit Assignment Modal */}
+      <AnimatePresence>
+        {showEditAssignmentModal && selectedAssignment && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEditAssignmentModal(false)}
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-6 py-4 border-b border-gray-150 flex items-center justify-between bg-gray-50/50">
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <ClipboardList className="w-5 h-5 text-indigo-650" /> Edit Assignment / DPP
+                </h2>
+                <button onClick={() => setShowEditAssignmentModal(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer border-none bg-transparent">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditAssignment} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Title *</label>
+                    <input
+                      required
+                      type="text"
+                      value={editAsgTitle}
+                      onChange={e => setEditAsgTitle(e.target.value)}
+                      placeholder="e.g. Electromagnetism Practice Set"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Description</label>
+                    <textarea
+                      rows={2}
+                      value={editAsgDescription}
+                      onChange={e => setEditAsgDescription(e.target.value)}
+                      placeholder="Enter description, instructions or guidelines for students..."
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Chapter / Topic *</label>
+                    <input
+                      required
+                      type="text"
+                      value={editAsgChapter}
+                      onChange={e => setEditAsgChapter(e.target.value)}
+                      placeholder="e.g. Chapter 4: Gauss's Law"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Batch *</label>
+                    <select
+                      value={editAsgBatch}
+                      onChange={e => setEditAsgBatch(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none cursor-pointer text-xs font-bold text-slate-750"
+                    >
+                      {batches.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Subject *</label>
+                    <select
+                      value={editAsgSubject}
+                      onChange={e => setEditAsgSubject(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none cursor-pointer text-xs font-bold text-slate-750"
+                    >
+                      {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Assignment Type *</label>
+                    <select
+                      value={editAsgType}
+                      onChange={e => setEditAsgType(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none cursor-pointer text-xs font-bold text-slate-750"
+                    >
+                      <option value="Homework">Homework</option>
+                      <option value="DPP">DPP</option>
+                      <option value="Worksheet">Worksheet</option>
+                      <option value="Project">Project</option>
+                      <option value="Revision">Revision</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Due Date *</label>
+                    <input
+                      required
+                      type="date"
+                      value={editAsgDueDate}
+                      onChange={e => setEditAsgDueDate(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none cursor-pointer text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Due Time</label>
+                    <input
+                      type="text"
+                      value={editAsgDueTime}
+                      onChange={e => setEditAsgDueTime(e.target.value)}
+                      placeholder="e.g. 11:59 PM"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Total Marks *</label>
+                    <input
+                      required
+                      type="number"
+                      value={editAsgTotalMarks}
+                      onChange={e => setEditAsgTotalMarks(e.target.value)}
+                      placeholder="100"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Upload New Question Sheet (Optional)</label>
+                    <div
+                      onClick={() => editAsgFileRef.current?.click()}
+                      className="border border-dashed border-slate-250 bg-slate-50/50 p-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-50 transition-colors"
+                    >
+                      <Paperclip className="w-4 h-4 text-slate-400" />
+                      <span className="text-xs text-slate-500 font-bold">
+                        {editAsgFile ? editAsgFile.name : 'Choose PDF, DOCX, or Image'}
+                      </span>
+                      <input
+                        ref={editAsgFileRef}
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => setEditAsgFile(e.target.files?.[0] || null)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditAssignmentModal(false)}
+                    className="flex-1 py-3 rounded-2xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 py-3 rounded-2xl bg-[#002045] hover:bg-[#1a365d] text-white text-xs font-bold shadow-lg transition-all cursor-pointer disabled:opacity-50 border-none flex items-center justify-center gap-1.5"
+                  >
+                    {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {asgToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setAsgToDelete(null)}
+              className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 overflow-hidden"
+            >
+              <div className="flex items-center gap-3 text-red-600 mb-4">
+                <div className="p-3 bg-red-50 rounded-2xl">
+                  <AlertTriangle className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Delete Assignment</h3>
+                  <p className="text-xs text-gray-500 font-medium">This action cannot be undone.</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-600 font-semibold mb-6">
+                Are you sure you want to permanently delete this assignment and all student submissions?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAsgToDelete(null)}
+                  className="flex-1 py-3 rounded-2xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-all cursor-pointer bg-transparent"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = asgToDelete
+                    setAsgToDelete(null)
+                    handleDeleteAssignment(id)
+                  }}
+                  className="flex-1 py-3 rounded-2xl bg-red-600 hover:bg-red-750 text-white text-xs font-bold shadow-lg transition-all cursor-pointer border-none"
+                >
+                  Delete
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

@@ -92,21 +92,26 @@ export async function POST(req: NextRequest) {
     console.error('ERROR IN ASSIGNMENTS POST:', error)
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
   }
-}
-
-export async function PUT(req: NextRequest) {
+}export async function PUT(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if ((session.user as any).role !== 'teacher') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await req.json()
-    const { id, status, submittedCount, fileUrl, description, totalMarks } = body
+    const { id, title, chapter, batch, subject, type, dueDate, dueTime, status, submittedCount, fileUrl, description, totalMarks } = body
     const schoolId = getSchoolId(session)
 
     if (!id) return NextResponse.json({ error: 'Missing assignment ID' }, { status: 400 })
 
     const updateFields: Record<string, any> = { updatedAt: new Date() }
+    if (title !== undefined) updateFields.title = title
+    if (chapter !== undefined) updateFields.chapter = chapter
+    if (batch !== undefined) updateFields.batch = batch
+    if (subject !== undefined) updateFields.subject = subject
+    if (type !== undefined) updateFields.type = type
+    if (dueDate !== undefined) updateFields.dueDate = dueDate
+    if (dueTime !== undefined) updateFields.dueTime = dueTime
     if (status !== undefined) updateFields.status = status
     if (submittedCount !== undefined) updateFields.submittedCount = Number(submittedCount)
     if (fileUrl !== undefined) updateFields.fileUrl = fileUrl
@@ -125,18 +130,23 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if ((session.user as any).role !== 'teacher') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if ((session.user as any).role !== 'teacher') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { searchParams } = new URL(req.url)
-  const id = searchParams.get('id')
-  const schoolId = (session.user as any).schoolId as string | null
-  if (!id) return NextResponse.json({ error: 'Missing assignment ID' }, { status: 400 })
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    const schoolId = getSchoolId(session)
+    if (!id) return NextResponse.json({ error: 'Missing assignment ID' }, { status: 400 })
 
-  const condition = schoolId ? and(eq(assignments.id, id), eq(assignments.schoolId, schoolId)) : eq(assignments.id, id)
-  const [deleted] = await db.delete(assignments).where(condition).returning()
-  if (!deleted) return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
+    const condition = schoolId ? and(eq(assignments.id, id), eq(assignments.schoolId, schoolId)) : eq(assignments.id, id)
+    const [deleted] = await db.delete(assignments).where(condition).returning()
+    if (!deleted) return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
 
-  return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('ERROR IN ASSIGNMENTS DELETE:', error)
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+  }
 }
