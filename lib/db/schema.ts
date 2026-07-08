@@ -687,6 +687,7 @@ export const questions = pgTable('questions', {
   options: text('options').notNull().default('[]'),
   correctAnswer: text('correct_answer').notNull().default(''),
   marks: integer('marks').notNull().default(4),
+  negativeMarks: integer('negative_marks').notNull().default(0),
   source: varchar('source', { length: 100 }).notNull().default('Custom'),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

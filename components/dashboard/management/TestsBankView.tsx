@@ -21,9 +21,11 @@ import {
   ArrowRight,
   HelpCircle,
   FileQuestion,
-  Upload
+  Upload,
+  Download
 } from 'lucide-react'
 import UploadPdfModal from '@/components/dashboard/UploadPdfModal'
+import ExportQuestionsModal from '@/components/dashboard/ExportQuestionsModal'
 
 // Simple helper to get the weekday name index (0 = Monday, 6 = Sunday)
 function getWeekdayIndex(dateStr: string) {
@@ -63,6 +65,7 @@ export default function TestsBankView() {
   const [showTestModal, setShowTestModal] = useState(false)
   const [showQuestionModal, setShowQuestionModal] = useState(false)
   const [showUploadPdfModal, setShowUploadPdfModal] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
 
 
   // Form states
@@ -83,7 +86,9 @@ export default function TestsBankView() {
     type: 'MCQ' as 'MCQ' | 'Numerical' | 'Integer' | 'Subjective',
     text: '',
     options: ['', '', '', ''],
-    correctAnswer: ''
+    correctAnswer: '',
+    marks: '4',
+    negativeMarks: '0'
   })
 
   // Pagination for questions
@@ -199,7 +204,9 @@ export default function TestsBankView() {
           type: 'MCQ',
           text: '',
           options: ['', '', '', ''],
-          correctAnswer: ''
+          correctAnswer: '',
+          marks: '4',
+          negativeMarks: '0'
         })
         fetchStatsAndData()
       } else {
@@ -230,6 +237,8 @@ export default function TestsBankView() {
 
     const payload = {
       ...questionForm,
+      marks: Number(questionForm.marks),
+      negativeMarks: Number(questionForm.negativeMarks),
       options: questionForm.type === 'MCQ' ? questionForm.options : []
     }
     await submitQuestion(payload)
@@ -568,6 +577,13 @@ export default function TestsBankView() {
                 </div>
 
                 <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setShowExportModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all shadow-sm"
+                  >
+                    <Download className="w-4 h-4 text-slate-500" /> Export PDF
+                  </button>
+
                   <button 
                     onClick={() => setShowUploadPdfModal(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all shadow-sm"
@@ -924,6 +940,31 @@ export default function TestsBankView() {
                   />
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Marks *</label>
+                    <input 
+                      type="number" required min="1"
+                      value={questionForm.marks}
+                      onChange={(e) => setQuestionForm({...questionForm, marks: e.target.value})}
+                      className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Negative Marks *</label>
+                    <select
+                      value={questionForm.negativeMarks}
+                      onChange={(e) => setQuestionForm({...questionForm, negativeMarks: e.target.value})}
+                      className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer"
+                    >
+                      {Array.from({ length: 10 }, (_, i) => -i).map(val => (
+                        <option key={val} value={val}>{val}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <button 
                   type="submit"
                   disabled={actionLoading}
@@ -942,6 +983,13 @@ export default function TestsBankView() {
         isOpen={showUploadPdfModal} 
         onClose={() => setShowUploadPdfModal(false)} 
         onSuccess={fetchStatsAndData} 
+      />
+
+      <ExportQuestionsModal 
+        isOpen={showExportModal} 
+        onClose={() => setShowExportModal(false)} 
+        filteredQuestions={filteredQuestions}
+        activeSubjectFilter={subjectFilter}
       />
 
     </div>

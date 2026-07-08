@@ -9,6 +9,7 @@ Topic: Thermodynamics
 Difficulty: Medium
 Type: MCQ
 Marks: 4
+Negative Marks: -1
 Source: Custom
 
 1. What is the SI unit of temperature?
@@ -54,6 +55,7 @@ Topic: Calculus
 Difficulty: Hard
 Type: Numerical
 Marks: 5
+Negative Marks: 0
 Source: Custom
 
 1. Evaluate the derivative of f(x) = x^3 - 3x + 5 at x = 2.
@@ -207,10 +209,11 @@ export default function UploadPdfModal({ isOpen, onClose, onSuccess }: UploadPdf
                         ['Difficulty:', 'Easy | Medium | Hard'],
                         ['Type:', 'MCQ | Numerical | Integer | Subjective'],
                         ['Marks:', 'Points per question (default: 4)'],
+                        ['Negative Marks:', '0 to -9 (default: 0)'],
                         ['Source:', 'e.g. JEE PYQ, NEET PYQ, Custom (default: PDF Upload)'],
                       ].map(([field, desc]) => (
                         <div key={field} className="flex items-start gap-2 text-xs">
-                          <span className="font-bold text-[#0b1320] w-24 shrink-0">{field}</span>
+                          <span className="font-bold text-[#0b1320] w-32 shrink-0">{field}</span>
                           <span className="text-slate-500">{desc}</span>
                         </div>
                       ))}

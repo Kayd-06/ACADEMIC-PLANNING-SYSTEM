@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { subject, topic, difficulty, type, text, options, correctAnswer, marks, source } = body
+    const { subject, topic, difficulty, type, text, options, correctAnswer, marks, negativeMarks, source } = body
 
     if (!subject?.trim() || !topic?.trim() || !difficulty || !type || !text?.trim()) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
       options: JSON.stringify(Array.isArray(options) ? options.map((o: string) => o.trim()).filter(Boolean) : []),
       correctAnswer: correctAnswer?.trim() || '',
       marks: marks ? Number(marks) : 4,
+      negativeMarks: negativeMarks ? Number(negativeMarks) : 0,
       source: source?.trim() || 'Custom',
       schoolId,
     }).returning()
@@ -101,7 +102,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { id, subject, topic, difficulty, type, text, options, correctAnswer, marks, source } = body
+    const { id, subject, topic, difficulty, type, text, options, correctAnswer, marks, negativeMarks, source } = body
 
     if (!id || !subject?.trim() || !topic?.trim() || !difficulty || !type || !text?.trim()) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -119,6 +120,7 @@ export async function PUT(req: NextRequest) {
       options: JSON.stringify(Array.isArray(options) ? options.map((o: string) => o.trim()).filter(Boolean) : []),
       correctAnswer: correctAnswer?.trim() || '',
       marks: marks ? Number(marks) : 4,
+      negativeMarks: negativeMarks ? Number(negativeMarks) : 0,
       source: source?.trim() || 'Custom',
       updatedAt: new Date(),
     }).where(condition).returning()

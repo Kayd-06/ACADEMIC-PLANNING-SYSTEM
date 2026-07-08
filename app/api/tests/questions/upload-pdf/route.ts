@@ -16,6 +16,7 @@ interface ParsedQuestion {
   options: string[]
   correctAnswer: string
   marks: number
+  negativeMarks: number
   source: string
 }
 
@@ -39,6 +40,7 @@ function parsePdfText(rawText: string): ParsedQuestion[] {
   let difficulty = 'Medium'
   let type = 'MCQ'
   let marks = 4
+  let negativeMarks = 0
   let source = 'PDF Upload'
 
   for (const line of lines) {
@@ -48,6 +50,9 @@ function parsePdfText(rawText: string): ParsedQuestion[] {
     else if (lower.startsWith('difficulty:')) difficulty = line.slice(line.indexOf(':') + 1).trim()
     else if (lower.startsWith('type:'))       type       = line.slice(line.indexOf(':') + 1).trim()
     else if (lower.startsWith('marks:'))      marks      = parseInt(line.slice(line.indexOf(':') + 1).trim()) || 4
+    else if (lower.startsWith('negative marks:') || lower.startsWith('negativemarks:')) {
+      negativeMarks = parseInt(line.slice(line.indexOf(':') + 1).trim()) || 0
+    }
     else if (lower.startsWith('source:'))     source     = line.slice(line.indexOf(':') + 1).trim()
   }
 
@@ -172,6 +177,7 @@ function parsePdfText(rawText: string): ParsedQuestion[] {
       options: opts,
       correctAnswer: answerMap[qNum] ?? '',
       marks,
+      negativeMarks,
       source,
     })
   }
@@ -263,6 +269,7 @@ export async function POST(req: NextRequest) {
         options: JSON.stringify(q.options),
         correctAnswer: q.correctAnswer,
         marks: q.marks,
+        negativeMarks: q.negativeMarks,
         source: q.source,
         schoolId,
       }))

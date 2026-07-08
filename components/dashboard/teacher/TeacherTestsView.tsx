@@ -67,6 +67,7 @@ export default function TeacherTestsView() {
     options: ['', '', '', ''],
     correctAnswer: '',
     marks: '4',
+    negativeMarks: '0',
     source: 'Custom'
   })
 
@@ -115,6 +116,7 @@ export default function TeacherTestsView() {
         body: JSON.stringify({
           ...payload,
           marks: Number(questionForm.marks),
+          negativeMarks: Number(questionForm.negativeMarks),
           options: questionForm.type === 'MCQ' ? questionForm.options : []
         })
       })
@@ -132,6 +134,7 @@ export default function TeacherTestsView() {
           options: ['', '', '', ''],
           correctAnswer: '',
           marks: '4',
+          negativeMarks: '0',
           source: 'Custom'
         })
         loadData()
@@ -219,6 +222,7 @@ export default function TeacherTestsView() {
       options: q.options && q.options.length > 0 ? [...q.options, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
       correctAnswer: q.correctAnswer || '',
       marks: String(q.marks || 4),
+      negativeMarks: String(q.negativeMarks || 0),
       source: q.source || 'Custom'
     })
     setShowQuestionModal(true)
@@ -468,6 +472,7 @@ export default function TeacherTestsView() {
                         options: ['', '', '', ''],
                         correctAnswer: '',
                         marks: '4',
+                        negativeMarks: '0',
                         source: 'Custom'
                       })
                       setShowQuestionModal(true)
@@ -968,15 +973,28 @@ export default function TeacherTestsView() {
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Source *</label>
-                    <input 
-                      type="text" required
-                      value={questionForm.source}
-                      onChange={(e) => setQuestionForm({...questionForm, source: e.target.value})}
-                      placeholder="e.g. JEE PYQ, Custom"
-                      className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors"
-                    />
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Negative Marks *</label>
+                    <select
+                      value={questionForm.negativeMarks}
+                      onChange={(e) => setQuestionForm({...questionForm, negativeMarks: e.target.value})}
+                      className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer"
+                    >
+                      {Array.from({ length: 10 }, (_, i) => -i).map(val => (
+                        <option key={val} value={val}>{val}</option>
+                      ))}
+                    </select>
                   </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Source *</label>
+                  <input 
+                    type="text" required
+                    value={questionForm.source}
+                    onChange={(e) => setQuestionForm({...questionForm, source: e.target.value})}
+                    placeholder="e.g. JEE PYQ, Custom"
+                    className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors"
+                  />
                 </div>
 
                 <div>
