@@ -157,6 +157,114 @@ export const studentBatchEnrollments = pgTable('student_batch_enrollments', {
 export type StudentBatchEnrollment = typeof studentBatchEnrollments.$inferSelect
 export type NewStudentBatchEnrollment = typeof studentBatchEnrollments.$inferInsert
 
+// ── Scheduling & Attendance ──────────────────────────────────────────────
+
+// Weekly recurring timetable entries
+export const classSchedules = pgTable('class_schedules', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  // Teacher, Subject, and Batch links
+  teacherName: varchar('teacher_name', { length: 255 }).notNull().default(''),
+  teacherEmail: varchar('teacher_email', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  batch: varchar('batch', { length: 255 }).notNull(),
+  // Timing and Room assignment (dayOfWeek: 0=Sunday … 6=Saturday)
+  dayOfWeek: integer('day_of_week').notNull(),
+  startTime: varchar('start_time', { length: 20 }).notNull(),
+  endTime: varchar('end_time', { length: 20 }).notNull(),
+  room: varchar('room', { length: 100 }).notNull().default(''),
+  // Effective date range
+  effectiveFrom: varchar('effective_from', { length: 10 }),
+  effectiveTo: varchar('effective_to', { length: 10 }),
+  // Active status toggle
+  isActive: boolean('is_active').notNull().default(true),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type ClassSchedule = typeof classSchedules.$inferSelect
+export type NewClassSchedule = typeof classSchedules.$inferInsert
+
+// One-off sessions: Extra | Doubt | Revision | Makeup | Orientation
+export const specialClasses = pgTable('special_classes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  type: varchar('type', { length: 20 }).notNull().default('Extra'),
+  teacherName: varchar('teacher_name', { length: 255 }).notNull().default(''),
+  teacherEmail: varchar('teacher_email', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull().default(''),
+  batch: varchar('batch', { length: 255 }).notNull().default(''),
+  // Specific date and timing
+  date: varchar('date', { length: 10 }).notNull(),
+  startTime: varchar('start_time', { length: 20 }).notNull(),
+  endTime: varchar('end_time', { length: 20 }).notNull(),
+  room: varchar('room', { length: 100 }).notNull().default(''),
+  notes: text('notes').notNull().default(''),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type SpecialClass = typeof specialClasses.$inferSelect
+export type NewSpecialClass = typeof specialClasses.$inferInsert
+
+// One marked class occurrence — linked to a recurring schedule or a special class
+export const attendanceSessions = pgTable('attendance_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  date: varchar('date', { length: 10 }).notNull(),
+  batch: varchar('batch', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  classTime: varchar('class_time', { length: 50 }).notNull().default(''),
+  scheduleId: uuid('schedule_id').references(() => classSchedules.id, { onDelete: 'set null' }),
+  specialClassId: uuid('special_class_id').references(() => specialClasses.id, { onDelete: 'set null' }),
+  // Marked by Teacher metadata
+  markedByName: varchar('marked_by_name', { length: 255 }).notNull().default(''),
+  markedByEmail: varchar('marked_by_email', { length: 255 }).notNull().default(''),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type AttendanceSession = typeof attendanceSessions.$inferSelect
+export type NewAttendanceSession = typeof attendanceSessions.$inferInsert
+
+// Per-class student tracking: Present | Absent | Late | Excused
+export const attendanceEntries = pgTable('attendance_entries', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sessionId: uuid('session_id').notNull().references(() => attendanceSessions.id, { onDelete: 'cascade' }),
+  studentId: uuid('student_id').references(() => students.id, { onDelete: 'set null' }),
+  studentName: varchar('student_name', { length: 255 }).notNull(),
+  rollNo: varchar('roll_no', { length: 100 }).notNull().default(''),
+  status: varchar('status', { length: 10 }).notNull().default('Present'),
+  notes: varchar('notes', { length: 500 }).notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type AttendanceEntry = typeof attendanceEntries.$inferSelect
+export type NewAttendanceEntry = typeof attendanceEntries.$inferInsert
+
+// Academic calendar: Holidays, Exams, and Events
+export const calendarEvents = pgTable('calendar_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description').notNull().default(''),
+  // Event types: Holiday | Exam/Test | Parent Meeting | Meeting | Event
+  type: varchar('type', { length: 30 }).notNull().default('Event'),
+  // Scope: School-wide | Program | Batch (scopeValue holds the program/batch name)
+  scope: varchar('scope', { length: 255 }).notNull().default('School-wide'),
+  scopeValue: varchar('scope_value', { length: 255 }).notNull().default(''),
+  // Start and End dates
+  date: varchar('date', { length: 10 }).notNull(),
+  endDate: varchar('end_date', { length: 10 }),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type CalendarEvent = typeof calendarEvents.$inferSelect
+export type NewCalendarEvent = typeof calendarEvents.$inferInsert
+
 export const counselingSessionTypeEnum = pgEnum('counseling_session_type', ['Academic', 'Career', 'Personal', 'Disciplinary', 'Parent Meeting'])
 export const counselingSessionStatusEnum = pgEnum('counseling_session_status', ['Scheduled', 'Completed', 'No-Show', 'Cancelled'])
 

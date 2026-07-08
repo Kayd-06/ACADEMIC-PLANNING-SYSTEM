@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
-import Attendance from '@/models/Attendance'
 import { auth } from '@/lib/auth'
-import { countStudentsByClasses, findStudentsByClasses, upsertStudentByRollClassSection } from '@/lib/db/queries/students'
+import { db } from '@/lib/db'
+import { attendanceSessions, attendanceEntries, classSchedules, specialClasses } from '@/lib/db/schema'
+import { eq, and } from 'drizzle-orm'
+import { findStudentsByClasses } from '@/lib/db/queries/students'
 
 export const dynamic = 'force-dynamic'
+
+const STATUSES = ['Present', 'Absent', 'Late', 'Excused']
 
 // Helper to map UI Batch dropdown values to DB Student Class formats
 function resolveClassFromBatch(batch: string): string {
   let cls = batch.trim()
   if (cls.toLowerCase().startsWith('grade ')) {
-    cls = cls.substring(6) // remove 'Grade '
+    cls = cls.substring(6)
   }
-  // Convert '11-A' or '10-B' to '11 - A' or '10 - B'
   if (/^\d+-[A-Z]$/.test(cls)) {
     const parts = cls.split('-')
     cls = `${parts[0]} - ${parts[1]}`
@@ -20,13 +22,44 @@ function resolveClassFromBatch(batch: string): string {
   return cls
 }
 
-// GET — load marked attendance OR default class list
+function sessionCondition(date: string, batch: string, subject: string, schoolId: string | null) {
+  const conditions = [
+    eq(attendanceSessions.date, date),
+    eq(attendanceSessions.batch, batch),
+    eq(attendanceSessions.subject, subject),
+  ]
+  if (schoolId) conditions.push(eq(attendanceSessions.schoolId, schoolId))
+  return and(...conditions)
+}
+
+// Best-effort link to the recurring schedule slot or special class for this occurrence
+async function findLinkedClass(date: string, batch: string, subject: string, schoolId: string | null) {
+  const dayOfWeek = new Date(date).getDay()
+
+  const scheduleConditions = [
+    eq(classSchedules.batch, batch),
+    eq(classSchedules.subject, subject),
+    eq(classSchedules.dayOfWeek, dayOfWeek),
+    eq(classSchedules.isActive, true),
+  ]
+  if (schoolId) scheduleConditions.push(eq(classSchedules.schoolId, schoolId))
+  const [schedule] = await db.select().from(classSchedules).where(and(...scheduleConditions)).limit(1)
+  if (schedule) return { scheduleId: schedule.id, specialClassId: null, classTime: `${schedule.startTime} - ${schedule.endTime}` }
+
+  const specialConditions = [eq(specialClasses.date, date), eq(specialClasses.batch, batch)]
+  if (schoolId) specialConditions.push(eq(specialClasses.schoolId, schoolId))
+  const [special] = await db.select().from(specialClasses).where(and(...specialConditions)).limit(1)
+  if (special) return { scheduleId: null, specialClassId: special.id, classTime: `${special.startTime} - ${special.endTime}` }
+
+  return { scheduleId: null, specialClassId: null, classTime: '' }
+}
+
+// GET — load marked attendance sheet OR a fresh template for the batch roster
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    await connectDB()
+    const schoolId = (session.user as any).schoolId as string | null
 
     const { searchParams } = new URL(req.url)
     const date = searchParams.get('date')
@@ -37,78 +70,54 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing query parameters: date, batch, subject' }, { status: 400 })
     }
 
-    // Seeding check: Ensure student roster exists for classes 11-A, 11-B, etc.
-    const targetClassCount = await countStudentsByClasses(['11 - A', '11 - B', '10 - A', '10 - B', 'Grade 11-A', 'Grade 11-B'])
-    if (targetClassCount < 10) {
-      const firstNames = ['Karan', 'Isha', 'Rohan', 'Meera', 'Amit', 'Neha', 'Rahul', 'Priya', 'Sanjay', 'Deepa', 'Vijay', 'Anjali', 'Rajesh', 'Sunita', 'Vikram', 'Kavita', 'Arjun', 'Pooja', 'Aditya', 'Ritu']
-      const lastNames = ['Sharma', 'Patel', 'Gupta', 'Kumar', 'Verma', 'Singh', 'Joshi', 'Mehta', 'Shah', 'Rao', 'Nair', 'Das', 'Sen', 'Reddy', 'Gowda', 'Mishra', 'Trivedi', 'Pandey', 'Choudhury', 'Gill']
-
-      const newStudentsData = []
-
-      // Explicitly insert Kunal Singhi in 11 - B to match search criteria
-      newStudentsData.push({
-        name: 'Kunal Singhi',
-        rollNo: '11B-001',
-        class: '11 - B',
-        section: 'B',
-        parentContact: '+91 98765 43210',
-        isActive: true
-      })
-
-      for (let i = 0; i < 50; i++) {
-        const fn = firstNames[i % firstNames.length]
-        const ln = lastNames[i % lastNames.length]
-        const classNum = i % 2 === 0 ? '11' : '10'
-        const sec = i % 3 === 0 ? 'A' : 'B'
-        const rollNum = `${classNum}${sec}-${String(i + 2).padStart(3, '0')}`
-
-        newStudentsData.push({
-          name: `${fn} ${ln}`,
-          rollNo: rollNum,
-          class: `${classNum} - ${sec}`,
-          section: sec,
-          parentContact: `+91 98765 ${String(10000 + i)}`,
-          isActive: true
-        })
-      }
-      for (const studentData of newStudentsData) {
-        await upsertStudentByRollClassSection(studentData)
-      }
-    }
-
-    // Try finding an existing marked attendance sheet
-    const existing = await Attendance.findOne({ date, batch, subject }).lean()
-
+    // Existing marked sheet?
+    const [existing] = await db.select().from(attendanceSessions)
+      .where(sessionCondition(date, batch, subject, schoolId))
     if (existing) {
-      if (existing.records && Array.isArray(existing.records)) {
-        existing.records.sort((a: any, b: any) => a.studentName.localeCompare(b.studentName))
-      }
-      return NextResponse.json(existing)
+      const entries = await db.select().from(attendanceEntries)
+        .where(eq(attendanceEntries.sessionId, existing.id))
+      entries.sort((a, b) => a.studentName.localeCompare(b.studentName))
+      return NextResponse.json({
+        _id: existing.id,
+        date: existing.date,
+        batch: existing.batch,
+        subject: existing.subject,
+        classTime: existing.classTime,
+        markedByName: existing.markedByName,
+        markedByEmail: existing.markedByEmail,
+        scheduleId: existing.scheduleId,
+        specialClassId: existing.specialClassId,
+        records: entries.map(e => ({
+          studentId: e.studentId,
+          studentName: e.studentName,
+          rollNo: e.rollNo,
+          status: e.status,
+          notes: e.notes,
+        })),
+      })
     }
 
-    // If no sheet exists, load all active students of this batch to mark attendance
+    // Fresh template from the batch roster
     const resolvedClass = resolveClassFromBatch(batch)
-    const students = await findStudentsByClasses([resolvedClass, batch], true)
-
-    const defaultRecords = students.map((st) => ({
+    const students = await findStudentsByClasses([resolvedClass, batch], true, schoolId)
+    const defaultRecords = students.map(st => ({
       studentId: st.id,
       studentName: st.name,
       rollNo: st.rollNo || '',
-      status: '', // initially empty/unmarked
-      notes: ''
+      status: '', // unmarked
+      notes: '',
     }))
-    
-    // Sort default records alphabetically by studentName
     defaultRecords.sort((a, b) => a.studentName.localeCompare(b.studentName))
 
-    // Return template attendance sheet
+    const linked = await findLinkedClass(date, batch, subject, schoolId)
+
     return NextResponse.json({
       date,
       batch,
       subject,
-      classTime: '09:00 AM - 10:00 AM', // default mock slot
+      classTime: linked.classTime || '09:00 AM - 10:00 AM',
       records: defaultRecords,
-      isNew: true
+      isNew: true,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -120,11 +129,11 @@ export async function POST(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if ((session.user as any).role !== 'teacher' && (session.user as any).role !== 'management') {
+    const role = (session.user as any).role
+    if (role !== 'teacher' && role !== 'management') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-
-    await connectDB()
+    const schoolId = (session.user as any).schoolId as string | null
 
     const body = await req.json()
     const { date, batch, subject, classTime, records } = body
@@ -132,27 +141,64 @@ export async function POST(req: NextRequest) {
     if (!date || !batch || !subject || !records || !Array.isArray(records)) {
       return NextResponse.json({ error: 'Missing required body parameters.' }, { status: 400 })
     }
+    for (const r of records) {
+      if (r.status && !STATUSES.includes(r.status)) {
+        return NextResponse.json({ error: `Invalid status "${r.status}" — must be one of: ${STATUSES.join(', ')}` }, { status: 400 })
+      }
+    }
 
-    // Upsert the marked attendance document
-    const attendance = await Attendance.findOneAndUpdate(
-      { date, batch, subject },
-      {
-        date,
-        batch,
-        subject,
-        classTime: classTime || '09:00 AM - 10:00 AM',
-        records: records.map((r: any) => ({
-          studentId: r.studentId,
-          studentName: r.studentName,
-          rollNo: r.rollNo || '',
-          status: r.status || '',
-          notes: r.notes || ''
-        }))
-      },
-      { new: true, upsert: true }
-    )
+    const linked = await findLinkedClass(date, batch, subject, schoolId)
 
-    return NextResponse.json(attendance, { status: 200 })
+    // Upsert the session
+    const [existing] = await db.select().from(attendanceSessions)
+      .where(sessionCondition(date, batch, subject, schoolId))
+
+    let sessionId: string
+    if (existing) {
+      sessionId = existing.id
+      await db.update(attendanceSessions).set({
+        classTime: classTime || existing.classTime,
+        markedByName: session.user.name ?? '',
+        markedByEmail: session.user.email ?? '',
+        scheduleId: linked.scheduleId,
+        specialClassId: linked.specialClassId,
+        updatedAt: new Date(),
+      }).where(eq(attendanceSessions.id, sessionId))
+      // Replace entries wholesale — simplest correct upsert
+      await db.delete(attendanceEntries).where(eq(attendanceEntries.sessionId, sessionId))
+    } else {
+      const [created] = await db.insert(attendanceSessions).values({
+        date, batch, subject,
+        classTime: classTime || linked.classTime || '09:00 AM - 10:00 AM',
+        markedByName: session.user.name ?? '',
+        markedByEmail: session.user.email ?? '',
+        scheduleId: linked.scheduleId,
+        specialClassId: linked.specialClassId,
+        schoolId,
+      }).returning()
+      sessionId = created.id
+    }
+
+    if (records.length > 0) {
+      await db.insert(attendanceEntries).values(records.map((r: any) => ({
+        sessionId,
+        studentId: r.studentId || null,
+        studentName: r.studentName,
+        rollNo: r.rollNo || '',
+        status: r.status || 'Absent',
+        notes: r.notes || '',
+      })))
+    }
+
+    const entries = await db.select().from(attendanceEntries).where(eq(attendanceEntries.sessionId, sessionId))
+    return NextResponse.json({
+      _id: sessionId, date, batch, subject,
+      classTime: classTime || linked.classTime,
+      markedByName: session.user.name ?? '',
+      records: entries.map(e => ({
+        studentId: e.studentId, studentName: e.studentName, rollNo: e.rollNo, status: e.status, notes: e.notes,
+      })),
+    })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
