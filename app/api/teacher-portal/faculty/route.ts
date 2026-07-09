@@ -20,7 +20,12 @@ function pickFields(body: any): Partial<NewFaculty> {
   for (const f of FIELDS) {
     if (body[f] !== undefined) data[f] = typeof body[f] === 'string' ? body[f].trim() : body[f]
   }
-  if (data.experienceYears !== undefined) data.experienceYears = Number(data.experienceYears) || null
+  if (data.experienceYears !== undefined) {
+    data.experienceYears = Number(data.experienceYears) || null
+    // Keep the legacy display string (faculty.experience, used by the Faculty
+    // Directory table) in sync so it never drifts from experienceYears.
+    data.experience = data.experienceYears != null ? `${data.experienceYears} years` : ''
+  }
   if (data.batches !== undefined) data.batches = Number(data.batches) || 0
   // Keep legacy status enum and isActive in sync
   if (data.isActive !== undefined && data.status === undefined) data.status = data.isActive ? 'ACTIVE' : 'INACTIVE'

@@ -20,7 +20,12 @@ function pickSelfEditFields(body: any): Partial<NewFaculty> {
   for (const f of SELF_EDIT_FIELDS) {
     if (body[f] !== undefined) data[f] = typeof body[f] === 'string' ? body[f].trim() : body[f]
   }
-  if (data.experienceYears !== undefined) data.experienceYears = data.experienceYears === '' ? null : Number(data.experienceYears)
+  if (data.experienceYears !== undefined) {
+    data.experienceYears = data.experienceYears === '' ? null : Number(data.experienceYears)
+    // Keep the legacy display string (faculty.experience, used by the Faculty
+    // Directory table) in sync — the edit form only collects years.
+    data.experience = data.experienceYears != null ? `${data.experienceYears} years` : ''
+  }
   if (data.batches !== undefined) data.batches = Number(data.batches) || 0
   return data
 }
