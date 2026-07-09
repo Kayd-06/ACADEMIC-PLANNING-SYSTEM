@@ -111,7 +111,17 @@ export default function TeacherPortalView() {
 
   // Row 3-dot menu
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [menuPlacement, setMenuPlacement] = useState<'up' | 'down'>('down')
   const menuRef = useRef<HTMLTableSectionElement>(null)
+
+  const MENU_HEIGHT_ESTIMATE = 130
+
+  function toggleRowMenu(e: React.MouseEvent<HTMLButtonElement>, id: string) {
+    if (openMenuId === id) { setOpenMenuId(null); return }
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMenuPlacement(window.innerHeight - rect.bottom < MENU_HEIGHT_ESTIMATE ? 'up' : 'down')
+    setOpenMenuId(id)
+  }
 
   // Add Faculty modal
   const [showAddFaculty, setShowAddFaculty] = useState(false)
@@ -449,7 +459,11 @@ export default function TeacherPortalView() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`px-2.5 py-1 text-[10px] font-bold rounded border uppercase tracking-wider ${fac.specTheme === 'green' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : fac.specTheme === 'purple' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{fac.spec}</span>
+                          {fac.spec ? (
+                            <span className={`px-2.5 py-1 text-[10px] font-bold rounded border uppercase tracking-wider ${fac.specTheme === 'green' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : fac.specTheme === 'purple' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{fac.spec}</span>
+                          ) : (
+                            <span className="text-[12px] text-slate-300">—</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-center">
                           <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[11px] font-bold mx-auto">{fac.batches}</div>
@@ -460,14 +474,14 @@ export default function TeacherPortalView() {
                         </td>
                         <td className="px-4 py-4">
                           <div className="relative">
-                            <button onClick={() => setOpenMenuId(openMenuId === fac._id ? null : fac._id)}
+                            <button onClick={(e) => toggleRowMenu(e, fac._id)}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
                               <MoreVertical className="w-4 h-4" />
                             </button>
                             <AnimatePresence>
                               {openMenuId === fac._id && (
                                 <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                                  className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-lg border border-slate-200 z-30 py-1 overflow-hidden">
+                                  className={`absolute right-0 w-32 bg-white rounded-xl shadow-lg border border-slate-200 z-30 py-1 overflow-hidden ${menuPlacement === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
                                   <button onClick={() => openProfile(fac)} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
                                     <User className="w-3.5 h-3.5" /> Profile
                                   </button>
