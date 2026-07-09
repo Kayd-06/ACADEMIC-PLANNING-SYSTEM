@@ -39,11 +39,13 @@ export const authConfig: NextAuthConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user?.id
       const role = (auth?.user as any)?.role as string | undefined
+      const schoolId = (auth?.user as any)?.schoolId as string | null | undefined
       const path = nextUrl.pathname
 
       const isAuthPage = path.startsWith('/login') || path.startsWith('/signup')
       const isTeacher = path.startsWith('/teacher')
       const isManagement = path.startsWith('/management')
+      const isOnboarding = path === '/management/onboarding'
       const isDashboard = isTeacher || isManagement
 
       if (isAuthPage && isLoggedIn && role) {
@@ -57,6 +59,13 @@ export const authConfig: NextAuthConfig = {
       }
       if (isManagement && role !== 'management') {
         return Response.redirect(new URL('/teacher', nextUrl))
+      }
+      // Management accounts with no school yet must finish onboarding first
+      if (isManagement && role === 'management' && !schoolId && !isOnboarding) {
+        return Response.redirect(new URL('/management/onboarding', nextUrl))
+      }
+      if (isOnboarding && schoolId) {
+        return Response.redirect(new URL('/management', nextUrl))
       }
       return true
     },

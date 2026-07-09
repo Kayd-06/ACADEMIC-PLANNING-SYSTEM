@@ -191,7 +191,7 @@ function TeacherForm({ onBack }: { onBack: () => void }) {
 // ─── Management signup ────────────────────────────────────────────────────────
 
 function ManagementForm({ onBack, onSuccess }: { onBack: () => void, onSuccess: () => void }) {
-  const [form, setForm] = useState({ name: '', email: '', password: '', employeeId: '', inviteCode: '', joinCode: '' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', employeeId: '', inviteCode: '' })
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -228,7 +228,7 @@ function ManagementForm({ onBack, onSuccess }: { onBack: () => void, onSuccess: 
           <FieldInput icon={<Lock className="w-4 h-4" />} type="password" value={form.password} onChange={set('password')} required placeholder="Password (min. 8 chars)" minLength={8} />
           <FieldInput icon={<Building2 className="w-4 h-4" />} type="text" value={form.employeeId} onChange={set('employeeId')} placeholder="Employee ID (optional)" />
           <FieldInput icon={<Lock className="w-4 h-4" />} type="text" value={form.inviteCode} onChange={set('inviteCode')} required placeholder="Admin invite code" />
-          <FieldInput icon={<Hash className="w-4 h-4" />} type="text" value={form.joinCode} onChange={set('joinCode')} placeholder="School join code (e.g. EDUA-4821)" />
+          <p className="text-[11px] text-gray-400 px-0.5">You'll create or join your school right after signing in.</p>
           <div className="pt-1"><PrimaryBtn loading={loading}>Create Account</PrimaryBtn></div>
         </form>
       )}

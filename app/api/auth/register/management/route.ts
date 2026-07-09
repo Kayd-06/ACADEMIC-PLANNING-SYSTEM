@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { findUserByEmail, createUser } from '@/lib/db/queries/users'
-import { db } from '@/lib/db'
-import { schools } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
-import { addSchoolToAdmin } from '@/lib/db/queries/adminSchools'
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password, employeeId, inviteCode, joinCode } = await req.json()
+    const { name, email, password, employeeId, inviteCode } = await req.json()
 
     if (!name || !email || !password || !inviteCode) {
       return NextResponse.json({ error: 'All fields including invite code are required' }, { status: 400 })
@@ -20,34 +16,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
     }
 
-    let schoolId: string | null = null
-    if (joinCode) {
-      const [school] = await db.select().from(schools).where(eq(schools.joinCode, joinCode.trim().toUpperCase()))
-      if (!school) return NextResponse.json({ error: 'Invalid school join code' }, { status: 400 })
-      if (!school.isActive) return NextResponse.json({ error: 'This school is not currently active' }, { status: 403 })
-      schoolId = school.id
-    }
-
     const existing = await findUserByEmail(email)
     if (existing) {
       return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 })
     }
 
     const hashedPassword = await bcrypt.hash(password, 12)
-    const user = await createUser({
+    // No school is linked at signup — the admin creates or joins one from the
+    // onboarding screen on first login (see /management/onboarding).
+    await createUser({
       name,
       email,
       password: hashedPassword,
       role: 'management',
       status: 'active',
       employeeId,
-      schoolId,
-      activeSchoolId: schoolId,
+      schoolId: null,
+      activeSchoolId: null,
     })
-
-    if (schoolId && user?.id) {
-      await addSchoolToAdmin(user.id, schoolId, 'member')
-    }
 
     return NextResponse.json(
       { message: 'Management account created successfully. You can now log in.' },
