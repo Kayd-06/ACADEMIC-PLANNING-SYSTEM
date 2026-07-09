@@ -750,3 +750,76 @@ export const questions = pgTable('questions', {
 
 export type Question = typeof questions.$inferSelect
 export type NewQuestion = typeof questions.$inferInsert
+
+// ── Finance & Fee Management ──────────────────────────────────────────────────
+
+export const feeStructures = pgTable('fee_structures', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  // Fee Types: Registration Fee, Monthly Tuition, Exam Fee, Material Fee, Other
+  feeType: varchar('fee_type', { length: 100 }).notNull().default('Monthly Tuition'),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description').default(''),
+  
+  // Financial Details
+  amount: integer('amount').notNull().default(0),
+  frequency: varchar('frequency', { length: 50 }).notNull().default('Monthly'), // One-time, Monthly, Quarterly, Yearly
+  dueDay: integer('due_day').notNull().default(5), // 1-31
+  isMandatory: boolean('is_mandatory').notNull().default(true),
+  
+  // Scope and Relations
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  programAssociation: varchar('program_association', { length: 255 }).notNull().default('All Programs'),
+  batchAssociation: varchar('batch_association', { length: 255 }).notNull().default('All Batches'),
+  academicYear: varchar('academic_year', { length: 50 }).notNull().default('2024-25'),
+  
+  // Status
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type FeeStructure = typeof feeStructures.$inferSelect
+export type NewFeeStructure = typeof feeStructures.$inferInsert
+
+export const feePayments = pgTable('fee_payments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  
+  // Student Records
+  studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }),
+  studentName: varchar('student_name', { length: 255 }).notNull(),
+  rollNo: varchar('roll_no', { length: 100 }).default(''),
+  class: varchar('class', { length: 100 }).default(''),
+  section: varchar('section', { length: 100 }).default(''),
+  
+  // Fee Structure Link
+  feeStructureId: uuid('fee_structure_id').references(() => feeStructures.id, { onDelete: 'set null' }),
+  feeName: varchar('fee_name', { length: 255 }).notNull(),
+  feeType: varchar('fee_type', { length: 100 }).notNull().default('Monthly Tuition'),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  
+  // Transaction Details
+  amountDue: integer('amount_due').notNull().default(0),
+  amountPaid: integer('amount_paid').notNull().default(0),
+  discount: integer('discount').notNull().default(0),
+  lateFee: integer('late_fee').notNull().default(0),
+  
+  // Payment Logistics
+  paymentMethod: varchar('payment_method', { length: 50 }).default('UPI'), // Cash, Online, Cheque, DD, UPI, Card, Net Banking
+  transactionId: varchar('transaction_id', { length: 255 }).default(''),
+  receiptNumber: varchar('receipt_number', { length: 100 }).notNull().unique(),
+  recordedBy: uuid('recorded_by').references(() => users.id, { onDelete: 'set null' }),
+  recordedByName: varchar('recorded_by_name', { length: 255 }).default('Management'),
+  
+  // Timeline and Status
+  dueDate: varchar('due_date', { length: 50 }).notNull(), // YYYY-MM-DD
+  paidDate: varchar('paid_date', { length: 50 }).default(''), // YYYY-MM-DD or empty
+  status: varchar('status', { length: 50 }).notNull().default('Pending'), // Pending, Partial, Paid, Overdue, Waived
+  notes: text('notes').default(''),
+  
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type FeePayment = typeof feePayments.$inferSelect
+export type NewFeePayment = typeof feePayments.$inferInsert
+
