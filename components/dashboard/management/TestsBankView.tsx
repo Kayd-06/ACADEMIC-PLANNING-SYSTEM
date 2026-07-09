@@ -71,7 +71,7 @@ export default function TestsBankView() {
   // Form states
   const [testForm, setTestForm] = useState({
     title: '',
-    batch: 'JEE 2026-A',
+    batch: '',
     subject: 'Physics (PHY-101)',
     date: '',
     time: '10:00 AM',
@@ -90,6 +90,8 @@ export default function TestsBankView() {
     marks: '4',
     negativeMarks: '0'
   })
+
+  const [availableBatches, setAvailableBatches] = useState<string[]>([])
 
   // Pagination for questions
   const [questionPage, setQuestionPage] = useState(1)
@@ -118,6 +120,17 @@ export default function TestsBankView() {
       if (!questionsData.error) {
         setQuestions(questionsData)
       }
+
+      const bRes = await fetch('/api/daily-report', { method: 'PUT' })
+      const bData = await bRes.json()
+      if (Array.isArray(bData)) {
+        setAvailableBatches(bData)
+        if (bData.length > 0) {
+          setTestForm(prev => ({ ...prev, batch: bData[0] }))
+        } else {
+          setTestForm(prev => ({ ...prev, batch: '' }))
+        }
+      }
     } catch (err) {
       console.error(err)
     } finally {
@@ -143,7 +156,7 @@ export default function TestsBankView() {
         setShowTestModal(false)
         setTestForm({
           title: '',
-          batch: 'JEE 2026-A',
+          batch: availableBatches[0] || '',
           subject: 'Physics (PHY-101)',
           date: '',
           time: '10:00 AM',
@@ -744,10 +757,12 @@ export default function TestsBankView() {
                       onChange={(e) => setTestForm({...testForm, batch: e.target.value})}
                       className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer"
                     >
-                      <option value="JEE 2026-A">JEE 2026-A</option>
-                      <option value="NEET 2025-B">NEET 2025-B</option>
-                      <option value="JEE 2024-C">JEE 2024-C</option>
-                      <option value="Foundation-X">Foundation-X</option>
+                      {availableBatches.map(b => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                      {availableBatches.length === 0 && (
+                        <option value="">No batches available</option>
+                      )}
                     </select>
                   </div>
 

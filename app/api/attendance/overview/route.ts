@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { attendanceSessions, attendanceEntries } from '@/lib/db/schema'
+import { attendanceSessions, attendanceEntries, students } from '@/lib/db/schema'
 import { eq, and, gte, lte, inArray } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
@@ -37,10 +37,22 @@ export async function GET(req: NextRequest) {
     if (schoolId) conditions.push(eq(attendanceSessions.schoolId, schoolId))
     if (batchFilter !== 'All') {
       conditions.push(eq(attendanceSessions.batch, batchFilter))
-    } else if (program === 'JEE Integrated') {
-      conditions.push(inArray(attendanceSessions.batch, ['Grade 11-A', 'Grade 11-B']))
-    } else if (program === 'Foundational') {
-      conditions.push(inArray(attendanceSessions.batch, ['Grade 10-A', 'Grade 10-B']))
+    } else if (program !== 'All') {
+      const studentBatches = await db.selectDistinct({ batch: students.batch })
+        .from(students)
+        .where(
+          and(
+            eq(students.program, program),
+            eq(students.isActive, true),
+            ...(schoolId ? [eq(students.schoolId, schoolId)] : [])
+          )
+        )
+      const programBatches = studentBatches.map(b => b.batch).filter(Boolean)
+      if (programBatches.length > 0) {
+        conditions.push(inArray(attendanceSessions.batch, programBatches))
+      } else {
+        conditions.push(eq(attendanceSessions.batch, 'non-existent-batch-force-empty'))
+      }
     }
 
     const sessions = await db.select().from(attendanceSessions).where(and(...conditions))
@@ -132,6 +144,17 @@ export async function GET(req: NextRequest) {
     const trendVal = Number((overallRate - 90.3).toFixed(1))
     const trend = totalRecords > 0 ? (trendVal >= 0 ? `+${trendVal}%` : `${trendVal}%`) : '—'
 
+    const batchConditions = [
+      eq(students.isActive, true)
+    ]
+    if (schoolId) batchConditions.push(eq(students.schoolId, schoolId))
+    if (program !== 'All') batchConditions.push(eq(students.program, program))
+
+    const batchRows = await db.selectDistinct({ batch: students.batch })
+      .from(students)
+      .where(and(...batchConditions))
+    const distinctBatches = batchRows.map(r => r.batch).filter(Boolean).sort()
+
     return NextResponse.json({
       overallRate,
       trend,
@@ -140,6 +163,7 @@ export async function GET(req: NextRequest) {
       heatmap,
       batchesAttention: batchesAttention.slice(0, 4),
       studentTable: studentTableData,
+      distinctBatches,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

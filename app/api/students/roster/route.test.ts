@@ -1,5 +1,9 @@
 import { db } from '@/lib/db'
 import { students } from '@/lib/db/schema'
+jest.mock('@/lib/auth', () => ({
+  auth: jest.fn(() => Promise.resolve({ user: { id: 'test-user', schoolId: null, role: 'teacher' } })),
+}))
+
 import { GET } from './route'
 
 function req() {

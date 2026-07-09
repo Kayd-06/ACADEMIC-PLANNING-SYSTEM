@@ -41,7 +41,8 @@ export default function AttendanceOverviewView() {
     perfectAttendanceCount: 142,
     heatmap: [],
     batchesAttention: [],
-    studentTable: []
+    studentTable: [],
+    distinctBatches: []
   })
   
   const [loading, setLoading] = useState(true)
@@ -162,22 +163,13 @@ export default function AttendanceOverviewView() {
               <select
                 value={batch}
                 onChange={(e) => setBatch(e.target.value)}
-                disabled={program !== 'All' && program !== 'JEE Integrated' && program !== 'Foundational'}
+                disabled={!data.distinctBatches || data.distinctBatches.length === 0}
                 className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold outline-none focus:border-slate-400 cursor-pointer appearance-none disabled:opacity-50"
               >
                 <option value="All">All Batches</option>
-                {program === 'All' || program === 'JEE Integrated' ? (
-                  <>
-                    <option value="Grade 11-A">Grade 11-A</option>
-                    <option value="Grade 11-B">Grade 11-B</option>
-                  </>
-                ) : null}
-                {program === 'All' || program === 'Foundational' ? (
-                  <>
-                    <option value="Grade 10-A">Grade 10-A</option>
-                    <option value="Grade 10-B">Grade 10-B</option>
-                  </>
-                ) : null}
+                {data.distinctBatches?.map((b: string) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
               </select>
               <Filter className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>

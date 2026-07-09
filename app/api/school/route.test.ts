@@ -13,7 +13,10 @@ describe('GET /api/school', () => {
     await db.delete(schools)
   })
 
-  it('returns a default school row, creating one if none exists', async () => {
+  it('returns school details by session schoolId', async () => {
+    const [school] = await db.insert(schools).values({ name: 'Academic Planning System' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: 'test-user', role: 'management', schoolId: school.id } })
+    
     const res = await GET()
     const body = await res.json()
     expect(res.status).toBe(200)
@@ -37,7 +40,8 @@ describe('PATCH /api/school', () => {
   })
 
   it('rejects when the session role is not management', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'teacher' } })
+    const [school] = await db.insert(schools).values({ name: 'School' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'teacher', schoolId: school.id } })
     const req = new Request('http://localhost/api/school', {
       method: 'PATCH',
       body: JSON.stringify({ board: 'ICSE Affiliated' }),
@@ -47,7 +51,8 @@ describe('PATCH /api/school', () => {
   })
 
   it('updates the school when the session role is management', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const [school] = await db.insert(schools).values({ name: 'Old School' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: school.id } })
     const req = new Request('http://localhost/api/school', {
       method: 'PATCH',
       body: JSON.stringify({ board: 'ICSE Affiliated' }),

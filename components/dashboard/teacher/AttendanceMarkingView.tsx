@@ -42,7 +42,8 @@ function getInitials(name: string) {
 export default function AttendanceMarkingView() {
   const { showAlert } = useAlert()
   // Selection states
-  const [selectedBatch, setSelectedBatch] = useState('Grade 11-A')
+  const [selectedBatch, setSelectedBatch] = useState('')
+  const [availableBatches, setAvailableBatches] = useState<string[]>([])
   const [selectedSubject, setSelectedSubject] = useState('Physics (PHY-101)')
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date()
@@ -59,8 +60,27 @@ export default function AttendanceMarkingView() {
   const [activeNoteRecordIdx, setActiveNoteRecordIdx] = useState<number | null>(null)
   const [noteText, setNoteText] = useState('')
 
+  useEffect(() => {
+    fetch('/api/daily-report', { method: 'PUT' })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setAvailableBatches(data)
+          if (data.length > 0) {
+            setSelectedBatch(data[0])
+          }
+        }
+      })
+      .catch((err) => console.error(err))
+  }, [])
+
   // Fetch student roster or marked sheet on selection changes
   async function fetchAttendanceSheet() {
+    if (!selectedBatch) {
+      setRecords([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const res = await fetch(`/api/attendance?date=${selectedDate}&batch=${encodeURIComponent(selectedBatch)}&subject=${encodeURIComponent(selectedSubject)}`)
@@ -226,12 +246,15 @@ export default function AttendanceMarkingView() {
               <select
                 value={selectedBatch}
                 onChange={(e) => setSelectedBatch(e.target.value)}
-                className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-sm font-semibold outline-none focus:border-slate-400 transition-colors cursor-pointer appearance-none"
+                disabled={availableBatches.length === 0}
+                className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-sm font-semibold outline-none focus:border-slate-400 transition-colors cursor-pointer appearance-none disabled:opacity-50"
               >
-                <option value="Grade 11-A">Grade 11-A</option>
-                <option value="Grade 11-B">Grade 11-B</option>
-                <option value="Grade 10-A">Grade 10-A</option>
-                <option value="Grade 10-B">Grade 10-B</option>
+                {availableBatches.map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+                {availableBatches.length === 0 && (
+                  <option value="">No batches available</option>
+                )}
               </select>
               <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>

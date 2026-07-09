@@ -38,6 +38,7 @@ export default function TeacherTestsView() {
   const [subjectFilter, setSubjectFilter] = useState('All')
   const [chapterFilter, setChapterFilter] = useState('All')
   const [difficultyFilter, setDifficultyFilter] = useState('All')
+  const [availableBatches, setAvailableBatches] = useState<string[]>([])
 
   // Test Filters
   const [testBatchFilter, setTestBatchFilter] = useState('All')
@@ -74,7 +75,7 @@ export default function TeacherTestsView() {
   // Test Form State
   const [testForm, setTestForm] = useState({
     title: '',
-    batch: 'JEE 2026-A',
+    batch: '',
     subject: 'Physics (PHY-101)',
     date: '',
     time: '10:00 AM',
@@ -93,8 +94,19 @@ export default function TeacherTestsView() {
       const tRes = await fetch('/api/tests/schedule')
       const tData = await tRes.json()
       if (!tData.error) setTests(tData)
+
+      const bRes = await fetch('/api/daily-report', { method: 'PUT' })
+      const bData = await bRes.json()
+      if (Array.isArray(bData)) {
+        setAvailableBatches(bData)
+        if (bData.length > 0) {
+          setTestForm(prev => ({ ...prev, batch: bData[0] }))
+        } else {
+          setTestForm(prev => ({ ...prev, batch: '' }))
+        }
+      }
     } catch (err) {
-      console.error('Error loading tests/questions:', err)
+      console.error('Error loading tests/questions/batches:', err)
     } finally {
       setLoading(false)
     }
@@ -250,7 +262,7 @@ export default function TeacherTestsView() {
         setEditingTest(null)
         setTestForm({
           title: '',
-          batch: 'JEE 2026-A',
+          batch: availableBatches[0] || '',
           subject: 'Physics (PHY-101)',
           date: '',
           time: '10:00 AM',
@@ -673,7 +685,7 @@ export default function TeacherTestsView() {
                     setEditingTest(null)
                     setTestForm({
                       title: '',
-                      batch: 'JEE 2026-A',
+                      batch: availableBatches[0] || '',
                       subject: 'Physics (PHY-101)',
                       date: '',
                       time: '10:00 AM',
@@ -711,10 +723,9 @@ export default function TeacherTestsView() {
                       className="text-[11px] font-semibold text-slate-700 bg-transparent outline-none cursor-pointer"
                     >
                       <option value="All">All Batches</option>
-                      <option value="JEE 2026-A">JEE 2026-A</option>
-                      <option value="NEET 2025-B">NEET 2025-B</option>
-                      <option value="JEE 2024-C">JEE 2024-C</option>
-                      <option value="Foundation-X">Foundation-X</option>
+                      {availableBatches.map(b => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -1094,10 +1105,12 @@ export default function TeacherTestsView() {
                       onChange={(e) => setTestForm({...testForm, batch: e.target.value})}
                       className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer"
                     >
-                      <option value="JEE 2026-A">JEE 2026-A</option>
-                      <option value="NEET 2025-B">NEET 2025-B</option>
-                      <option value="JEE 2024-C">JEE 2024-C</option>
-                      <option value="Foundation-X">Foundation-X</option>
+                      {availableBatches.map(b => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                      {availableBatches.length === 0 && (
+                        <option value="">No batches available</option>
+                      )}
                     </select>
                   </div>
 

@@ -21,15 +21,23 @@ export const authConfig: NextAuthConfig = {
       return token
     },
     session({ session, token }) {
-      if (token) {
-        session.user.id = token.id as string
-        ;(session.user as any).role = token.role
-        ;(session.user as any).schoolId = token.schoolId ?? null
+      if (token && token.id) {
+        const id = token.id as string
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+        if (isUuid) {
+          session.user.id = id
+          ;(session.user as any).role = token.role
+          ;(session.user as any).schoolId = token.schoolId ?? null
+          return session
+        }
+      }
+      if (session.user) {
+        delete (session as any).user
       }
       return session
     },
     authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user
+      const isLoggedIn = !!auth?.user?.id
       const role = (auth?.user as any)?.role as string | undefined
       const path = nextUrl.pathname
 

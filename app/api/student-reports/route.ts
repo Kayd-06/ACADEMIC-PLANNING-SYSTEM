@@ -4,7 +4,7 @@ import { listReports } from '@/lib/db/queries/student-reports'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req?: Request) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

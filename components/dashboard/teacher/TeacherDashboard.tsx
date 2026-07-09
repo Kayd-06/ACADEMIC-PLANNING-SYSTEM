@@ -1,8 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Clock } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -18,10 +19,35 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 export default function TeacherDashboard({ firstName }: { firstName: string }) {
+  const { data: session } = useSession()
   const [schoolData, setSchoolData] = useState<any>(null)
   const [protocols, setProtocols] = useState<any[]>([])
   const [schedules, setSchedules] = useState<any[]>([])
   const [announcements, setAnnouncements] = useState<any[]>([])
+  const [readIds, setReadIds] = useState<string[]>([])
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null)
+
+  useEffect(() => {
+    if (session?.user?.email) {
+      const stored = localStorage.getItem(`read_announcements_${session.user.email}`)
+      if (stored) {
+        try {
+          setReadIds(JSON.parse(stored))
+        } catch (e) {
+          console.error(e)
+        }
+      }
+    }
+  }, [session])
+
+  const markAsRead = (id: string) => {
+    if (readIds.includes(id)) return
+    const updated = [...readIds, id]
+    setReadIds(updated)
+    if (session?.user?.email) {
+      localStorage.setItem(`read_announcements_${session.user.email}`, JSON.stringify(updated))
+    }
+  }
 
   useEffect(() => {
     fetch('/api/school')
@@ -255,10 +281,17 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
                   const title = ann.title || ann.label || 'Announcement'
                   const desc = ann.content || ann.sub || ''
                   const isUrgent = ann.type === 'Urgent' || ann.urgent
+                  const isRead = readIds.includes(ann.id || ann._id)
                   const dateStr = ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : (ann.updatedAt ? new Date(ann.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Recent')
                   return (
-                    <div key={ann._id || i} className="flex gap-3 items-start pb-4 border-b border-slate-50 last:border-0 last:pb-0">
-                      <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${isUrgent ? 'bg-red-500' : 'bg-indigo-500'}`} />
+                    <div 
+                      key={ann._id || ann.id || i} 
+                      onClick={() => setSelectedAnnouncement(ann)}
+                      className="flex gap-3 items-start pb-4 border-b border-slate-50 last:border-0 last:pb-0 cursor-pointer hover:bg-slate-50/70 p-2 rounded-xl transition-all"
+                    >
+                      <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
+                        isRead ? 'bg-transparent' : isUrgent ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500'
+                      }`} />
                       <div className="min-w-0 flex-1">
                         <div className="flex gap-2 items-center mb-0.5">
                           <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${isUrgent ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'}`}>
@@ -274,6 +307,68 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
                 })
               )}
             </div>
+
+            {/* Announcement Modal Popup */}
+            <AnimatePresence>
+              {selectedAnnouncement && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                    className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden"
+                  >
+                    {/* Header */}
+                    <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                        selectedAnnouncement.type === 'Urgent' || selectedAnnouncement.urgent
+                          ? 'bg-rose-50 text-rose-600'
+                          : 'bg-indigo-50 text-indigo-600'
+                      }`}>
+                        {selectedAnnouncement.type || (selectedAnnouncement.urgent ? 'Urgent' : 'General')}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-400">
+                        {selectedAnnouncement.createdAt
+                          ? new Date(selectedAnnouncement.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                          : 'Recent'
+                        }
+                      </span>
+                    </div>
+
+                    {/* Body */}
+                    <div className="p-6 space-y-4">
+                      <h3 className="text-lg font-bold text-slate-900 leading-snug">
+                        {selectedAnnouncement.title || selectedAnnouncement.label}
+                      </h3>
+                      <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                        {selectedAnnouncement.content || selectedAnnouncement.sub}
+                      </p>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                      {!readIds.includes(selectedAnnouncement.id || selectedAnnouncement._id) && (
+                        <button
+                          onClick={() => {
+                            markAsRead(selectedAnnouncement.id || selectedAnnouncement._id)
+                            setSelectedAnnouncement(null)
+                          }}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-all"
+                        >
+                          Mark as Read
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setSelectedAnnouncement(null)}
+                        className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-all"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </div>
       </div>
