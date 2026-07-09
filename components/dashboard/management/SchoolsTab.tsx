@@ -1,8 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { Plus, X, Loader2, Copy, Check, Building2, Pencil, Trash2, LogOut, Hash, CheckCircle2, ArrowRightLeft } from 'lucide-react'
+import { Plus, X, Loader2, Copy, Check, Building2, Pencil, Trash2, LogOut, Hash, CheckCircle2, ArrowRightLeft, AlertTriangle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import ClearDataModal from './ClearDataModal'
 
 type SchoolEntry = {
   id: string; name: string; board: string; classes: string; programs: string
@@ -39,6 +40,8 @@ export default function SchoolsTab() {
   const [editSchool, setEditSchool] = useState<SchoolEntry | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+
+  const [clearDataSchool, setClearDataSchool] = useState<SchoolEntry | null>(null)
 
   const activeSchoolId = (session?.user as any)?.schoolId as string | null
 
@@ -351,11 +354,26 @@ export default function SchoolsTab() {
                       {school.role === 'owner' ? 'Delete' : 'Leave'}
                     </button>
                   </div>
+
+                  {isActive && school.role === 'owner' && (
+                    <button onClick={() => setClearDataSchool(school)}
+                      className="w-full mt-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-100 transition-all">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Clear All Data
+                    </button>
+                  )}
                 </div>
               </motion.div>
             )
           })}
         </div>
+      )}
+
+      {clearDataSchool && (
+        <ClearDataModal
+          schoolName={clearDataSchool.name}
+          onClose={() => setClearDataSchool(null)}
+          onCleared={() => showMsg('All school data cleared')}
+        />
       )}
     </div>
   )
