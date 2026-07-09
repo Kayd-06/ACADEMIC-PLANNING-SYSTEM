@@ -5,7 +5,7 @@ import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertica
 import { motion, AnimatePresence } from 'framer-motion'
 import FacultyProfileModal from './FacultyProfileModal'
 
-type FacultyMember = { _id: string; name: string; sub: string; spec: string; specTheme: string; batches: number; exp: string; status: string; initials: string; color: string }
+type FacultyMember = { _id: string; name: string; sub: string; spec: string; specTheme: string; batches: number; exp: string; status: string; initials: string; color: string; profileImgUrl?: string | null }
 type Material = { _id: string; title: string; type: string; fileUrl: string; spec: string; specTheme: string; author: string; time: string; iconColor: string; iconBg: string }
 type CounselingLog = { _id: string; student: string; teacher: string; date: string; notes?: string; status?: string; type?: string; counselor?: string; time?: string; duration?: string; flagged?: boolean }
 
@@ -464,7 +464,11 @@ export default function TeacherPortalView() {
                       <tr key={fac._id || idx} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${fac.color}`}>{fac.initials}</div>
+                            {fac.profileImgUrl ? (
+                              <img src={fac.profileImgUrl} alt={fac.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
+                            ) : (
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${fac.color}`}>{fac.initials}</div>
+                            )}
                             <div><h4 className="text-[13px] font-bold text-slate-900">{fac.name}</h4><p className="text-[11px] text-slate-500">{fac.sub}</p></div>
                           </div>
                         </td>

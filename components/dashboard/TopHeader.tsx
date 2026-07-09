@@ -45,6 +45,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
 
   // School info (for teacher)
   const [schoolName, setSchoolName] = useState<string | null>(null)
+  const [myPhotoUrl, setMyPhotoUrl] = useState<string | null>(null)
 
   // My Profile (teacher faculty record)
   const [showMyProfile, setShowMyProfile] = useState(false)
@@ -87,6 +88,15 @@ export default function TopHeader({ initials }: TopHeaderProps) {
       if (!d.error) setSchoolName(d.name ?? null)
     }).catch(() => {})
   }, [role, (session?.user as any)?.schoolId])
+
+  // Fetch the teacher's own faculty photo, if set, so the header avatar isn't
+  // stuck on initials once they've uploaded a profileImgUrl
+  useEffect(() => {
+    if (role !== 'teacher') return
+    fetch('/api/teacher/profile').then(r => r.json()).then(d => {
+      setMyPhotoUrl(d?.profile?.profileImgUrl || null)
+    }).catch(() => {})
+  }, [role])
 
   // Close profile menu on outside click
   useEffect(() => {
@@ -180,9 +190,9 @@ export default function TopHeader({ initials }: TopHeaderProps) {
         <div ref={profileRef} className="relative ml-2">
           <button
             onClick={() => setShowProfileMenu(v => !v)}
-            className="w-8 h-8 rounded-full bg-[#002045] flex items-center justify-center text-white text-xs font-semibold hover:bg-[#1a365d] transition-colors focus:outline-none focus:ring-2 focus:ring-[#002045]/30"
+            className="w-8 h-8 rounded-full bg-[#002045] flex items-center justify-center text-white text-xs font-semibold hover:bg-[#1a365d] transition-colors focus:outline-none focus:ring-2 focus:ring-[#002045]/30 overflow-hidden"
           >
-            {initials}
+            {myPhotoUrl ? <img src={myPhotoUrl} alt="" className="w-full h-full object-cover" /> : initials}
           </button>
 
           <AnimatePresence>
@@ -197,8 +207,8 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                 {/* User info */}
                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-[#002045] flex items-center justify-center text-white text-xs font-bold shrink-0">
-                      {initials}
+                    <div className="w-9 h-9 rounded-full bg-[#002045] flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden">
+                      {myPhotoUrl ? <img src={myPhotoUrl} alt="" className="w-full h-full object-cover" /> : initials}
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-800 truncate">{session?.user?.name ?? '—'}</p>
@@ -345,7 +355,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
       </AnimatePresence>
 
       {/* ─── My Profile Modal (teacher faculty record, editable) ─── */}
-      <MyProfileModal isOpen={showMyProfile} onClose={() => setShowMyProfile(false)} />
+      <MyProfileModal isOpen={showMyProfile} onClose={() => setShowMyProfile(false)} onSaved={(profile) => setMyPhotoUrl(profile.profileImgUrl || null)} />
 
       {/* ─── Help Center Modal ─── */}
       <AnimatePresence>
@@ -433,8 +443,8 @@ export default function TopHeader({ initials }: TopHeaderProps) {
               <div className="py-4 space-y-4">
                 {session && (
                   <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow">
-                      {initials}
+                    <div className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow overflow-hidden">
+                      {myPhotoUrl ? <img src={myPhotoUrl} alt="" className="w-full h-full object-cover" /> : initials}
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-800 truncate">{session.user?.name}</p>

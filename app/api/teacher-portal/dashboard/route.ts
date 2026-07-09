@@ -47,7 +47,7 @@ export async function GET() {
       let specTheme = 'blue'
       if (fac.specialization.toLowerCase().includes('neet')) specTheme = 'green'
       if (fac.specialization.toLowerCase().includes('found')) specTheme = 'purple'
-      return { _id: fac.id, name: fac.name, sub: fac.subject, spec: fac.specialization, specTheme, batches: fac.batches, exp: fac.experience, status: fac.status, initials, color }
+      return { _id: fac.id, name: fac.name, sub: fac.subject, spec: fac.specialization, specTheme, batches: fac.batches, exp: fac.experience, status: fac.status, initials, color, profileImgUrl: fac.profileImgUrl }
     })
 
     const mappedMaterials = materials.map(mat => {

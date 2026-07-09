@@ -29,7 +29,7 @@ const inputClass = 'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rou
 const labelClass = 'text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5'
 const sectionClass = 'text-[11px] font-extrabold text-slate-400 uppercase tracking-widest pt-1'
 
-export default function MyProfileModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export default function MyProfileModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: () => void; onSaved?: (profile: any) => void }) {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<any>(null)
   const [editing, setEditing] = useState(false)
@@ -71,6 +71,7 @@ export default function MyProfileModal({ isOpen, onClose }: { isOpen: boolean; o
       if (!res.ok) { setError(result.error || 'Failed to save changes.'); return }
       setData((prev: any) => ({ ...prev, profile: result }))
       setEditing(false)
+      onSaved?.(result)
     } finally {
       setSaving(false)
     }
