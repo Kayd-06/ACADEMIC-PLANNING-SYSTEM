@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, FileText, Loader2, Plus, RefreshCw, Search, Trophy, User, X } from 'lucide-react'
+import { Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, FileText, Loader2, Plus, RefreshCw, Search, Trophy, User, X, Printer, Download, Check, ShieldCheck, Building, Calendar } from 'lucide-react'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -47,6 +47,10 @@ export default function ProgressReportView() {
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
+
+  // SINGLE STUDENT REPORT PDF MODAL STATE
+  const [showPdfModal, setShowPdfModal] = useState(false)
+  const [pdfReport, setPdfReport] = useState<ProgressReport | null>(null)
 
   // Form state for generating new report
   const [form, setForm] = useState({
@@ -102,48 +106,61 @@ export default function ProgressReportView() {
     setSubjects(subjects.filter((_, i) => i !== index))
   }
 
-  const handleSubjectChange = (index: number, field: keyof SubjectScore, val: any) => {
-    const next = [...subjects]
-    next[index] = { ...next[index], [field]: val }
+  const handleSubjectChange = (index: number, field: keyof SubjectScore, value: any) => {
+    const updated = [...subjects]
+    updated[index] = { ...updated[index], [field]: field === 'marksObtained' || field === 'totalMarks' ? Number(value) : value }
+    // Auto calculate grade if marks modified
     if (field === 'marksObtained' || field === 'totalMarks') {
-      const obt = field === 'marksObtained' ? Number(val) : Number(next[index].marksObtained)
-      const tot = field === 'totalMarks' ? Number(val) : Number(next[index].totalMarks)
+      const obt = field === 'marksObtained' ? Number(value) : updated[index].marksObtained
+      const tot = field === 'totalMarks' ? Number(value) : updated[index].totalMarks
       const pct = tot > 0 ? (obt / tot) * 100 : 0
-      next[index].grade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B+' : pct >= 60 ? 'B' : 'C'
+      updated[index].grade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B+' : pct >= 60 ? 'B' : pct >= 50 ? 'C' : 'D'
     }
-    setSubjects(next)
+    setSubjects(updated)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.studentName || !form.batch) {
-      setErrorMsg('Student Name and Batch are required')
-      return
-    }
     setSubmitting(true)
     setErrorMsg('')
     setSuccessMsg('')
+
+    const totalObtained = subjects.reduce((acc, s) => acc + (Number(s.marksObtained) || 0), 0)
+    const totalMax = subjects.reduce((acc, s) => acc + (Number(s.totalMarks) || 0), 0)
+    const percentage = totalMax > 0 ? `${Math.round((totalObtained / totalMax) * 100)}%` : '0%'
+
+    const payload = {
+      ...form,
+      percentage,
+      rank: editingId ? (reports.find(r => r.id === editingId)?.rank || '3rd') : '3rd',
+      subjects: subjects.map(s => ({
+        subjectName: s.subjectName,
+        marksObtained: Number(s.marksObtained),
+        totalMarks: Number(s.totalMarks),
+        grade: s.grade || 'B',
+      })),
+    }
+
     try {
       const url = editingId ? `/api/progress-reports?id=${editingId}` : '/api/progress-reports'
+      const method = editingId ? 'PUT' : 'POST'
       const res = await fetch(url, {
-        method: editingId ? 'PATCH' : 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, subjects }),
+        body: JSON.stringify(payload),
       })
-      if (res.ok) {
-        setSuccessMsg(editingId ? 'Progress report updated successfully!' : 'Progress report generated successfully!')
-        setTimeout(() => {
-          setShowModal(false)
-          setEditingId(null)
-          setSuccessMsg('')
-          fetchReports()
-        }, 1200)
-      } else {
-        const err = await res.json()
-        setErrorMsg(err.error || 'Failed to save report')
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Failed to save progress report')
       }
-    } catch {
-      setErrorMsg('Network error occurred')
+      setSuccessMsg(editingId ? 'Report updated successfully!' : 'Progress report generated successfully!')
+      setTimeout(() => {
+        setShowModal(false)
+        setEditingId(null)
+        fetchReports()
+      }, 1000)
+    } catch (err: any) {
+      setErrorMsg(err.message || 'An error occurred while saving.')
     } finally {
       setSubmitting(false)
     }
@@ -177,6 +194,145 @@ export default function ProgressReportView() {
     if (res.ok) fetchReports()
   }
 
+  // Open single student report PDF export preview modal
+  const openPdfPreview = (report: ProgressReport, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    setPdfReport(report)
+    setShowPdfModal(true)
+  }
+
+  // Download self-contained standalone HTML report card file
+  const downloadReportHtml = (report: ProgressReport) => {
+    const totalObtained = (report.subjects || []).reduce((acc, s) => acc + (Number(s.marksObtained) || 0), 0)
+    const totalMax = (report.subjects || []).reduce((acc, s) => acc + (Number(s.totalMarks) || 0), 0)
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Progress Report - ${report.studentName}</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 40px; color: #1e293b; background: #f8fafc; }
+    .report-card { max-w: 800px; margin: 0 auto; background: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; }
+    .header { text-align: center; border-bottom: 3px solid #4f46e5; padding-bottom: 24px; margin-bottom: 30px; }
+    .header h1 { margin: 0; font-size: 26px; color: #1e293b; letter-spacing: 1px; }
+    .header p { margin: 6px 0 0; color: #64748b; font-size: 14px; text-transform: uppercase; font-weight: 600; }
+    .student-info { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 30px; font-size: 14px; }
+    .student-info div strong { color: #475569; display: inline-block; width: 130px; }
+    table { w-full; width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f8fafc; color: #475569; font-weight: 700; font-size: 13px; text-transform: uppercase; }
+    td { font-size: 14px; font-weight: 600; }
+    .grade-badge { background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 6px; font-weight: 800; display: inline-block; }
+    .summary-box { display: flex; justify-content: space-between; background: #eef2ff; border: 1px solid #c7d2fe; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+    .summary-item { text-align: center; }
+    .summary-item span { font-size: 12px; color: #6366f1; font-weight: 700; text-transform: uppercase; block; }
+    .summary-item strong { font-size: 24px; color: #312e81; display: block; margin-top: 4px; }
+    .remarks { margin-bottom: 40px; }
+    .remarks h4 { margin: 0 0 8px; font-size: 13px; color: #64748b; text-transform: uppercase; }
+    .remarks p { margin: 0 0 16px; background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #4f46e5; font-size: 14px; line-height: 1.6; }
+    .signatures { display: flex; justify-content: space-between; margin-top: 60px; padding-top: 20px; border-top: 1px dashed #cbd5e1; }
+    .sig-line { width: 220px; text-align: center; }
+    .sig-line div { border-bottom: 1px solid #94a3b8; height: 40px; margin-bottom: 8px; }
+    .sig-line span { font-size: 12px; font-weight: 700; color: #64748b; }
+    @media print { body { background: white; padding: 0; } .report-card { box-shadow: none; border: none; } }
+  </style>
+</head>
+<body>
+  <div class="report-card">
+    <div class="header">
+      <h1>EDUADMIN ACADEMIC ACADEMY</h1>
+      <p>OFFICIAL STUDENT PROGRESS & PERFORMANCE REPORT CARD</p>
+    </div>
+
+    <div class="student-info">
+      <div><strong>Student Name:</strong> ${report.studentName}</div>
+      <div><strong>Roll Number / ID:</strong> ${report.rollNo || 'N/A'}</div>
+      <div><strong>Batch / Class:</strong> ${report.batch}</div>
+      <div><strong>Academic Year:</strong> ${report.academicYear}</div>
+      <div><strong>Examination Term:</strong> ${report.termType}</div>
+      <div><strong>Report Date:</strong> ${report.generatedAt || new Date().toISOString().split('T')[0]}</div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Subject Name</th>
+          <th style="text-align: right;">Marks Obtained</th>
+          <th style="text-align: right;">Max Marks</th>
+          <th style="text-align: right;">Percentage</th>
+          <th style="text-align: center;">Grade Awarded</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(report.subjects || []).map(sub => {
+          const pct = sub.totalMarks > 0 ? Math.round((sub.marksObtained / sub.totalMarks) * 100) : 0
+          return `
+            <tr>
+              <td>${sub.subjectName}</td>
+              <td style="text-align: right;">${sub.marksObtained}</td>
+              <td style="text-align: right;">${sub.totalMarks}</td>
+              <td style="text-align: right;">${pct}%</td>
+              <td style="text-align: center;"><span class="grade-badge">${sub.grade}</span></td>
+            </tr>
+          `
+        }).join('')}
+      </tbody>
+    </table>
+
+    <div class="summary-box">
+      <div class="summary-item">
+        <span>Aggregate Marks</span>
+        <strong>${totalObtained} / ${totalMax}</strong>
+      </div>
+      <div class="summary-item">
+        <span>Overall Percentage</span>
+        <strong>${report.percentage}</strong>
+      </div>
+      <div class="summary-item">
+        <span>Batch Standing / Rank</span>
+        <strong>${report.rank || 'N/A'}</strong>
+      </div>
+    </div>
+
+    <div class="remarks">
+      <h4>Class Teacher Observations (${report.teacherName || 'Faculty'})</h4>
+      <p>${report.teacherRemarks || 'Satisfactory progress observed across subjects.'}</p>
+      
+      <h4>Principal Official Remarks</h4>
+      <p>${report.principalRemarks || 'Good performance. Keep striving for excellence.'}</p>
+    </div>
+
+    <div class="signatures">
+      <div class="sig-line">
+        <div></div>
+        <span>Class Teacher Signature</span>
+      </div>
+      <div class="sig-line">
+        <div></div>
+        <span>School Seal / Stamp</span>
+      </div>
+      <div class="sig-line">
+        <div></div>
+        <span>Principal Signature</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+    `
+    const blob = new Blob([htmlContent], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Progress_Report_${report.studentName.replace(/\s+/g, '_')}_${report.termType}.html`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   const filtered = reports.filter(r => {
     if (!searchQuery) return true
     const q = searchQuery.toLowerCase()
@@ -196,7 +352,7 @@ export default function ProgressReportView() {
       <motion.div {...fadeUp(0)} className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Student Progress Reports</h1>
-          <p className="text-gray-500 mt-1 text-sm">Track academic performance, term evaluations, and subject scores.</p>
+          <p className="text-gray-500 mt-1 text-sm">Track academic performance, term evaluations, and export single student PDF reports.</p>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={() => fetchReports()} className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-gray-700 border border-gray-200 bg-white rounded-xl shadow-sm hover:bg-gray-50 font-semibold transition-all">
@@ -296,8 +452,19 @@ export default function ProgressReportView() {
                       <p className="text-xs text-gray-500 mt-0.5 font-medium">{report.batch} · <span className="text-indigo-600 font-semibold">{report.termType}</span> ({report.academicYear})</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
+
+                  <div className="flex items-center gap-4">
+                    {/* EXPORT PDF QUICK BUTTON ON EVERY CARD */}
+                    <button
+                      onClick={(e) => openPdfPreview(report, e)}
+                      title="Export single student report as PDF"
+                      className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Export PDF</span>
+                    </button>
+
+                    <div className="text-right pl-2 border-l border-gray-200/60">
                       <p className="text-sm font-extrabold text-gray-900">{report.percentage}</p>
                       <p className="text-[11px] font-semibold text-gray-500">Rank: <span className="text-indigo-600 font-bold">{report.rank}</span></p>
                     </div>
@@ -340,24 +507,33 @@ export default function ProgressReportView() {
                             <p className="text-xs text-gray-500 italic">No detailed subject scores available.</p>
                           )}
                         </div>
-                        <div className="space-y-4">
-                          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Teacher Remarks</p>
-                            <p className="text-xs font-semibold text-gray-800 leading-relaxed">{report.teacherRemarks || 'No remarks provided.'}</p>
-                            <p className="text-[10px] text-gray-400 mt-2 font-medium">Reported by: {report.teacherName}</p>
+                        <div className="space-y-4 flex flex-col justify-between">
+                          <div className="space-y-4">
+                            <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-xs">
+                              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Teacher Remarks</p>
+                              <p className="text-xs font-semibold text-gray-800 leading-relaxed">{report.teacherRemarks || 'No remarks provided.'}</p>
+                              <p className="text-[10px] text-gray-400 mt-2 font-medium">Reported by: {report.teacherName || 'Class Faculty'}</p>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-xs">
+                              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Principal Remarks</p>
+                              <p className="text-xs font-semibold text-gray-800 leading-relaxed">{report.principalRemarks || 'No remarks provided.'}</p>
+                            </div>
                           </div>
-                          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Principal Remarks</p>
-                            <p className="text-xs font-semibold text-gray-800 leading-relaxed">{report.principalRemarks || 'No remarks provided.'}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
+
+                          <div className="flex flex-wrap items-center gap-2 pt-2">
+                            <button
+                              onClick={() => openPdfPreview(report)}
+                              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                            >
+                              <Printer className="w-3.5 h-3.5" /> Export / Print Report Card PDF
+                            </button>
                             <button onClick={() => openEdit(report)}
-                              className="flex-1 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-50 transition-colors shadow-sm">
-                              Edit Report
+                              className="px-4 py-2.5 bg-white border border-gray-200 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-50 transition-colors shadow-2xs">
+                              Edit
                             </button>
                             <button onClick={() => handleDelete(report)}
-                              className="flex-1 py-2 bg-white border border-rose-200 text-rose-600 text-xs font-bold rounded-xl hover:bg-rose-50 transition-colors shadow-sm">
-                              Delete Report
+                              className="px-4 py-2.5 bg-white border border-rose-200 text-rose-600 text-xs font-bold rounded-xl hover:bg-rose-50 transition-colors shadow-2xs">
+                              Delete
                             </button>
                           </div>
                         </div>
@@ -371,7 +547,7 @@ export default function ProgressReportView() {
         )}
       </motion.div>
 
-      {/* Modal for Generating Progress Report */}
+      {/* Modal for Generating / Editing Progress Report */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
@@ -503,6 +679,181 @@ export default function ProgressReportView() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* SINGLE STUDENT REPORT CARD PDF PREVIEW & EXPORT MODAL */}
+      <AnimatePresence>
+        {showPdfModal && pdfReport && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[92vh] overflow-y-auto flex flex-col relative"
+            >
+              {/* Modal Top Actions Bar (Hidden on Print) */}
+              <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50 sticky top-0 z-10 print:hidden">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs">
+                    <Printer className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">
+                      Official Single-Student Report Card Export
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Previewing formatted sheet for {pdfReport.studentName}. Click Print/Save PDF below.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => downloadReportHtml(pdfReport)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition-all shadow-2xs"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download (.HTML)
+                  </button>
+                  <button
+                    onClick={() => window.print()}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Print / Save PDF
+                  </button>
+                  <button 
+                    onClick={() => setShowPdfModal(false)} 
+                    className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition-colors ml-1"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Printable Student Report Sheet */}
+              <div className="p-8 print:p-0 print:border-0">
+                {/* Official Header */}
+                <div className="text-center pb-6 border-b-2 border-indigo-600 mb-6">
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <Building className="w-6 h-6 text-indigo-600" />
+                    <h1 className="text-2xl font-black text-slate-900 tracking-wide uppercase">EDUADMIN ACADEMIC ACADEMY</h1>
+                  </div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Official Student Performance & Progress Report Card</p>
+                </div>
+
+                {/* Student Profile Grid */}
+                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-5 rounded-xl border border-slate-200/80 mb-6 text-xs text-slate-700">
+                  <div className="space-y-1.5">
+                    <div><span className="font-bold text-slate-400 uppercase w-28 inline-block">Student Name:</span> <strong className="text-slate-900 text-sm">{pdfReport.studentName}</strong></div>
+                    <div><span className="font-bold text-slate-400 uppercase w-28 inline-block">Roll Number / ID:</span> <strong className="text-slate-800">{pdfReport.rollNo || 'N/A'}</strong></div>
+                    <div><span className="font-bold text-slate-400 uppercase w-28 inline-block">Batch / Class:</span> <strong className="text-slate-800">{pdfReport.batch}</strong></div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div><span className="font-bold text-slate-400 uppercase w-28 inline-block">Academic Year:</span> <strong className="text-slate-800">{pdfReport.academicYear}</strong></div>
+                    <div><span className="font-bold text-slate-400 uppercase w-28 inline-block">Term Type:</span> <strong className="text-indigo-600 font-extrabold">{pdfReport.termType}</strong></div>
+                    <div><span className="font-bold text-slate-400 uppercase w-28 inline-block">Generated Date:</span> <strong className="text-slate-800">{pdfReport.generatedAt || new Date().toISOString().split('T')[0]}</strong></div>
+                  </div>
+                </div>
+
+                {/* Subject Performance Table */}
+                <div className="mb-6">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-indigo-600" /> Subject-wise Score Breakdown
+                  </h4>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-100/90 border-b border-slate-200 font-extrabold text-slate-700 uppercase tracking-wider">
+                          <th className="py-3 px-4">Subject Name</th>
+                          <th className="py-3 px-4 text-right">Marks Obtained</th>
+                          <th className="py-3 px-4 text-right">Maximum Marks</th>
+                          <th className="py-3 px-4 text-right">Percentage</th>
+                          <th className="py-3 px-4 text-center">Grade Awarded</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 font-semibold text-slate-800">
+                        {(pdfReport.subjects || []).map((sub, idx) => {
+                          const pct = sub.totalMarks > 0 ? Math.round((sub.marksObtained / sub.totalMarks) * 100) : 0
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50/50">
+                              <td className="py-3 px-4 font-bold text-slate-900">{sub.subjectName}</td>
+                              <td className="py-3 px-4 text-right">{sub.marksObtained}</td>
+                              <td className="py-3 px-4 text-right text-slate-500">{sub.totalMarks}</td>
+                              <td className="py-3 px-4 text-right font-bold text-indigo-600">{pct}%</td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="px-2.5 py-1 rounded-md font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                  {sub.grade}
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Summary Box */}
+                <div className="grid grid-cols-3 gap-4 bg-indigo-50/70 border border-indigo-200 p-5 rounded-xl mb-6 text-center">
+                  <div>
+                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest block">Aggregate Score</span>
+                    <strong className="text-xl font-black text-slate-900 mt-1 block">
+                      {(pdfReport.subjects || []).reduce((acc, s) => acc + (Number(s.marksObtained) || 0), 0)} / {(pdfReport.subjects || []).reduce((acc, s) => acc + (Number(s.totalMarks) || 0), 0)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest block">Overall Percentage</span>
+                    <strong className="text-xl font-black text-indigo-700 mt-1 block">{pdfReport.percentage}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest block">Batch Standing / Rank</span>
+                    <strong className="text-xl font-black text-slate-900 mt-1 block">{pdfReport.rank || 'N/A'}</strong>
+                  </div>
+                </div>
+
+                {/* Official Remarks */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 text-xs">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1.5">Class Teacher Observations</span>
+                    <p className="font-semibold text-slate-800 leading-relaxed italic">&quot;{pdfReport.teacherRemarks || 'Satisfactory academic progress and class participation.'}&quot;</p>
+                    <span className="text-[10px] font-bold text-slate-400 block mt-2 text-right">Faculty: {pdfReport.teacherName || 'Class Teacher'}</span>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1.5">Principal Official Remarks</span>
+                    <p className="font-semibold text-slate-800 leading-relaxed italic">&quot;{pdfReport.principalRemarks || 'Good performance. Keep striving for academic excellence.'}&quot;</p>
+                  </div>
+                </div>
+
+                {/* Signature Line */}
+                <div className="grid grid-cols-3 gap-8 pt-6 border-t border-dashed border-slate-300 text-center text-xs mt-12">
+                  <div>
+                    <div className="h-12 border-b border-slate-300 mb-2"></div>
+                    <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider">Class Teacher Signature</span>
+                  </div>
+                  <div>
+                    <div className="h-12 border-b border-slate-300 mb-2 flex items-center justify-center">
+                      <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">[School Stamp / Seal]</span>
+                    </div>
+                    <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider">Official Seal</span>
+                  </div>
+                  <div>
+                    <div className="h-12 border-b border-slate-300 mb-2"></div>
+                    <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider">Principal Signature</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer (Hidden on Print) */}
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 print:hidden mt-auto">
+                <span>Tip: When the print dialog opens, choose <strong>Save as PDF</strong> as your destination for crisp vector output.</span>
+                <button
+                  onClick={() => setShowPdfModal(false)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-colors"
+                >
+                  Close Preview
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
