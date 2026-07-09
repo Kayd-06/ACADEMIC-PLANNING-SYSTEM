@@ -2,42 +2,101 @@
 import { useState, useEffect, useRef } from 'react'
 import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertical, FileIcon, MessageCircle, Loader2, X, ExternalLink, Edit2, Save, Pencil, Trash2, ChevronDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import FacultyProfileModal from './FacultyProfileModal'
 
 type FacultyMember = { _id: string; name: string; sub: string; spec: string; specTheme: string; batches: number; exp: string; status: string; initials: string; color: string }
 type Material = { _id: string; title: string; type: string; fileUrl: string; spec: string; specTheme: string; author: string; time: string; iconColor: string; iconBg: string }
 type CounselingLog = { _id: string; student: string; teacher: string; date: string; notes?: string; status?: string; type?: string; counselor?: string; time?: string; duration?: string; flagged?: boolean }
 
-const EMPTY_FACULTY_FORM = { name: '', subject: '', specialization: '', batches: '0', experience: '', status: 'ACTIVE', email: '', phone: '' }
+const EMPTY_FACULTY_FORM = {
+  name: '', subject: '', specialization: '', batches: '0', experience: '', status: 'ACTIVE', email: '', phone: '',
+  employeeId: '', dob: '', gender: '', bio: '', profileImgUrl: '',
+  altPhone: '', addressLine1: '', city: '', state: '', pincode: '',
+  qualification: '', experienceYears: '', primaryStream: '', joiningDate: '',
+}
+
+const fieldInput = 'mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+const fieldLabel = 'text-xs font-semibold text-slate-500 uppercase tracking-wide'
 
 function FacultyFormFields({ form, setForm }: { form: typeof EMPTY_FACULTY_FORM; setForm: (f: typeof EMPTY_FACULTY_FORM) => void }) {
   return (
     <div className="space-y-4">
+      <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest pt-1">Identity</p>
       <div className="grid grid-cols-2 gap-4">
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Full Name *</label>
-          <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="Dr. John Smith" /></div>
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Subject *</label>
-          <input value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="Physics" /></div>
+        <div><label className={fieldLabel}>Full Name *</label>
+          <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={fieldInput} placeholder="Dr. John Smith" /></div>
+        <div><label className={fieldLabel}>Employee ID</label>
+          <input value={form.employeeId} onChange={e => setForm({ ...form, employeeId: e.target.value })} className={fieldInput} placeholder="EMP-0042" /></div>
+        <div><label className={fieldLabel}>Date of Birth</label>
+          <input type="date" value={form.dob} onChange={e => setForm({ ...form, dob: e.target.value })} className={fieldInput} /></div>
+        <div><label className={fieldLabel}>Gender</label>
+          <select value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })} className={fieldInput}>
+            <option value="">Select…</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option>
+          </select></div>
       </div>
-      <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Specialization *</label>
-        <input value={form.specialization} onChange={e => setForm({ ...form, specialization: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="JEE Advanced" /></div>
-      <div className="grid grid-cols-3 gap-4">
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Batches</label>
-          <input type="number" min="0" value={form.batches} onChange={e => setForm({ ...form, batches: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" /></div>
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Experience</label>
-          <input value={form.experience} onChange={e => setForm({ ...form, experience: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="5 years" /></div>
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</label>
-          <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+      <div><label className={fieldLabel}>Bio</label>
+        <textarea value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })} rows={2} className={fieldInput + ' resize-none'} placeholder="Short introduction…" /></div>
+      <div><label className={fieldLabel}>Profile Image URL</label>
+        <input value={form.profileImgUrl} onChange={e => setForm({ ...form, profileImgUrl: e.target.value })} className={fieldInput} placeholder="https://…" /></div>
+
+      <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest pt-1">Contact Information</p>
+      <div className="grid grid-cols-2 gap-4">
+        <div><label className={fieldLabel}>Email</label>
+          <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={fieldInput} placeholder="john@school.edu" /></div>
+        <div><label className={fieldLabel}>Phone</label>
+          <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className={fieldInput} placeholder="+91 98765 43210" /></div>
+        <div><label className={fieldLabel}>Alt Phone</label>
+          <input value={form.altPhone} onChange={e => setForm({ ...form, altPhone: e.target.value })} className={fieldInput} /></div>
+        <div><label className={fieldLabel}>Address Line 1</label>
+          <input value={form.addressLine1} onChange={e => setForm({ ...form, addressLine1: e.target.value })} className={fieldInput} /></div>
+        <div><label className={fieldLabel}>City</label>
+          <input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} className={fieldInput} /></div>
+        <div className="grid grid-cols-2 gap-2">
+          <div><label className={fieldLabel}>State</label>
+            <input value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} className={fieldInput} /></div>
+          <div><label className={fieldLabel}>Pincode</label>
+            <input value={form.pincode} onChange={e => setForm({ ...form, pincode: e.target.value })} className={fieldInput} maxLength={10} /></div>
+        </div>
+      </div>
+
+      <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest pt-1">Professional Profile</p>
+      <div className="grid grid-cols-2 gap-4">
+        <div><label className={fieldLabel}>Subject *</label>
+          <input value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className={fieldInput} placeholder="Physics" /></div>
+        <div><label className={fieldLabel}>Specialization *</label>
+          <input value={form.specialization} onChange={e => setForm({ ...form, specialization: e.target.value })} className={fieldInput} placeholder="JEE Advanced" /></div>
+        <div><label className={fieldLabel}>Qualification</label>
+          <input value={form.qualification} onChange={e => setForm({ ...form, qualification: e.target.value })} className={fieldInput} placeholder="M.Sc., B.Ed." /></div>
+        <div><label className={fieldLabel}>Primary Stream</label>
+          <select value={form.primaryStream} onChange={e => setForm({ ...form, primaryStream: e.target.value })} className={fieldInput}>
+            <option value="">Select…</option>
+            {['Science', 'Mathematics', 'Commerce', 'Humanities', 'Languages', 'Computer Science', 'Arts', 'Physical Education'].map(s => <option key={s} value={s}>{s}</option>)}
+          </select></div>
+        <div><label className={fieldLabel}>Experience (Years)</label>
+          <input type="number" min="0" value={form.experienceYears} onChange={e => setForm({ ...form, experienceYears: e.target.value, experience: e.target.value ? `${e.target.value} years` : form.experience })} className={fieldInput} /></div>
+        <div><label className={fieldLabel}>Joining Date</label>
+          <input type="date" value={form.joiningDate} onChange={e => setForm({ ...form, joiningDate: e.target.value })} className={fieldInput} /></div>
+        <div><label className={fieldLabel}>Batches</label>
+          <input type="number" min="0" value={form.batches} onChange={e => setForm({ ...form, batches: e.target.value })} className={fieldInput} /></div>
+        <div><label className={fieldLabel}>Status</label>
+          <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className={fieldInput}>
             <option value="ACTIVE">Active</option><option value="ON_LEAVE">On Leave</option><option value="INACTIVE">Inactive</option>
           </select></div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</label>
-          <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="john@school.edu" /></div>
-        <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Phone</label>
-          <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="+91 98765 43210" /></div>
-      </div>
     </div>
   )
+}
+
+function formFromFaculty(f: any): typeof EMPTY_FACULTY_FORM {
+  return {
+    name: f.name ?? '', subject: f.subject ?? '', specialization: f.specialization ?? '',
+    batches: String(f.batches ?? 0), experience: f.experience ?? '', status: f.status ?? 'ACTIVE',
+    email: f.email ?? '', phone: f.phone ?? '',
+    employeeId: f.employeeId ?? '', dob: f.dob ?? '', gender: f.gender ?? '', bio: f.bio ?? '', profileImgUrl: f.profileImgUrl ?? '',
+    altPhone: f.altPhone ?? '', addressLine1: f.addressLine1 ?? '', city: f.city ?? '', state: f.state ?? '', pincode: f.pincode ?? '',
+    qualification: f.qualification ?? '', experienceYears: f.experienceYears != null ? String(f.experienceYears) : '',
+    primaryStream: f.primaryStream ?? '', joiningDate: f.joiningDate ?? '',
+  }
 }
 
 export default function TeacherPortalView() {
@@ -106,10 +165,39 @@ export default function TeacherPortalView() {
     } catch { showToast('Failed to add faculty') } finally { setSavingFaculty(false) }
   }
 
-  const openEditFaculty = (fac: FacultyMember) => {
-    setEditFaculty(fac)
-    setEditForm({ name: fac.name, subject: fac.sub, specialization: fac.spec, batches: String(fac.batches), experience: fac.exp, status: fac.status, email: '', phone: '' })
+  const openEditFaculty = async (fac: FacultyMember) => {
     setOpenMenuId(null)
+    // Pull the full record so every profile field is editable
+    try {
+      const res = await fetch('/api/teacher-portal/faculty')
+      if (res.ok) {
+        const list = await res.json()
+        const full = Array.isArray(list) ? list.find((f: any) => f.id === fac._id) : null
+        if (full) {
+          setEditFaculty(fac)
+          setEditForm(formFromFaculty(full))
+          return
+        }
+      }
+    } catch { /* fall through */ }
+    setEditFaculty(fac)
+    setEditForm({ ...EMPTY_FACULTY_FORM, name: fac.name, subject: fac.sub, specialization: fac.spec, batches: String(fac.batches), experience: fac.exp, status: fac.status })
+  }
+
+  // Full profile viewer
+  const [profileFaculty, setProfileFaculty] = useState<any>(null)
+
+  const openProfile = async (fac: FacultyMember) => {
+    setOpenMenuId(null)
+    try {
+      const res = await fetch('/api/teacher-portal/faculty')
+      if (res.ok) {
+        const list = await res.json()
+        const full = Array.isArray(list) ? list.find((f: any) => f.id === fac._id) : null
+        if (full) setProfileFaculty(full)
+        else showToast('Could not load profile')
+      }
+    } catch { showToast('Could not load profile') }
   }
 
   const handleEditFaculty = async () => {
@@ -173,17 +261,24 @@ export default function TeacherPortalView() {
         )}
       </AnimatePresence>
 
+      {/* Faculty Full Profile Modal */}
+      {profileFaculty && (
+        <FacultyProfileModal teacher={profileFaculty} onClose={() => setProfileFaculty(null)} showToast={showToast} />
+      )}
+
       {/* Add Faculty Modal */}
       <AnimatePresence>
         {showAddFaculty && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-              <div className="flex items-center justify-between mb-6">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between mb-6 shrink-0">
                 <h2 className="text-lg font-bold text-slate-900">Add Faculty Member</h2>
                 <button onClick={() => setShowAddFaculty(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
               </div>
-              <FacultyFormFields form={facultyForm} setForm={setFacultyForm} />
-              <div className="flex gap-3 mt-6">
+              <div className="overflow-y-auto flex-1 pr-1">
+                <FacultyFormFields form={facultyForm} setForm={setFacultyForm} />
+              </div>
+              <div className="flex gap-3 mt-6 shrink-0">
                 <button onClick={() => setShowAddFaculty(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50">Cancel</button>
                 <button onClick={handleAddFaculty} disabled={savingFaculty} className="flex-1 px-4 py-2.5 bg-[#0b1320] text-white rounded-lg text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 flex items-center justify-center gap-2">
                   {savingFaculty ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add Faculty
@@ -198,13 +293,15 @@ export default function TeacherPortalView() {
       <AnimatePresence>
         {editFaculty && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-              <div className="flex items-center justify-between mb-6">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between mb-6 shrink-0">
                 <h2 className="text-lg font-bold text-slate-900">Edit Faculty Member</h2>
                 <button onClick={() => setEditFaculty(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
               </div>
-              <FacultyFormFields form={editForm} setForm={setEditForm} />
-              <div className="flex gap-3 mt-6">
+              <div className="overflow-y-auto flex-1 pr-1">
+                <FacultyFormFields form={editForm} setForm={setEditForm} />
+              </div>
+              <div className="flex gap-3 mt-6 shrink-0">
                 <button onClick={() => setEditFaculty(null)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50">Cancel</button>
                 <button onClick={handleEditFaculty} disabled={savingEdit} className="flex-1 px-4 py-2.5 bg-[#0b1320] text-white rounded-lg text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 flex items-center justify-center gap-2">
                   {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Changes
@@ -371,6 +468,9 @@ export default function TeacherPortalView() {
                               {openMenuId === fac._id && (
                                 <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
                                   className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-lg border border-slate-200 z-30 py-1 overflow-hidden">
+                                  <button onClick={() => openProfile(fac)} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                                    <User className="w-3.5 h-3.5" /> Profile
+                                  </button>
                                   <button onClick={() => openEditFaculty(fac)} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
                                     <Pencil className="w-3.5 h-3.5" /> Edit
                                   </button>

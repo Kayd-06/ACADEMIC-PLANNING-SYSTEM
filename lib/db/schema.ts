@@ -325,22 +325,76 @@ export type NewStudentReportEntry = typeof studentReportEntries.$inferInsert
 
 export const facultyStatusEnum = pgEnum('faculty_status', ['ACTIVE', 'ON_LEAVE', 'INACTIVE'])
 
+// The chart's "teachers" table — extended in place
 export const faculty = pgTable('faculty', {
+  // Identities & Keys
   id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  employeeId: varchar('employee_id', { length: 100 }),
+  // Personal Details
   name: varchar('name', { length: 255 }).notNull(),
+  dob: varchar('dob', { length: 10 }),
+  gender: varchar('gender', { length: 20 }),
+  bio: text('bio'),
+  profileImgUrl: text('profile_img_url'),
+  // Contact Information
+  email: varchar('email', { length: 255 }),
+  phone: varchar('phone', { length: 50 }),
+  altPhone: varchar('alt_phone', { length: 50 }),
+  addressLine1: varchar('address_line1', { length: 500 }),
+  city: varchar('city', { length: 100 }),
+  state: varchar('state', { length: 100 }),
+  pincode: varchar('pincode', { length: 20 }),
+  // Professional Profile
+  qualification: varchar('qualification', { length: 255 }),
+  experienceYears: integer('experience_years'),
+  primaryStream: varchar('primary_stream', { length: 100 }),
+  joiningDate: varchar('joining_date', { length: 10 }),
+  isActive: boolean('is_active').notNull().default(true),
+  // Legacy columns kept for existing UI
   subject: varchar('subject', { length: 255 }).notNull(),
   specialization: varchar('specialization', { length: 255 }).notNull(),
   batches: integer('batches').notNull().default(0),
   experience: varchar('experience', { length: 255 }).notNull().default(''),
   status: facultyStatusEnum('status').notNull().default('ACTIVE'),
-  email: varchar('email', { length: 255 }),
-  phone: varchar('phone', { length: 50 }),
-  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-})
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  employeeIdSchoolUnique: uniqueIndex('faculty_employee_id_school_unique')
+    .on(table.employeeId, table.schoolId)
+    .where(sql`${table.employeeId} IS NOT NULL AND ${table.employeeId} <> ''`),
+}))
 
 export type Faculty = typeof faculty.$inferSelect
 export type NewFaculty = typeof faculty.$inferInsert
+
+// Subjects a teacher can teach (subject/program stored by name — no subjects table exists)
+export const teacherSubjects = pgTable('teacher_subjects', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  teacherId: uuid('teacher_id').notNull().references(() => faculty.id, { onDelete: 'cascade' }),
+  subjectName: varchar('subject_name', { length: 255 }).notNull(),
+  programName: varchar('program_name', { length: 255 }).notNull().default(''),
+  isPrimary: boolean('is_primary').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type TeacherSubject = typeof teacherSubjects.$inferSelect
+export type NewTeacherSubject = typeof teacherSubjects.$inferInsert
+
+// Batch assignments: role = primary | substitute | assistant
+export const teacherBatches = pgTable('teacher_batches', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  teacherId: uuid('teacher_id').notNull().references(() => faculty.id, { onDelete: 'cascade' }),
+  batchName: varchar('batch_name', { length: 255 }).notNull(),
+  subjectName: varchar('subject_name', { length: 255 }).notNull().default(''),
+  role: varchar('role', { length: 20 }).notNull().default('primary'),
+  assignedAt: varchar('assigned_at', { length: 10 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type TeacherBatch = typeof teacherBatches.$inferSelect
+export type NewTeacherBatch = typeof teacherBatches.$inferInsert
 
 export const studyMaterials = pgTable('study_materials', {
   id: uuid('id').defaultRandom().primaryKey(),
