@@ -21,6 +21,7 @@ const STATUS_STYLES: Record<string, string> = {
 export default function TeacherDashboard({ firstName }: { firstName: string }) {
   const { data: session } = useSession()
   const [schoolData, setSchoolData] = useState<any>(null)
+  const [schoolLoading, setSchoolLoading] = useState(true)
   const [protocols, setProtocols] = useState<any[]>([])
   const [schedules, setSchedules] = useState<any[]>([])
   const [announcements, setAnnouncements] = useState<any[]>([])
@@ -55,6 +56,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
       .then(data => {
         if (!data.error) setSchoolData(data)
       })
+      .finally(() => setSchoolLoading(false))
     fetch('/api/protocols')
       .then(res => res.json())
       .then(data => {
@@ -117,21 +119,37 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
             </div>
             <div>
               <p className="text-xs font-semibold text-[#002045] uppercase tracking-wider">Institution Information</p>
-              <p className="text-sm font-bold text-gray-900">{schoolData?.name || 'Polaris School of Technology'}</p>
+              {schoolLoading ? (
+                <span className="block h-3.5 w-36 rounded bg-gray-200 animate-pulse mt-1" />
+              ) : (
+                <p className="text-sm font-bold text-gray-900">{schoolData?.name || 'Not set'}</p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-8">
             <div>
               <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Board</p>
-              <p className="text-xs font-bold text-gray-800">{schoolData?.board || 'CBSE Affiliated'}</p>
+              {schoolLoading ? (
+                <span className="block h-3 w-20 rounded bg-gray-200 animate-pulse mt-1" />
+              ) : (
+                <p className="text-xs font-bold text-gray-800">{schoolData?.board || 'Not set'}</p>
+              )}
             </div>
             <div>
               <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Active Classes</p>
-              <p className="text-xs font-bold text-gray-800">{schoolData?.classes || 'Nursery – XII'}</p>
+              {schoolLoading ? (
+                <span className="block h-3 w-20 rounded bg-gray-200 animate-pulse mt-1" />
+              ) : (
+                <p className="text-xs font-bold text-gray-800">{schoolData?.classes || 'Not set'}</p>
+              )}
             </div>
             <div>
               <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">MOU Status</p>
-              <p className="text-xs font-bold text-emerald-700">{schoolData?.mouStatus || 'Active (2025)'}</p>
+              {schoolLoading ? (
+                <span className="block h-3 w-20 rounded bg-gray-200 animate-pulse mt-1" />
+              ) : (
+                <p className="text-xs font-bold text-emerald-700">{schoolData?.mouStatus || 'Not set'}</p>
+              )}
             </div>
           </div>
         </motion.div>

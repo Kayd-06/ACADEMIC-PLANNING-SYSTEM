@@ -10,13 +10,14 @@ import { motion, AnimatePresence } from 'framer-motion'
 type SchoolEntry = { id: string; name: string; role: string }
 
 function SchoolSwitcher() {
-  const { data: session, update } = useSession()
+  const { data: session, status, update } = useSession()
   const router = useRouter()
   const [schools, setSchools] = useState<SchoolEntry[]>([])
   const [open, setOpen] = useState(false)
   const [switching, setSwitching] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const activeSchoolId = (session?.user as any)?.schoolId as string | null
+  const sessionLoading = status === 'loading'
 
   useEffect(() => {
     fetch('/api/admin/schools')
@@ -50,11 +51,15 @@ function SchoolSwitcher() {
 
   return (
     <div className="px-4 pb-3" ref={ref}>
-      <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all text-left">
+      <button onClick={() => setOpen(v => !v)} disabled={sessionLoading}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all text-left disabled:cursor-default">
         <div className="flex items-center gap-2 min-w-0">
           <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-          <span className="text-[12px] font-semibold text-slate-700 truncate">{activeSchool?.name ?? 'No school selected'}</span>
+          {sessionLoading ? (
+            <span className="h-3 w-24 rounded bg-slate-100 animate-pulse" />
+          ) : (
+            <span className="text-[12px] font-semibold text-slate-700 truncate">{activeSchool?.name ?? 'No school selected'}</span>
+          )}
         </div>
         <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>

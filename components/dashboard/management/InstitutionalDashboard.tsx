@@ -34,13 +34,10 @@ interface Protocol {
 export default function InstitutionalDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isProtocolsModalOpen, setIsProtocolsModalOpen] = useState(false)
-  const [schoolData, setSchoolData] = useState({
-    board: 'CBSE Affiliated',
-    classes: 'Nursery – XII',
-    programs: 'STEM, Humanities, Arts',
-    mouStatus: 'Active (2025)',
-    joinCode: '' as string,
-  })
+  const [schoolData, setSchoolData] = useState<{
+    board: string; classes: string; programs: string; mouStatus: string; joinCode: string
+  } | null>(null)
+  const [schoolLoading, setSchoolLoading] = useState(true)
   const [codeCopied, setCodeCopied] = useState(false)
   const [audits, setAudits] = useState(auditRows)
   const [protocols, setProtocols] = useState<Protocol[]>([])
@@ -49,6 +46,7 @@ export default function InstitutionalDashboard() {
     fetch('/api/school')
       .then(res => res.json())
       .then(data => { if (!data.error) setSchoolData(data) })
+      .finally(() => setSchoolLoading(false))
     fetchProtocols()
   }, [])
 
@@ -69,7 +67,7 @@ export default function InstitutionalDashboard() {
   }
 
   function copyCode() {
-    if (!schoolData.joinCode) return
+    if (!schoolData?.joinCode) return
     navigator.clipboard.writeText(schoolData.joinCode)
     setCodeCopied(true)
     setTimeout(() => setCodeCopied(false), 2000)
@@ -86,7 +84,7 @@ export default function InstitutionalDashboard() {
       <SchoolDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        initialData={schoolData}
+        initialData={schoolData ?? { board: '', classes: '', programs: '', mouStatus: '', joinCode: '' }}
         onSave={handleSave}
       />
       <ProtocolsModal
@@ -123,26 +121,35 @@ export default function InstitutionalDashboard() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            {[
-              { label: 'CURRENT BOARD', value: schoolData.board || 'State Education Board' },
-              { label: 'ACTIVE CLASSES', value: schoolData.classes || 'Pre-K to 12th Grade' },
-              { label: 'PROGRAMS OFFERED', value: schoolData.programs || 'STEM, Arts, Humanities' },
-              { label: 'MOU STATUS', value: schoolData.mouStatus || 'Active & Verified', primary: true },
-            ].map(item => (
-              <div key={item.label} className={`rounded-xl p-4 border flex flex-col justify-center relative ${item.primary ? 'bg-indigo-50/40 border-indigo-200/60' : 'bg-slate-50/70 border-slate-100'}`}>
-                <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${item.primary ? 'text-indigo-600' : 'text-slate-500'}`}>{item.label}</p>
-                <p className="text-[13px] font-bold text-slate-800">
-                  {item.value}
-                </p>
-                {item.primary && (
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 border-indigo-600 flex items-center justify-center">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
-                  </div>
-                )}
-              </div>
-            ))}
+            {schoolLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-xl p-4 border border-slate-100 bg-slate-50/70">
+                  <div className="h-2.5 w-20 rounded bg-slate-200 animate-pulse mb-2.5" />
+                  <div className="h-3.5 w-32 rounded bg-slate-200 animate-pulse" />
+                </div>
+              ))
+            ) : (
+              [
+                { label: 'CURRENT BOARD', value: schoolData?.board || 'Not set' },
+                { label: 'ACTIVE CLASSES', value: schoolData?.classes || 'Not set' },
+                { label: 'PROGRAMS OFFERED', value: schoolData?.programs || 'Not set' },
+                { label: 'MOU STATUS', value: schoolData?.mouStatus || 'Not set', primary: true },
+              ].map(item => (
+                <div key={item.label} className={`rounded-xl p-4 border flex flex-col justify-center relative ${item.primary ? 'bg-indigo-50/40 border-indigo-200/60' : 'bg-slate-50/70 border-slate-100'}`}>
+                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${item.primary ? 'text-indigo-600' : 'text-slate-500'}`}>{item.label}</p>
+                  <p className="text-[13px] font-bold text-slate-800">
+                    {item.value}
+                  </p>
+                  {item.primary && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 border-indigo-600 flex items-center justify-center">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
-          {schoolData.joinCode && (
+          {schoolData?.joinCode && (
             <div className="mt-4 rounded-xl p-4 border border-amber-200 bg-amber-50/60 flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">School Invite Code</p>
