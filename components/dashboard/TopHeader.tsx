@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { HelpCircle, Settings, X, CheckCircle, AlertCircle, BookOpen, Calendar, Mail, User, Shield, Info, Check, Globe, Building2, Hash, Loader2, LogIn, Bell, Megaphone, FileBarChart, ClipboardList, CreditCard, CalendarCheck, CheckCheck } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSession } from 'next-auth/react'
+import MyProfileModal from '@/components/dashboard/teacher/MyProfileModal'
 
 
 
@@ -47,19 +48,10 @@ export default function TopHeader({ initials }: TopHeaderProps) {
 
   // My Profile (teacher faculty record)
   const [showMyProfile, setShowMyProfile] = useState(false)
-  const [myProfile, setMyProfile] = useState<any>(null)
-  const [profileLoading, setProfileLoading] = useState(false)
 
-  async function openMyProfile() {
+  function openMyProfile() {
     setShowProfileMenu(false)
     setShowMyProfile(true)
-    setProfileLoading(true)
-    try {
-      const res = await fetch('/api/teacher/profile')
-      if (res.ok) setMyProfile(await res.json())
-    } catch { /* ignore */ } finally {
-      setProfileLoading(false)
-    }
   }
 
   // Join school form
@@ -352,102 +344,8 @@ export default function TopHeader({ initials }: TopHeaderProps) {
         )}
       </AnimatePresence>
 
-      {/* ─── My Profile Modal (teacher faculty record) ─── */}
-      <AnimatePresence>
-        {showMyProfile && (
-          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-100 overflow-hidden flex flex-col max-h-[85vh]"
-            >
-              <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 shrink-0">
-                <h3 className="text-base font-bold text-slate-900">My Profile</h3>
-                <button onClick={() => setShowMyProfile(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-50 transition-all">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-6">
-                {profileLoading ? (
-                  <div className="flex flex-col items-center py-10 text-slate-400">
-                    <Loader2 className="w-6 h-6 animate-spin mb-2" />
-                    <p className="text-xs">Loading your profile…</p>
-                  </div>
-                ) : !myProfile?.profile ? (
-                  <p className="text-sm text-slate-500 text-center py-8">
-                    No faculty profile found yet. Your school administration hasn't added your record — ask them to add you in the Teacher Portal.
-                  </p>
-                ) : (() => {
-                  const p = myProfile.profile
-                  const label = 'text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5'
-                  const value = 'text-[13px] font-medium text-slate-900 break-words'
-                  return (
-                    <div className="space-y-6">
-                      <div className="flex items-center gap-4">
-                        {p.profileImgUrl ? (
-                          <img src={p.profileImgUrl} alt={p.name} className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-100" />
-                        ) : (
-                          <div className="w-14 h-14 rounded-full bg-[#002045] text-white flex items-center justify-center text-lg font-bold">
-                            {p.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-base font-bold text-slate-900">{p.name}</p>
-                          <p className="text-xs text-slate-500">
-                            {p.employeeId ? `Employee ID: ${p.employeeId} · ` : ''}{p.subject}
-                            <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold ${p.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                              {p.isActive ? 'ACTIVE' : 'INACTIVE'}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                      {p.bio && <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 border border-slate-100 rounded-xl p-3.5">{p.bio}</p>}
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-3.5">
-                        <div><p className={label}>Email</p><p className={value}>{p.email || '—'}</p></div>
-                        <div><p className={label}>Phone</p><p className={value}>{p.phone || '—'}{p.altPhone ? ` / ${p.altPhone}` : ''}</p></div>
-                        <div><p className={label}>Date of Birth</p><p className={value}>{p.dob || '—'}</p></div>
-                        <div><p className={label}>Gender</p><p className={value}>{p.gender || '—'}</p></div>
-                        <div className="col-span-2"><p className={label}>Address</p><p className={value}>{[p.addressLine1, p.city, p.state, p.pincode].filter(Boolean).join(', ') || '—'}</p></div>
-                        <div><p className={label}>Qualification</p><p className={value}>{p.qualification || '—'}</p></div>
-                        <div><p className={label}>Experience</p><p className={value}>{p.experienceYears != null ? `${p.experienceYears} years` : (p.experience || '—')}</p></div>
-                        <div><p className={label}>Primary Stream</p><p className={value}>{p.primaryStream || '—'}</p></div>
-                        <div><p className={label}>Joining Date</p><p className={value}>{p.joiningDate || '—'}</p></div>
-                      </div>
-                      {(myProfile.subjects?.length > 0) && (
-                        <div>
-                          <p className={label + ' mb-2'}>Subjects Taught</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {myProfile.subjects.map((s: any) => (
-                              <span key={s.id} className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${s.isPrimary ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                                {s.subjectName}{s.programName ? ` · ${s.programName}` : ''}{s.isPrimary ? ' ★' : ''}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {(myProfile.batches?.length > 0) && (
-                        <div>
-                          <p className={label + ' mb-2'}>Batch Assignments</p>
-                          <div className="space-y-1.5">
-                            {myProfile.batches.map((b: any) => (
-                              <div key={b.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                                <span className="text-[12px] font-bold text-slate-800">{b.batchName}{b.subjectName ? ` · ${b.subjectName}` : ''}</span>
-                                <span className="text-[10px] font-bold text-slate-500 uppercase">{b.role}{b.assignedAt ? ` · since ${b.assignedAt}` : ''}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      <p className="text-[10px] text-slate-400 text-center pt-2">Profile details are managed by your school administration.</p>
-                    </div>
-                  )
-                })()}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* ─── My Profile Modal (teacher faculty record, editable) ─── */}
+      <MyProfileModal isOpen={showMyProfile} onClose={() => setShowMyProfile(false)} />
 
       {/* ─── Help Center Modal ─── */}
       <AnimatePresence>
