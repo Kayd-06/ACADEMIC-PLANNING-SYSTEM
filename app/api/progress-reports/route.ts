@@ -1,10 +1,53 @@
-// API route for progress reports - verified
+// API route for progress reports with True Dynamic Batch & Term Ranking
 import { NextRequest, NextResponse } from 'next/server'
 import { db, progressReports, progressReportSubjects, students } from '@/lib/db'
 import { eq, and, desc, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
+
+// Helper function to turn a numeric rank (1, 2, 3...) into ordinal ('1st', '2nd', '3rd', '4th'...)
+function getOrdinalRank(n: number, total: number): string {
+  if (n <= 0) return '-'
+  const s = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  const suffix = (s[(v - 20) % 10] || s[v] || s[0])
+  return total > 1 ? `${n}${suffix} / ${total}` : `${n}${suffix}`
+}
+
+// Helper: Dynamically recalculate and update ranks for all students inside a specific batch + termType + academicYear
+async function recomputeBatchRanks(batch: string, termType: string, academicYear: string, schoolId: string | null) {
+  try {
+    const conditions = [
+      eq(progressReports.batch, batch),
+      eq(progressReports.termType, termType),
+      eq(progressReports.academicYear, academicYear)
+    ]
+    if (schoolId) conditions.push(eq(progressReports.schoolId, schoolId))
+
+    const allReportsInBatch = await db.select().from(progressReports).where(and(...conditions))
+    if (allReportsInBatch.length === 0) return
+
+    // Sort descending by percentage numeric value (e.g., parseInt("82%") -> 82)
+    const sorted = [...allReportsInBatch].sort((a, b) => {
+      const pctA = parseInt(a.percentage || '0', 10) || 0
+      const pctB = parseInt(b.percentage || '0', 10) || 0
+      return pctB - pctA
+    })
+
+    const totalStudents = sorted.length
+    for (let i = 0; i < sorted.length; i++) {
+      const rankOrdinal = getOrdinalRank(i + 1, totalStudents)
+      if (sorted[i].rank !== rankOrdinal) {
+        await db.update(progressReports)
+          .set({ rank: rankOrdinal })
+          .where(eq(progressReports.id, sorted[i].id))
+      }
+    }
+  } catch (err) {
+    console.error('Error recomputing batch ranks:', err)
+  }
+}
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -20,7 +63,7 @@ export async function GET(req: NextRequest) {
   if (schoolId) conditions.push(eq(progressReports.schoolId, schoolId))
   if (batch && batch !== 'All') conditions.push(eq(progressReports.batch, batch))
   if (termType && termType !== 'All') conditions.push(eq(progressReports.termType, termType))
-  if (academicYear) conditions.push(eq(progressReports.academicYear, academicYear))
+  if (academicYear && academicYear !== 'All') conditions.push(eq(progressReports.academicYear, academicYear))
 
   const reports = conditions.length
     ? await db.select().from(progressReports).where(and(...conditions)).orderBy(desc(progressReports.generatedAt))
@@ -28,6 +71,35 @@ export async function GET(req: NextRequest) {
 
   if (reports.length === 0) {
     return NextResponse.json([])
+  }
+
+  // Ensure all fetched reports have exact dynamically computed true rank in their cohort
+  // Group reports by batch + termType + academicYear to recalculate on the fly if needed
+  const cohortGroups = new Map<string, typeof reports>()
+  for (const r of reports) {
+    const key = `${r.batch}:::${r.termType}:::${r.academicYear}`
+    const list = cohortGroups.get(key) || []
+    list.push(r)
+    cohortGroups.set(key, list)
+  }
+
+  for (const [key, cohortList] of cohortGroups.entries()) {
+    const [b, t, a] = key.split(':::')
+    // Check if we need to sync ranks in DB or just update in memory
+    const sortedCohort = [...cohortList].sort((x, y) => {
+      const px = parseInt(x.percentage || '0', 10) || 0
+      const py = parseInt(y.percentage || '0', 10) || 0
+      return py - px
+    })
+    const total = sortedCohort.length
+    for (let i = 0; i < sortedCohort.length; i++) {
+      const trueRank = getOrdinalRank(i + 1, total)
+      sortedCohort[i].rank = trueRank
+      // Asynchronously sync correct rank if DB had stale or static rank
+      if (sortedCohort[i].rank !== trueRank || trueRank.includes('2nd') && total === 1) {
+        db.update(progressReports).set({ rank: trueRank }).where(eq(progressReports.id, sortedCohort[i].id)).catch(() => {})
+      }
+    }
   }
 
   const reportIds = reports.map(r => r.id)
@@ -60,7 +132,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'studentName and batch are required' }, { status: 400 })
   }
 
-  // Calculate overall percentage and rank
+  // Calculate overall percentage
   let totalObtained = 0
   let totalMax = 0
   if (Array.isArray(subjects)) {
@@ -71,9 +143,22 @@ export async function POST(req: NextRequest) {
   }
   const percentageVal = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0
   const percentageStr = `${percentageVal}%`
-  const rankStr = percentageVal >= 90 ? '1st' : percentageVal >= 80 ? '2nd' : percentageVal >= 70 ? '3rd' : '-'
 
-  // Link the actual student record when we can find them (chart: Identification — Student)
+  // Check how many students exist in this cohort right now to assign initial true rank
+  const cohortConditions = [
+    eq(progressReports.batch, batch),
+    eq(progressReports.termType, termType || 'Mid-Term'),
+    eq(progressReports.academicYear, academicYear || '2025-2026')
+  ]
+  if (schoolId) cohortConditions.push(eq(progressReports.schoolId, schoolId))
+  const existingCohort = await db.select().from(progressReports).where(and(...cohortConditions))
+  
+  // Compute rank dynamically against cohort
+  const allScores = [...existingCohort.map(r => parseInt(r.percentage || '0', 10)), percentageVal].sort((a, b) => b - a)
+  const myRankIdx = allScores.indexOf(percentageVal) + 1
+  const rankStr = getOrdinalRank(myRankIdx, existingCohort.length + 1)
+
+  // Link the actual student record when we can find them
   let studentId: string | null = null
   const studentConditions: any[] = [eq(students.isActive, true)]
   if (schoolId) studentConditions.push(eq(students.schoolId, schoolId))
@@ -110,13 +195,22 @@ export async function POST(req: NextRequest) {
     await db.insert(progressReportSubjects).values(subValues)
   }
 
+  // Re-sync all ranks across the entire batch/term cohort
+  await recomputeBatchRanks(batch, termType || 'Mid-Term', academicYear || '2025-2026', schoolId)
+
   return NextResponse.json(report, { status: 201 })
 }
 
-// PATCH — edit a progress report (?id=) (management any, teacher their own).
-// Accepts report fields and an optional full `subjects` array (replaces the breakdown
-// and recomputes percentage/rank).
+// PATCH & PUT — edit a progress report (?id=)
 export async function PATCH(req: NextRequest) {
+  return handleUpdate(req)
+}
+
+export async function PUT(req: NextRequest) {
+  return handleUpdate(req)
+}
+
+async function handleUpdate(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const role = (session.user as any).role
@@ -148,7 +242,6 @@ export async function PATCH(req: NextRequest) {
     }
     const percentageVal = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0
     updates.percentage = `${percentageVal}%`
-    updates.rank = percentageVal >= 90 ? '1st' : percentageVal >= 80 ? '2nd' : percentageVal >= 70 ? '3rd' : '-'
 
     await db.delete(progressReportSubjects).where(eq(progressReportSubjects.progressReportId, id))
     if (body.subjects.length > 0) {
@@ -167,11 +260,20 @@ export async function PATCH(req: NextRequest) {
   updates.updatedAt = new Date()
 
   const [updated] = await db.update(progressReports).set(updates).where(eq(progressReports.id, id)).returning()
+  
+  // Recompute and sync exact ranking across the cohort
+  const targetBatch = updated.batch || existing.batch
+  const targetTerm = updated.termType || existing.termType
+  const targetYear = updated.academicYear || existing.academicYear
+  await recomputeBatchRanks(targetBatch, targetTerm, targetYear, schoolId)
+
+  // Fetch updated row to return correct rank
+  const [freshReport] = await db.select().from(progressReports).where(eq(progressReports.id, id))
   const updatedSubjects = await db.select().from(progressReportSubjects).where(eq(progressReportSubjects.progressReportId, id))
-  return NextResponse.json({ ...updated, subjects: updatedSubjects })
+  return NextResponse.json({ ...(freshReport || updated), subjects: updatedSubjects })
 }
 
-// DELETE — remove a progress report (?id=) (management any, teacher their own; subjects cascade)
+// DELETE — remove a progress report (?id=)
 export async function DELETE(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -186,6 +288,12 @@ export async function DELETE(req: NextRequest) {
   if (role === 'teacher') conditions.push(eq(progressReports.teacherEmail, session.user.email!))
   else if (role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const [existing] = await db.select().from(progressReports).where(and(...conditions))
   await db.delete(progressReports).where(and(...conditions))
+
+  if (existing) {
+    await recomputeBatchRanks(existing.batch, existing.termType, existing.academicYear, schoolId)
+  }
+
   return NextResponse.json({ success: true })
 }
