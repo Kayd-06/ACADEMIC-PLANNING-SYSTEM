@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertical, FileIcon, MessageCircle, Loader2, X, ExternalLink, Edit2, Save, Pencil, Trash2, ChevronDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import FacultyProfileModal from './FacultyProfileModal'
@@ -109,17 +110,24 @@ export default function TeacherPortalView() {
   const [showFilter, setShowFilter] = useState(false)
   const filterRef = useRef<HTMLDivElement>(null)
 
-  // Row 3-dot menu
+  // Row 3-dot menu — rendered via portal so it's never clipped by the
+  // Faculty Directory card's scroll container
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
-  const [menuPlacement, setMenuPlacement] = useState<'up' | 'down'>('down')
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null)
   const menuRef = useRef<HTMLTableSectionElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
+  const MENU_WIDTH = 128
   const MENU_HEIGHT_ESTIMATE = 130
 
   function toggleRowMenu(e: React.MouseEvent<HTMLButtonElement>, id: string) {
-    if (openMenuId === id) { setOpenMenuId(null); return }
+    if (openMenuId === id) { setOpenMenuId(null); setMenuPos(null); return }
     const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPlacement(window.innerHeight - rect.bottom < MENU_HEIGHT_ESTIMATE ? 'up' : 'down')
+    const openUp = window.innerHeight - rect.bottom < MENU_HEIGHT_ESTIMATE
+    setMenuPos({
+      top: openUp ? rect.top - MENU_HEIGHT_ESTIMATE : rect.bottom + 4,
+      left: rect.right - MENU_WIDTH,
+    })
     setOpenMenuId(id)
   }
 
@@ -147,7 +155,9 @@ export default function TeacherPortalView() {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (filterRef.current && !filterRef.current.contains(e.target as Node)) setShowFilter(false)
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenuId(null)
+      const insideTrigger = menuRef.current && menuRef.current.contains(e.target as Node)
+      const insideDropdown = dropdownRef.current && dropdownRef.current.contains(e.target as Node)
+      if (!insideTrigger && !insideDropdown) { setOpenMenuId(null); setMenuPos(null) }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -478,22 +488,6 @@ export default function TeacherPortalView() {
                               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
                               <MoreVertical className="w-4 h-4" />
                             </button>
-                            <AnimatePresence>
-                              {openMenuId === fac._id && (
-                                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                                  className={`absolute right-0 w-32 bg-white rounded-xl shadow-lg border border-slate-200 z-30 py-1 overflow-hidden ${menuPlacement === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
-                                  <button onClick={() => openProfile(fac)} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
-                                    <User className="w-3.5 h-3.5" /> Profile
-                                  </button>
-                                  <button onClick={() => openEditFaculty(fac)} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
-                                    <Pencil className="w-3.5 h-3.5" /> Edit
-                                  </button>
-                                  <button onClick={() => handleDeleteFaculty(fac._id)} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors">
-                                    <Trash2 className="w-3.5 h-3.5" /> Delete
-                                  </button>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
                           </div>
                         </td>
                       </tr>
@@ -503,6 +497,32 @@ export default function TeacherPortalView() {
               </div>
             )}
           </div>
+
+          {typeof document !== 'undefined' && createPortal(
+            <AnimatePresence>
+              {openMenuId && menuPos && (() => {
+                const activeFac = filteredFaculty.find(f => f._id === openMenuId)
+                if (!activeFac) return null
+                return (
+                  <motion.div ref={dropdownRef}
+                    initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                    style={{ position: 'fixed', top: menuPos.top, left: menuPos.left }}
+                    className="w-32 bg-white rounded-xl shadow-lg border border-slate-200 z-[999] py-1 overflow-hidden">
+                    <button onClick={() => { openProfile(activeFac); setOpenMenuId(null); setMenuPos(null) }} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                      <User className="w-3.5 h-3.5" /> Profile
+                    </button>
+                    <button onClick={() => { openEditFaculty(activeFac); setOpenMenuId(null); setMenuPos(null) }} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                      <Pencil className="w-3.5 h-3.5" /> Edit
+                    </button>
+                    <button onClick={() => { handleDeleteFaculty(activeFac._id); setOpenMenuId(null); setMenuPos(null) }} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" /> Delete
+                    </button>
+                  </motion.div>
+                )
+              })()}
+            </AnimatePresence>,
+            document.body
+          )}
         </div>
 
         <div className="space-y-6">
