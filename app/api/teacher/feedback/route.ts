@@ -5,104 +5,6 @@ import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-// Helper to get formatted relative date
-function getRelativeDateString(offsetDays: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + offsetDays)
-  return d.toISOString().split('T')[0]
-}
-
-// Seeding function for feedback if collection is empty
-async function seedFeedbackIfEmpty() {
-  const count = await Feedback.countDocuments()
-  if (count > 0) return
-
-  const feedList: any[] = [
-    {
-      senderName: 'Alex Johnson',
-      isAnonymous: false,
-      rating: 5,
-      content: "The session on Calculus was very clear and helpful. The visual examples made it much easier to understand the core concepts. Thanks!",
-      type: 'Student -> Teacher',
-      status: 'Submitted',
-      subject: 'Mathematics',
-      batch: 'Grade 11-A',
-      date: getRelativeDateString(0)
-    },
-    {
-      senderName: 'Anonymous',
-      isAnonymous: true,
-      rating: 4,
-      content: "Good pace overall, but I felt the section on thermodynamics was a bit rushed. Maybe we could do a quick review next class?",
-      type: 'Student -> Teacher',
-      status: 'Submitted',
-      subject: 'Physics',
-      batch: 'Grade 12-B',
-      date: getRelativeDateString(-1)
-    },
-    {
-      senderName: 'Sarah Connor',
-      isAnonymous: false,
-      rating: 5,
-      content: "Loved the practice problems assigned today, they really cemented the theory.",
-      type: 'Student -> Teacher',
-      status: 'Resolved',
-      subject: 'Mathematics',
-      batch: 'Grade 11-A',
-      date: '2023-10-12'
-    }
-  ]
-
-  const statuses = [
-    'Submitted', 'In Progress', 'Resolved', 'Dismissed'
-  ]
-
-  const ratings = [
-    5, 5, 4, 5, 4, 3, 5, 4, 5, 5, 4, 3, 2, 5, 4, 5, 5, 3, 4, 5,
-    5, 4, 5, 4, 3, 5, 4, 5, 5, 4, 3, 2, 5, 4, 5, 5, 3, 4, 5, 5
-  ]
-
-  const contents = [
-    "The weekly chemistry tests are really helpful. The explanation of doubts after tests could be a bit more detailed.",
-    "Organic Chemistry chapters are being covered very quickly. Please slow down the mechanism explanation.",
-    "Really appreciate the extra handouts provided for JEE Physics. They have extremely good problem sets.",
-    "The digital whiteboard notes are sometimes not uploaded on time. Please post them right after class.",
-    "Mathematics lectures are outstanding. The interactive graphs make complex concepts easy to understand.",
-    "Could we have more mock test discussions on Saturdays? It helps clear speed and accuracy bottlenecks.",
-    "Excellent explanation of molecular structures. The 3D models were beautiful.",
-    "Can we have more assignments on integration? The textbook questions are not enough for practice.",
-    "Physics class was amazing today. The real-world examples of mechanics were very engaging.",
-    "Thanks for clearing all my doubts after class. Really helped me prepare for the test."
-  ]
-
-  const subjects = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English']
-  const batches = ['Grade 11-A', 'Grade 12-B', 'Grade 10-C', 'Grade 9-A']
-  const names = ['Amit Sharma', 'Neha Patel', 'Rohan Gupta', 'Karan Verma', 'Sanjay Shah', 'Deepa Nair', 'Rahul Das', 'Anjali Sen', 'Vijay Reddy']
-
-  // Seed 125 additional feedbacks to make the total around 128 (to match the 128 reviews in the screenshot)
-  for (let i = 0; i < 125; i++) {
-    const status = statuses[i % statuses.length]
-    const rating = ratings[Math.floor(Math.random() * ratings.length)]
-    const content = contents[Math.floor(Math.random() * contents.length)]
-    const isAnon = i % 3 === 0
-    const senderName = isAnon ? 'Anonymous' : names[Math.floor(Math.random() * names.length)]
-
-    feedList.push({
-      senderName,
-      isAnonymous: isAnon,
-      rating,
-      content,
-      type: 'Student -> Teacher',
-      status,
-      subject: subjects[Math.floor(Math.random() * subjects.length)],
-      batch: batches[Math.floor(Math.random() * batches.length)],
-      date: getRelativeDateString(-1 - Math.floor(i / 3))
-    })
-  }
-
-  await Feedback.insertMany(feedList)
-}
-
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
@@ -115,7 +17,6 @@ export async function GET(req: NextRequest) {
     }
 
     await connectDB()
-    await seedFeedbackIfEmpty()
 
     const { searchParams } = new URL(req.url)
     const batchFilter = searchParams.get('batch') || 'All'

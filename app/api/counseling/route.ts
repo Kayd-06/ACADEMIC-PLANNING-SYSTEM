@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { counselingSessions, students, type CounselingSession } from '@/lib/db/schema'
+import { counselingSessions, type CounselingSession } from '@/lib/db/schema'
 import { eq, and, or, ilike, desc, asc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 
@@ -9,65 +9,10 @@ export const dynamic = 'force-dynamic'
 type SessionType = 'Academic' | 'Career' | 'Personal' | 'Disciplinary' | 'Parent Meeting'
 type SessionStatus = 'Scheduled' | 'Completed' | 'No-Show' | 'Cancelled'
 
-function getDateOffset(offsetDays: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + offsetDays)
-  return d.toISOString().split('T')[0]
-}
-
-function toApiShape(session: CounselingSession) {
+function toApiShape(session: CounselingSession | null) {
   if (!session) return null
   const { id, ...rest } = session
   return { _id: id, ...rest }
-}
-
-async function seedSessions() {
-  const existing = await db.select().from(counselingSessions).limit(1)
-  if (existing.length > 0) return
-
-  const dbStudents = await db.select().from(students)
-  if (dbStudents.length === 0) return
-
-  const sessionTemplates = [
-    { counselor: 'Dr. Anjali Sharma', type: 'Academic' as const, dateOffset: -1, time: '10:30 AM', duration: '45 mins', status: 'Completed' as const, flagged: false, notes: 'Struggling with mathematics; follow-up after mid-term.' },
-    { counselor: 'Mr. David Chen', type: 'Career' as const, dateOffset: -2, time: '2:00 PM', duration: '30 mins', status: 'Scheduled' as const, flagged: false, notes: 'Discussed engineering college options and entrance exams.' },
-    { counselor: 'Dr. Anjali Sharma', type: 'Disciplinary' as const, dateOffset: -3, time: '11:15 AM', duration: '15 mins', status: 'No-Show' as const, flagged: true, notes: 'Student did not attend scheduled session. Follow up required.' },
-    { counselor: 'Ms. Rebecca Torres', type: 'Disciplinary' as const, dateOffset: -4, time: '9:00 AM', duration: '30 mins', status: 'Cancelled' as const, flagged: false, notes: 'Session cancelled due to school event.' },
-    { counselor: 'Dr. Anjali Sharma', type: 'Academic' as const, dateOffset: 2, time: '11:00 AM', duration: '45 mins', status: 'Scheduled' as const, flagged: false, notes: 'Reviewing improvement plan for science subjects.' },
-    { counselor: 'Mr. David Chen', type: 'Career' as const, dateOffset: 3, time: '3:30 PM', duration: '60 mins', status: 'Scheduled' as const, flagged: false, notes: 'Aptitude test review and career mapping session.' },
-    { counselor: 'Ms. Rebecca Torres', type: 'Personal' as const, dateOffset: -5, time: '10:00 AM', duration: '45 mins', status: 'Completed' as const, flagged: true, notes: 'Peer pressure issues discussed. Flagged for follow-up.' },
-    { counselor: 'Dr. Anjali Sharma', type: 'Disciplinary' as const, dateOffset: -6, time: '9:30 AM', duration: '30 mins', status: 'Completed' as const, flagged: false, notes: 'Attendance discussion resolved.' },
-    { counselor: 'Mr. David Chen', type: 'Academic' as const, dateOffset: 1, time: '2:00 PM', duration: '30 mins', status: 'Scheduled' as const, flagged: false, notes: 'Grade improvement strategy for upcoming finals.' },
-    { counselor: 'Ms. Rebecca Torres', type: 'Career' as const, dateOffset: -7, time: '4:00 PM', duration: '45 mins', status: 'No-Show' as const, flagged: true, notes: 'Second consecutive no-show. Escalation needed.' },
-    { counselor: 'Dr. Anjali Sharma', type: 'Personal' as const, dateOffset: -2, time: '12:00 PM', duration: '15 mins', status: 'Completed' as const, flagged: false, notes: 'Stress management techniques shared.' },
-    { counselor: 'Mr. David Chen', type: 'Academic' as const, dateOffset: 7, time: '1:00 PM', duration: '45 mins', status: 'Scheduled' as const, flagged: false, notes: 'Scholarship application guidance session.' },
-    { counselor: 'Ms. Rebecca Torres', type: 'Career' as const, dateOffset: -8, time: '10:30 AM', duration: '30 mins', status: 'Completed' as const, flagged: false, notes: 'Arts college portfolio reviewed.' },
-    { counselor: 'Dr. Anjali Sharma', type: 'Disciplinary' as const, dateOffset: -1, time: '9:00 AM', duration: '15 mins', status: 'Completed' as const, flagged: true, notes: 'Bullying complaint investigated and resolved.' },
-    { counselor: 'Mr. David Chen', type: 'Personal' as const, dateOffset: 4, time: '11:30 AM', duration: '30 mins', status: 'Scheduled' as const, flagged: false, notes: 'Anxiety management referral follow-up.' }
-  ]
-
-  const valuesToInsert = sessionTemplates.map((template, idx) => {
-    const student = dbStudents[idx % dbStudents.length]
-    const initials = student.name.trim().split(' ')
-      .map(n => n[0]?.toUpperCase() || '')
-      .slice(0, 2)
-      .join('')
-
-    return {
-      studentName: student.name,
-      studentInitials: initials,
-      counselor: template.counselor,
-      type: template.type,
-      date: getDateOffset(template.dateOffset),
-      time: template.time,
-      duration: template.duration,
-      status: template.status,
-      flagged: template.flagged,
-      notes: template.notes
-    }
-  })
-
-  await db.insert(counselingSessions).values(valuesToInsert)
 }
 
 // GET - fetch all sessions with optional filters
@@ -76,8 +21,6 @@ export async function GET(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const schoolId = (session.user as any).schoolId as string | null
-
-    await seedSessions()
 
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
