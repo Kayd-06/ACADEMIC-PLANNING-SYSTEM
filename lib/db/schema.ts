@@ -265,6 +265,23 @@ export const calendarEvents = pgTable('calendar_events', {
 export type CalendarEvent = typeof calendarEvents.$inferSelect
 export type NewCalendarEvent = typeof calendarEvents.$inferInsert
 
+// Institutional compliance protocols (School Background > Protocols panel)
+export const protocols = pgTable('protocols', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  label: varchar('label', { length: 255 }).notNull(),
+  sub: varchar('sub', { length: 500 }).notNull().default(''),
+  // Status: completed | pending | overdue
+  status: varchar('status', { length: 20 }).notNull().default('pending'),
+  reviewedAt: varchar('reviewed_at', { length: 50 }),
+  overdueDays: integer('overdue_days'),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Protocol = typeof protocols.$inferSelect
+export type NewProtocol = typeof protocols.$inferInsert
+
 export const counselingSessionTypeEnum = pgEnum('counseling_session_type', ['Academic', 'Career', 'Personal', 'Disciplinary', 'Parent Meeting'])
 export const counselingSessionStatusEnum = pgEnum('counseling_session_status', ['Scheduled', 'Completed', 'No-Show', 'Cancelled'])
 
