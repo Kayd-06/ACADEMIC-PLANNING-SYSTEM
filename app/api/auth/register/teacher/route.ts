@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { findUserByEmail, createUser } from '@/lib/db/queries/users'
 import { createEmailVerification } from '@/lib/db/queries/email-verifications'
+import { ensureFacultyRecord } from '@/lib/db/queries/faculty'
 import { generateToken, getTokenExpiry } from '@/lib/tokens'
 import { sendVerificationEmail } from '@/lib/mail'
 import { db } from '@/lib/db'
@@ -43,6 +44,13 @@ export async function POST(req: Request) {
       department,
       schoolId,
     })
+
+    // Surface the teacher in management's Faculty Directory right away —
+    // otherwise they're a login with no visible staff record until an admin
+    // manually re-adds them via "Add Faculty".
+    if (schoolId) {
+      await ensureFacultyRecord({ userId: user.id, schoolId, name, email, department })
+    }
 
     const token = generateToken()
     await createEmailVerification({ userId: user.id, token, expiresAt: getTokenExpiry(24) })

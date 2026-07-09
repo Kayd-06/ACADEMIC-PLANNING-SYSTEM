@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { schools, users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { ensureFacultyRecord } from '@/lib/db/queries/faculty'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,14 @@ export async function POST(req: NextRequest) {
   await db.update(users)
     .set({ schoolId: school.id, updatedAt: new Date() })
     .where(eq(users.id, session.user.id!))
+
+  await ensureFacultyRecord({
+    userId: session.user.id!,
+    schoolId: school.id,
+    name: session.user.name ?? '',
+    email: session.user.email ?? '',
+    department: (session.user as any).department ?? null,
+  })
 
   return NextResponse.json({ schoolId: school.id, schoolName: school.name ?? 'School' })
 }
