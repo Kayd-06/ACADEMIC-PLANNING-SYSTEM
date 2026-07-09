@@ -1,38 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
-import FeeType from '@/models/FeeType'
 import { auth } from '@/lib/auth'
+import {
+  listFeeStructures,
+  createFeeStructure,
+  updateFeeStructure,
+  deleteFeeStructure,
+  getFeeStructureById
+} from '@/lib/db/queries/fees'
 
 export const dynamic = 'force-dynamic'
 
-// GET — fetch fee structures
+// GET — fetch fee structures from Neon database
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    await connectDB()
-
     const { searchParams } = new URL(req.url)
     const search = searchParams.get('search') || ''
+    const schoolId = searchParams.get('schoolId') || (session.user as any)?.schoolId || null
 
-    const query: Record<string, any> = {}
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { programBatch: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
-      ]
-    }
+    const structures = await listFeeStructures({
+      search,
+      schoolId: schoolId || undefined
+    })
 
-    const feeTypes = await FeeType.find(query).sort({ createdAt: -1 }).lean()
-    return NextResponse.json(feeTypes)
+    // Map id to _id as well for transparent frontend compatibility
+    const mapped = structures.map(s => ({
+      ...s,
+      _id: s.id
+    }))
+
+    return NextResponse.json(mapped)
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('GET /api/fees/structures error:', error)
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
   }
 }
 
-// POST — create new fee structure
+// POST — create new fee structure in Neon database
 export async function POST(req: NextRequest) {
   try {
     const session = await auth()
@@ -41,32 +47,50 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    await connectDB()
-
     const body = await req.json()
-    const { name, description, programBatch, amount, frequency, academicYear } = body
-
-    if (!name?.trim() || !programBatch?.trim() || typeof amount !== 'number' || !frequency || !academicYear?.trim()) {
-      return NextResponse.json({ error: 'Missing or invalid required fields.' }, { status: 400 })
-    }
-
-    const feeType = await FeeType.create({
-      name: name.trim(),
-      description: description?.trim() || '',
-      programBatch: programBatch.trim(),
+    const {
+      name,
+      feeType,
+      description,
       amount,
       frequency,
-      academicYear: academicYear.trim(),
+      dueDay,
+      isMandatory,
+      programAssociation,
+      batchAssociation,
+      academicYear,
+      schoolId
+    } = body
+
+    if (!name?.trim() || typeof amount !== 'number' || amount < 0) {
+      return NextResponse.json({ error: 'Missing or invalid required fields (name, amount).' }, { status: 400 })
+    }
+
+    const targetSchoolId = schoolId || (session.user as any)?.schoolId || null
+
+    const created = await createFeeStructure({
+      name: name.trim(),
+      feeType: feeType || 'Monthly Tuition',
+      description: description?.trim() || '',
+      amount: Math.round(Number(amount)),
+      frequency: frequency || 'Monthly',
+      dueDay: Number(dueDay) || 5,
+      isMandatory: isMandatory !== undefined ? Boolean(isMandatory) : true,
+      programAssociation: programAssociation?.trim() || 'All Programs',
+      batchAssociation: batchAssociation?.trim() || 'All Batches',
+      academicYear: academicYear?.trim() || '2024-25',
+      schoolId: targetSchoolId,
       isActive: true
     })
 
-    return NextResponse.json(feeType, { status: 201 })
+    return NextResponse.json({ ...created, _id: created.id }, { status: 201 })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('POST /api/fees/structures error:', error)
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
   }
 }
 
-// PUT — update fee structure
+// PUT — update fee structure in Neon database
 export async function PUT(req: NextRequest) {
   try {
     const session = await auth()
@@ -75,23 +99,35 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    await connectDB()
-
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Fee Type ID is required' }, { status: 400 })
 
     const body = await req.json()
-    const updatedFeeType = await FeeType.findByIdAndUpdate(id, body, { new: true })
-    if (!updatedFeeType) return NextResponse.json({ error: 'Fee Type not found' }, { status: 404 })
+    const updatePayload: any = {}
+    if (body.name !== undefined) updatePayload.name = body.name.trim()
+    if (body.feeType !== undefined) updatePayload.feeType = body.feeType
+    if (body.description !== undefined) updatePayload.description = body.description
+    if (body.amount !== undefined) updatePayload.amount = Math.round(Number(body.amount))
+    if (body.frequency !== undefined) updatePayload.frequency = body.frequency
+    if (body.dueDay !== undefined) updatePayload.dueDay = Number(body.dueDay)
+    if (body.isMandatory !== undefined) updatePayload.isMandatory = Boolean(body.isMandatory)
+    if (body.programAssociation !== undefined) updatePayload.programAssociation = body.programAssociation
+    if (body.batchAssociation !== undefined) updatePayload.batchAssociation = body.batchAssociation
+    if (body.academicYear !== undefined) updatePayload.academicYear = body.academicYear
+    if (body.isActive !== undefined) updatePayload.isActive = Boolean(body.isActive)
 
-    return NextResponse.json(updatedFeeType)
+    const updated = await updateFeeStructure(id, updatePayload)
+    if (!updated) return NextResponse.json({ error: 'Fee structure not found' }, { status: 404 })
+
+    return NextResponse.json({ ...updated, _id: updated.id })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('PUT /api/fees/structures error:', error)
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
   }
 }
 
-// DELETE — delete fee structure
+// DELETE — delete fee structure from Neon database
 export async function DELETE(req: NextRequest) {
   try {
     const session = await auth()
@@ -100,17 +136,16 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    await connectDB()
-
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Fee Type ID is required' }, { status: 400 })
 
-    const deletedFeeType = await FeeType.findByIdAndDelete(id)
-    if (!deletedFeeType) return NextResponse.json({ error: 'Fee Type not found' }, { status: 404 })
+    const success = await deleteFeeStructure(id)
+    if (!success) return NextResponse.json({ error: 'Fee structure not found or already deleted' }, { status: 404 })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ message: 'Fee structure deleted successfully' })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('DELETE /api/fees/structures error:', error)
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
   }
 }
