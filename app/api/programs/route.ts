@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { programs, batches, batchPrograms, programSubjects, type NewProgram } from '@/lib/db/schema'
-import { eq, and, asc, inArray } from 'drizzle-orm'
+import { programs, batchPrograms, programSubjects, students, type NewProgram } from '@/lib/db/schema'
+import { eq, and, asc, inArray, count } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,16 +29,26 @@ export async function GET() {
       : await db.select().from(programs).orderBy(asc(programs.createdAt))
 
     const ids = rows.map(p => p.id)
-    const [linkRows, subjectRows] = ids.length
+    const studentCondition = schoolId
+      ? and(eq(students.isActive, true), eq(students.schoolId, schoolId))
+      : eq(students.isActive, true)
+
+    const [linkRows, subjectRows, studentCountRows] = ids.length
       ? await Promise.all([
-          db.select({ programId: batchPrograms.programId, batchId: batchPrograms.batchId, enrolledCount: batches.enrolledCount })
+          db.select({ programId: batchPrograms.programId, batchId: batchPrograms.batchId })
             .from(batchPrograms)
-            .innerJoin(batches, eq(batchPrograms.batchId, batches.id))
             .where(inArray(batchPrograms.programId, ids)),
           db.select({ programId: programSubjects.programId })
             .from(programSubjects).where(inArray(programSubjects.programId, ids)),
+          // Count students by their own `program` field, not batch enrollment —
+          // a batch can be linked to several programs, so summing enrolledCount
+          // would double-count students across every program that batch offers.
+          db.select({ program: students.program, value: count() })
+            .from(students).where(studentCondition).groupBy(students.program),
         ])
-      : [[], []]
+      : [[], [], []]
+
+    const studentCountByName = new Map(studentCountRows.map(r => [r.program, Number(r.value)]))
 
     const result = rows.map(p => {
       const myLinks = linkRows.filter(b => b.programId === p.id)
@@ -49,7 +59,7 @@ export async function GET() {
         title: p.name,
         target: p.targetExam,
         batches: myLinks.length,
-        students: myLinks.reduce((s, b) => s + (b.enrolledCount ?? 0), 0),
+        students: studentCountByName.get(p.name) ?? 0,
         subjects: subjectRows.filter(s => s.programId === p.id).length,
       }
     })
