@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { programs, batches, programSubjects, type NewProgram } from '@/lib/db/schema'
+import { programs, batches, batchPrograms, programSubjects, type NewProgram } from '@/lib/db/schema'
 import { eq, and, asc, inArray } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
@@ -29,25 +29,27 @@ export async function GET() {
       : await db.select().from(programs).orderBy(asc(programs.createdAt))
 
     const ids = rows.map(p => p.id)
-    const [batchRows, subjectRows] = ids.length
+    const [linkRows, subjectRows] = ids.length
       ? await Promise.all([
-          db.select({ programId: batches.programId, enrolledCount: batches.enrolledCount })
-            .from(batches).where(inArray(batches.programId, ids)),
+          db.select({ programId: batchPrograms.programId, batchId: batchPrograms.batchId, enrolledCount: batches.enrolledCount })
+            .from(batchPrograms)
+            .innerJoin(batches, eq(batchPrograms.batchId, batches.id))
+            .where(inArray(batchPrograms.programId, ids)),
           db.select({ programId: programSubjects.programId })
             .from(programSubjects).where(inArray(programSubjects.programId, ids)),
         ])
       : [[], []]
 
     const result = rows.map(p => {
-      const myBatches = batchRows.filter(b => b.programId === p.id)
+      const myLinks = linkRows.filter(b => b.programId === p.id)
       return {
         ...p,
         _id: p.id,
         // Legacy aliases kept for older consumers
         title: p.name,
         target: p.targetExam,
-        batches: myBatches.length,
-        students: myBatches.reduce((s, b) => s + (b.enrolledCount ?? 0), 0),
+        batches: myLinks.length,
+        students: myLinks.reduce((s, b) => s + (b.enrolledCount ?? 0), 0),
         subjects: subjectRows.filter(s => s.programId === p.id).length,
       }
     })

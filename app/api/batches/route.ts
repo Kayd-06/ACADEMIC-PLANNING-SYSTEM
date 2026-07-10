@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { batches, students, programs, faculty, teacherBatches, type NewBatch } from '@/lib/db/schema'
+import { batches, batchPrograms, students, programs, faculty, teacherBatches, type NewBatch } from '@/lib/db/schema'
 import { eq, and, asc, isNull, inArray, count } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
 const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Dropper']
-const FIELDS = ['name', 'classLevel', 'capacity', 'startDate', 'endDate', 'programId', 'teacherId'] as const
+const FIELDS = ['name', 'classLevel', 'capacity', 'startDate', 'endDate', 'teacherId'] as const
 
 function pickFields(body: any): Partial<NewBatch> {
   const data: Record<string, any> = {}
@@ -24,6 +24,16 @@ function pickFields(body: any): Partial<NewBatch> {
 
 function schoolCondition(schoolId: string | null) {
   return schoolId ? eq(batches.schoolId, schoolId) : isNull(batches.schoolId)
+}
+
+// Replace a batch's full set of program links with the given list
+async function setBatchPrograms(batchId: string, programIds: string[] | undefined) {
+  if (programIds === undefined) return
+  await db.delete(batchPrograms).where(eq(batchPrograms.batchId, batchId))
+  const uniqueIds = [...new Set(programIds.filter(Boolean))]
+  if (uniqueIds.length > 0) {
+    await db.insert(batchPrograms).values(uniqueIds.map(programId => ({ batchId, programId })))
+  }
 }
 
 // Keep batch rows aligned with the students table: create rows for batch
@@ -68,7 +78,8 @@ async function syncBatches(schoolId: string | null) {
   }
 }
 
-// GET — list batches with program and coordinator names (?programId= filter)
+// GET — list batches with their programs (array) and coordinator name
+// (?programId= filters to batches linked to that program)
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
@@ -78,27 +89,39 @@ export async function GET(req: NextRequest) {
     await syncBatches(schoolId)
 
     const { searchParams } = new URL(req.url)
-    const programId = searchParams.get('programId')
+    const programIdFilter = searchParams.get('programId')
 
-    const conditions = [schoolCondition(schoolId)]
-    if (programId) conditions.push(eq(batches.programId, programId))
+    let batchRows = await db.select().from(batches).where(schoolCondition(schoolId)).orderBy(asc(batches.name))
 
-    const rows = await db.select({
-      batch: batches,
-      programName: programs.name,
-      teacherName: faculty.name,
-    })
-      .from(batches)
-      .leftJoin(programs, eq(batches.programId, programs.id))
-      .leftJoin(faculty, eq(batches.teacherId, faculty.id))
-      .where(and(...conditions))
-      .orderBy(asc(batches.name))
+    if (programIdFilter) {
+      const linked = await db.select({ batchId: batchPrograms.batchId }).from(batchPrograms)
+        .where(eq(batchPrograms.programId, programIdFilter))
+      const linkedIds = new Set(linked.map(l => l.batchId))
+      batchRows = batchRows.filter(b => linkedIds.has(b.id))
+    }
 
-    return NextResponse.json(rows.map(r => ({
-      ...r.batch,
-      _id: r.batch.id,
-      programName: r.programName ?? null,
-      teacherName: r.teacherName ?? null,
+    const batchIds = batchRows.map(b => b.id)
+    const teacherIds = [...new Set(batchRows.map(b => b.teacherId).filter((x): x is string => !!x))]
+
+    const [programLinks, teacherRows] = await Promise.all([
+      batchIds.length
+        ? db.select({ batchId: batchPrograms.batchId, programId: programs.id, programName: programs.name })
+            .from(batchPrograms)
+            .innerJoin(programs, eq(batchPrograms.programId, programs.id))
+            .where(inArray(batchPrograms.batchId, batchIds))
+        : Promise.resolve([]),
+      teacherIds.length
+        ? db.select({ id: faculty.id, name: faculty.name }).from(faculty).where(inArray(faculty.id, teacherIds))
+        : Promise.resolve([]),
+    ])
+
+    const teacherNameById = new Map(teacherRows.map(t => [t.id, t.name]))
+
+    return NextResponse.json(batchRows.map(b => ({
+      ...b,
+      _id: b.id,
+      programs: programLinks.filter(p => p.batchId === b.id).map(p => ({ id: p.programId, name: p.programName })),
+      teacherName: b.teacherId ? (teacherNameById.get(b.teacherId) ?? null) : null,
     })))
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -120,7 +143,7 @@ async function mirrorTeacherAssignment(teacherId: string | null | undefined, bat
   }
 }
 
-// POST — create a batch (management only)
+// POST — create a batch (management only). Body may include programIds: string[]
 export async function POST(req: NextRequest) {
   try {
     const session = await auth()
@@ -147,6 +170,7 @@ export async function POST(req: NextRequest) {
       schoolId,
     }).returning()
 
+    await setBatchPrograms(created.id, Array.isArray(body.programIds) ? body.programIds : undefined)
     await mirrorTeacherAssignment(created.teacherId, created.name)
 
     return NextResponse.json({ ...created, _id: created.id }, { status: 201 })
@@ -155,7 +179,8 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH — update a batch (?id=) (management only).
+// PATCH — update a batch (?id=) (management only). Body may include
+// programIds: string[] to replace the full set of linked programs.
 // Renaming a batch also renames students.batch so the roster stays linked.
 export async function PATCH(req: NextRequest) {
   try {
@@ -174,15 +199,17 @@ export async function PATCH(req: NextRequest) {
 
     const body = await req.json()
     const data = pickFields(body)
-    if (Object.keys(data).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    const hasProgramUpdate = Array.isArray(body.programIds)
+    if (Object.keys(data).length === 0 && !hasProgramUpdate) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
     if (data.classLevel && !CLASS_LEVELS.includes(data.classLevel)) {
       return NextResponse.json({ error: 'Class level must be 9, 10, 11, 12 or Dropper' }, { status: 400 })
     }
 
-    const [updated] = await db.update(batches)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(batches.id, id))
-      .returning()
+    const updated = Object.keys(data).length > 0
+      ? (await db.update(batches).set({ ...data, updatedAt: new Date() }).where(eq(batches.id, id)).returning())[0]
+      : existing
 
     // Cascade renames to the students that reference the old name
     if (data.name && data.name !== existing.name) {
@@ -192,6 +219,7 @@ export async function PATCH(req: NextRequest) {
       await db.update(students).set({ batch: data.name, updatedAt: new Date() }).where(studentCondition)
     }
 
+    await setBatchPrograms(id, hasProgramUpdate ? body.programIds : undefined)
     await mirrorTeacherAssignment(updated.teacherId, updated.name)
 
     return NextResponse.json({ ...updated, _id: updated.id })
