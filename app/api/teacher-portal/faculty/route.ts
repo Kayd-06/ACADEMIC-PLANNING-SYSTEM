@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { faculty, teacherSubjects, teacherBatches, users, type NewFaculty } from '@/lib/db/schema'
+import { faculty, teacherSubjects, teacherBatches, teacherPrograms, users, type NewFaculty } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 
@@ -43,17 +43,19 @@ export async function GET() {
     : await db.select().from(faculty).orderBy(faculty.name)
 
   const ids = list.map(f => f.id)
-  const [subjects, batchRows] = ids.length
+  const [subjects, batchRows, programRows] = ids.length
     ? await Promise.all([
         db.select().from(teacherSubjects).where(inArray(teacherSubjects.teacherId, ids)),
         db.select().from(teacherBatches).where(inArray(teacherBatches.teacherId, ids)),
+        db.select().from(teacherPrograms).where(inArray(teacherPrograms.teacherId, ids)),
       ])
-    : [[], []]
+    : [[], [], []]
 
   const withDetails = list.map(f => ({
     ...f,
     subjects: subjects.filter(s => s.teacherId === f.id),
     batchAssignments: batchRows.filter(b => b.teacherId === f.id),
+    programAssignments: programRows.filter(p => p.teacherId === f.id),
   }))
   return NextResponse.json(withDetails)
 }

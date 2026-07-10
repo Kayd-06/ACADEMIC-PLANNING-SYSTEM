@@ -29,9 +29,24 @@ export default function TeacherStudentRosterView() {
   // Filters
   const [classFilter, setClassFilter] = useState('All Classes')
   const [batchFilter, setBatchFilter] = useState('All Batches')
+  const [programFilter, setProgramFilter] = useState('All Programs')
 
   useEffect(() => {
     fetchStudents()
+  }, [])
+
+  // Follow the sidebar's teacher-scoped Program/Batch switchers
+  useEffect(() => {
+    const applyProgram = () => setProgramFilter(localStorage.getItem('teacherSelectedProgram') || 'All Programs')
+    const applyBatch = () => setBatchFilter(localStorage.getItem('teacherSelectedBatch') || 'All Batches')
+    applyProgram()
+    applyBatch()
+    window.addEventListener('teacherProgramChanged', applyProgram)
+    window.addEventListener('teacherBatchChanged', applyBatch)
+    return () => {
+      window.removeEventListener('teacherProgramChanged', applyProgram)
+      window.removeEventListener('teacherBatchChanged', applyBatch)
+    }
   }, [])
 
   useEffect(() => {
@@ -80,10 +95,12 @@ export default function TeacherStudentRosterView() {
   const classes = ['All Classes', ...Array.from(new Set(students.map(s => s.rawClass).filter(Boolean)))]
   const batches = ['All Batches', ...Array.from(new Set(students.map(s => s.batch).filter(Boolean)))]
 
-  // Filter students
+  // Filter students. Program filtering matches each student's own `program`
+  // field, mirroring the sidebar's Program switcher (management side).
   const filteredStudents = students.filter(s => {
     if (classFilter !== 'All Classes' && s.rawClass !== classFilter) return false
     if (batchFilter !== 'All Batches' && s.batch !== batchFilter) return false
+    if (programFilter !== 'All Programs' && s.program !== programFilter) return false
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim()
       return s.name.toLowerCase().includes(q) || (s.roll && s.roll.toLowerCase().includes(q))
@@ -99,7 +116,7 @@ export default function TeacherStudentRosterView() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Student Roster</h1>
           <p className="text-[13px] text-slate-500 mt-1">
-            View and track students in your assigned batches
+            View and track students in your assigned programs &amp; batches
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -111,9 +128,15 @@ export default function TeacherStudentRosterView() {
             {classes.map(c => <option key={c as string} value={c as string}>{c as string}</option>)}
           </select>
           <div className="relative">
-            <select 
+            <select
               value={batchFilter}
-              onChange={(e) => setBatchFilter(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value
+                setBatchFilter(value)
+                if (value === 'All Batches') localStorage.removeItem('teacherSelectedBatch')
+                else localStorage.setItem('teacherSelectedBatch', value)
+                window.dispatchEvent(new Event('teacherBatchChanged'))
+              }}
               className="pl-4 pr-10 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold shadow-sm outline-none cursor-pointer appearance-none"
             >
               {batches.map(b => <option key={b as string} value={b as string}>{b as string}</option>)}

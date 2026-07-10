@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { faculty, teacherSubjects, teacherBatches } from '@/lib/db/schema'
+import { faculty, teacherSubjects, teacherBatches, teacherPrograms } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
@@ -28,17 +28,18 @@ async function guard(req: NextRequest, params: Promise<{ id: string }>) {
   return { id }
 }
 
-// GET — list a teacher's subject and batch assignments
+// GET — list a teacher's subject, batch, and program assignments
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
 
-  const [subjects, batches] = await Promise.all([
+  const [subjects, batches, programs] = await Promise.all([
     db.select().from(teacherSubjects).where(eq(teacherSubjects.teacherId, id)),
     db.select().from(teacherBatches).where(eq(teacherBatches.teacherId, id)),
+    db.select().from(teacherPrograms).where(eq(teacherPrograms.teacherId, id)),
   ])
-  return NextResponse.json({ subjects, batches })
+  return NextResponse.json({ subjects, batches, programs })
 }
 
 // POST — add an assignment. Body: { type: 'subject'|'batch', ...fields }
@@ -71,10 +72,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }).returning()
     return NextResponse.json(row, { status: 201 })
   }
-  return NextResponse.json({ error: 'type must be "subject" or "batch"' }, { status: 400 })
+  if (body.type === 'program') {
+    if (!body.programName?.trim()) return NextResponse.json({ error: 'programName is required' }, { status: 400 })
+    const [row] = await db.insert(teacherPrograms).values({
+      teacherId: g.id,
+      programName: body.programName.trim(),
+      isPrimary: body.isPrimary !== undefined ? !!body.isPrimary : true,
+    }).returning()
+    return NextResponse.json(row, { status: 201 })
+  }
+  return NextResponse.json({ error: 'type must be "subject", "batch", or "program"' }, { status: 400 })
 }
 
-// DELETE — remove an assignment (?type=subject|batch&assignmentId=)
+// DELETE — remove an assignment (?type=subject|batch|program&assignmentId=)
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const g = await guard(req, params)
   if ('error' in g) return g.error
@@ -87,8 +97,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     await db.delete(teacherSubjects).where(and(eq(teacherSubjects.id, assignmentId), eq(teacherSubjects.teacherId, g.id)))
   } else if (type === 'batch') {
     await db.delete(teacherBatches).where(and(eq(teacherBatches.id, assignmentId), eq(teacherBatches.teacherId, g.id)))
+  } else if (type === 'program') {
+    await db.delete(teacherPrograms).where(and(eq(teacherPrograms.id, assignmentId), eq(teacherPrograms.teacherId, g.id)))
   } else {
-    return NextResponse.json({ error: 'type must be "subject" or "batch"' }, { status: 400 })
+    return NextResponse.json({ error: 'type must be "subject", "batch", or "program"' }, { status: 400 })
   }
   return NextResponse.json({ success: true })
 }

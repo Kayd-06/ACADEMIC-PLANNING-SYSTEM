@@ -206,6 +206,140 @@ function BatchSwitcher() {
   )
 }
 
+// Program switcher scoped to a teacher's own assignments (from teacher_programs).
+// Distinct localStorage keys/events from the management ProgramSwitcher so the
+// two never collide on a shared browser.
+function TeacherProgramSwitcher() {
+  const [programList, setProgramList] = useState<string[]>([])
+  const [selected, setSelected] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setSelected(localStorage.getItem('teacherSelectedProgram') || '')
+    fetch('/api/teacher/my-assignments')
+      .then(r => r.ok ? r.json() : { programs: [] })
+      .then(d => setProgramList(Array.isArray(d.programs) ? d.programs : []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function switchProgram(name: string) {
+    setSelected(name)
+    setOpen(false)
+    if (name) localStorage.setItem('teacherSelectedProgram', name)
+    else localStorage.removeItem('teacherSelectedProgram')
+    window.dispatchEvent(new Event('teacherProgramChanged'))
+  }
+
+  if (programList.length === 0) return null
+
+  return (
+    <div className="px-4 pb-3" ref={ref}>
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all text-left">
+        <div className="flex items-center gap-2 min-w-0">
+          <GraduationCap className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+          <span className="text-[12px] font-semibold text-slate-700 truncate">{selected || 'All My Programs'}</span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+            className="mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+            <div className="py-1 max-h-56 overflow-y-auto">
+              <button onClick={() => switchProgram('')}
+                className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${!selected ? 'bg-purple-50 text-purple-700' : 'text-slate-700 hover:bg-slate-50'}`}>
+                <span>All My Programs</span>
+                {!selected && <Check className="w-3.5 h-3.5 shrink-0" />}
+              </button>
+              {programList.map(name => (
+                <button key={name} onClick={() => switchProgram(name)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${selected === name ? 'bg-purple-50 text-purple-700' : 'text-slate-700 hover:bg-slate-50'}`}>
+                  <span className="truncate text-left">{name}</span>
+                  {selected === name && <Check className="w-3.5 h-3.5 shrink-0" />}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// Batch switcher scoped to a teacher's own assignments (from teacher_batches).
+function TeacherBatchSwitcher() {
+  const [batchList, setBatchList] = useState<string[]>([])
+  const [selected, setSelected] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setSelected(localStorage.getItem('teacherSelectedBatch') || '')
+    fetch('/api/teacher/my-assignments')
+      .then(r => r.ok ? r.json() : { batches: [] })
+      .then(d => setBatchList(Array.isArray(d.batches) ? d.batches : []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function switchBatch(name: string) {
+    setSelected(name)
+    setOpen(false)
+    if (name) localStorage.setItem('teacherSelectedBatch', name)
+    else localStorage.removeItem('teacherSelectedBatch')
+    window.dispatchEvent(new Event('teacherBatchChanged'))
+  }
+
+  if (batchList.length === 0) return null
+
+  return (
+    <div className="px-4 pb-3" ref={ref}>
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all text-left">
+        <div className="flex items-center gap-2 min-w-0">
+          <Users className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+          <span className="text-[12px] font-semibold text-slate-700 truncate">{selected || 'All My Batches'}</span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+            className="mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+            <div className="py-1 max-h-56 overflow-y-auto">
+              <button onClick={() => switchBatch('')}
+                className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${!selected ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50'}`}>
+                <span>All My Batches</span>
+                {!selected && <Check className="w-3.5 h-3.5 shrink-0" />}
+              </button>
+              {batchList.map(name => (
+                <button key={name} onClick={() => switchBatch(name)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${selected === name ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50'}`}>
+                  <span className="truncate text-left">{name}</span>
+                  {selected === name && <Check className="w-3.5 h-3.5 shrink-0" />}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 type SchoolEntry = { id: string; name: string; role: string }
 
 function SchoolSwitcher() {
@@ -351,6 +485,10 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
 
       {/* Batch switcher — management only */}
       {userRole === 'Academic Administration' && <BatchSwitcher />}
+
+      {/* Program & batch switchers — teacher only, scoped to their own assignments */}
+      {userRole.startsWith('Faculty') && <TeacherProgramSwitcher />}
+      {userRole.startsWith('Faculty') && <TeacherBatchSwitcher />}
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">

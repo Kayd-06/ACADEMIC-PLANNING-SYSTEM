@@ -526,6 +526,19 @@ export const teacherBatches = pgTable('teacher_batches', {
 export type TeacherBatch = typeof teacherBatches.$inferSelect
 export type NewTeacherBatch = typeof teacherBatches.$inferInsert
 
+// Programs a teacher is assigned to (name-based, like teacherSubjects/teacherBatches).
+// Used to scope which students a teacher sees in their portal.
+export const teacherPrograms = pgTable('teacher_programs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  teacherId: uuid('teacher_id').notNull().references(() => faculty.id, { onDelete: 'cascade' }),
+  programName: varchar('program_name', { length: 255 }).notNull(),
+  isPrimary: boolean('is_primary').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type TeacherProgram = typeof teacherPrograms.$inferSelect
+export type NewTeacherProgram = typeof teacherPrograms.$inferInsert
+
 export const studyMaterials = pgTable('study_materials', {
   id: uuid('id').defaultRandom().primaryKey(),
   fileName: varchar('file_name', { length: 255 }).notNull(),
