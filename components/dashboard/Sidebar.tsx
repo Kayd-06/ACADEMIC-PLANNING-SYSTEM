@@ -346,6 +346,9 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
       {/* School switcher — management only */}
       {userRole === 'Academic Administration' && <SchoolSwitcher />}
 
+      {/* Program switcher — management only */}
+      {userRole === 'Academic Administration' && <ProgramSwitcher />}
+
       {/* Batch switcher — management only */}
       {userRole === 'Academic Administration' && <BatchSwitcher />}
 
