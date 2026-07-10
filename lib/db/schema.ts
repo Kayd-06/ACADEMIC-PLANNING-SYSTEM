@@ -283,6 +283,105 @@ export const protocols = pgTable('protocols', {
 export type Protocol = typeof protocols.$inferSelect
 export type NewProtocol = typeof protocols.$inferInsert
 
+// ── Programs, Batches & Academic Structure ─────────────────────────────────
+
+// Types: JEE | NEET | Foundational; Target Exams: JEE Main, Advanced, NEET UG, Board
+export const programs = pgTable('programs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  code: varchar('code', { length: 50 }).notNull().default(''),
+  name: varchar('name', { length: 255 }).notNull(),
+  type: varchar('type', { length: 50 }).notNull().default('Foundational'),
+  targetExam: varchar('target_exam', { length: 100 }).notNull().default(''),
+  duration: varchar('duration', { length: 50 }).notNull().default(''),
+  isActive: boolean('is_active').notNull().default(true),
+  colorTheme: varchar('color_theme', { length: 20 }).notNull().default('blue'),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Program = typeof programs.$inferSelect
+export type NewProgram = typeof programs.$inferInsert
+
+// Specific student groups per year. Class levels: 9 | 10 | 11 | 12 | Dropper.
+// Students link to a batch by name (students.batch), so `name` is the join key.
+export const batches = pgTable('batches', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  classLevel: varchar('class_level', { length: 20 }).notNull().default(''),
+  // Metrics
+  capacity: integer('capacity').notNull().default(60),
+  enrolledCount: integer('enrolled_count').notNull().default(0),
+  // Schedule
+  startDate: varchar('start_date', { length: 10 }),
+  endDate: varchar('end_date', { length: 10 }),
+  // Coordination
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  programId: uuid('program_id').references(() => programs.id, { onDelete: 'set null' }),
+  teacherId: uuid('teacher_id').references(() => faculty.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Batch = typeof batches.$inferSelect
+export type NewBatch = typeof batches.$inferInsert
+
+export const subjects = pgTable('subjects', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  code: varchar('code', { length: 50 }).notNull().default(''),
+  description: text('description').notNull().default(''),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Subject = typeof subjects.$inferSelect
+export type NewSubject = typeof subjects.$inferInsert
+
+// Program -> Subject mapping
+export const programSubjects = pgTable('program_subjects', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  programId: uuid('program_id').notNull().references(() => programs.id, { onDelete: 'cascade' }),
+  subjectId: uuid('subject_id').notNull().references(() => subjects.id, { onDelete: 'cascade' }),
+  isCore: boolean('is_core').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type ProgramSubject = typeof programSubjects.$inferSelect
+export type NewProgramSubject = typeof programSubjects.$inferInsert
+
+// Syllabus breakdown per subject/program
+export const chapters = pgTable('chapters', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  subjectId: uuid('subject_id').notNull().references(() => subjects.id, { onDelete: 'cascade' }),
+  programId: uuid('program_id').references(() => programs.id, { onDelete: 'set null' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description').notNull().default(''),
+  orderIndex: integer('order_index').notNull().default(0),
+  expectedHours: integer('expected_hours'),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Chapter = typeof chapters.$inferSelect
+export type NewChapter = typeof chapters.$inferInsert
+
+// Batch chapter timeline: Not Started | In Progress | Completed
+export const batchSyllabus = pgTable('batch_syllabus', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  batchId: uuid('batch_id').notNull().references(() => batches.id, { onDelete: 'cascade' }),
+  chapterId: uuid('chapter_id').notNull().references(() => chapters.id, { onDelete: 'cascade' }),
+  targetStartDate: varchar('target_start_date', { length: 10 }),
+  targetEndDate: varchar('target_end_date', { length: 10 }),
+  actualEndDate: varchar('actual_end_date', { length: 10 }),
+  status: varchar('status', { length: 20 }).notNull().default('Not Started'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type BatchSyllabus = typeof batchSyllabus.$inferSelect
+export type NewBatchSyllabus = typeof batchSyllabus.$inferInsert
+
 export const counselingSessionTypeEnum = pgEnum('counseling_session_type', ['Academic', 'Career', 'Personal', 'Disciplinary', 'Parent Meeting'])
 export const counselingSessionStatusEnum = pgEnum('counseling_session_status', ['Scheduled', 'Completed', 'No-Show', 'Cancelled'])
 

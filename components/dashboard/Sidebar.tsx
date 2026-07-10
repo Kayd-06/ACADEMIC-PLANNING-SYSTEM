@@ -4,8 +4,97 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { LogOut, Plus, X, Building2, ChevronDown, Check, Loader2, ArrowRightLeft } from 'lucide-react'
+import { LogOut, Plus, X, Building2, ChevronDown, Check, Loader2, ArrowRightLeft, Users } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+
+// Batch switcher: picks which batch's students the roster shows. Selection is
+// shared with StudentRosterView through localStorage + a 'batchChanged' event.
+function BatchSwitcher() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const [batchList, setBatchList] = useState<{ id: string; name: string; enrolledCount: number }[]>([])
+  const [selected, setSelected] = useState<string>('All Batches')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const fetchBatches = () => {
+    fetch('/api/batches')
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { if (Array.isArray(d)) setBatchList(d.map((b: any) => ({ id: b._id, name: b.name, enrolledCount: b.enrolledCount ?? 0 }))) })
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    setSelected(localStorage.getItem('selectedBatch') || 'All Batches')
+    fetchBatches()
+    const onUpdate = () => fetchBatches()
+    const onChanged = () => setSelected(localStorage.getItem('selectedBatch') || 'All Batches')
+    window.addEventListener('batchesUpdated', onUpdate)
+    window.addEventListener('batchChanged', onChanged)
+    return () => {
+      window.removeEventListener('batchesUpdated', onUpdate)
+      window.removeEventListener('batchChanged', onChanged)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function switchBatch(name: string) {
+    setSelected(name)
+    setOpen(false)
+    if (name === 'All Batches') localStorage.removeItem('selectedBatch')
+    else localStorage.setItem('selectedBatch', name)
+    window.dispatchEvent(new Event('batchChanged'))
+    if (pathname !== '/management/students') router.push('/management/students')
+  }
+
+  return (
+    <div className="px-4 pb-3" ref={ref}>
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all text-left">
+        <div className="flex items-center gap-2 min-w-0">
+          <Users className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+          <span className="text-[12px] font-semibold text-slate-700 truncate">{selected}</span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+            className="mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+            <div className="py-1 max-h-56 overflow-y-auto">
+              <button onClick={() => switchBatch('All Batches')}
+                className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${selected === 'All Batches' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50'}`}>
+                <span>All Batches</span>
+                {selected === 'All Batches' && <Check className="w-3.5 h-3.5 shrink-0" />}
+              </button>
+              {batchList.map(b => (
+                <button key={b.id} onClick={() => switchBatch(b.name)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${selected === b.name ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50'}`}>
+                  <span className="truncate text-left">{b.name}</span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] text-slate-400 font-bold">{b.enrolledCount}</span>
+                    {selected === b.name && <Check className="w-3.5 h-3.5" />}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="border-t border-slate-100">
+              <Link href="/management/academic-planning" onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors">
+                <Plus className="w-3.5 h-3.5" /> Manage Batches
+              </Link>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
 
 type SchoolEntry = { id: string; name: string; role: string }
 
@@ -146,6 +235,9 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
 
       {/* School switcher — management only */}
       {userRole === 'Academic Administration' && <SchoolSwitcher />}
+
+      {/* Batch switcher — management only */}
+      {userRole === 'Academic Administration' && <BatchSwitcher />}
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">

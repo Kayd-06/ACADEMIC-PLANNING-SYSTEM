@@ -35,6 +35,17 @@ export default function StudentRosterView() {
     fetchStudents()
   }, [])
 
+  // Follow the sidebar batch switcher (localStorage + 'batchChanged' event)
+  useEffect(() => {
+    const applySelection = () => {
+      const stored = localStorage.getItem('selectedBatch')
+      setBatchFilter(stored || 'All Batches')
+    }
+    applySelection()
+    window.addEventListener('batchChanged', applySelection)
+    return () => window.removeEventListener('batchChanged', applySelection)
+  }, [])
+
   const fetchStudents = async () => {
     try {
       const res = await fetch('/api/students/roster')
@@ -77,7 +88,11 @@ export default function StudentRosterView() {
   // Get unique filter options
   const classes = ['All Classes', ...Array.from(new Set(students.map(s => s.rawClass).filter(Boolean)))]
   const sections = ['All Sections', ...Array.from(new Set(students.map(s => s.rawSection).filter(Boolean)))]
-  const batches = ['All Batches', ...Array.from(new Set(students.map(s => s.batch).filter(Boolean)))]
+  const batches = ['All Batches', ...Array.from(new Set([
+    ...students.map(s => s.batch).filter(Boolean),
+    // Keep the sidebar-selected batch present even if it has no students yet
+    ...(batchFilter !== 'All Batches' ? [batchFilter] : []),
+  ]))]
 
   // Filter students
   const filteredStudents = students.filter(s => {
@@ -155,7 +170,13 @@ export default function StudentRosterView() {
             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">Batch</label>
             <select 
               value={batchFilter}
-              onChange={(e) => setBatchFilter(e.target.value)}
+              onChange={(e) => {
+                setBatchFilter(e.target.value)
+                // Keep the sidebar batch switcher in sync
+                if (e.target.value === 'All Batches') localStorage.removeItem('selectedBatch')
+                else localStorage.setItem('selectedBatch', e.target.value)
+                window.dispatchEvent(new Event('batchChanged'))
+              }}
               className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors outline-none appearance-none cursor-pointer"
             >
               {batches.map(b => <option key={b} value={b}>{b}</option>)}

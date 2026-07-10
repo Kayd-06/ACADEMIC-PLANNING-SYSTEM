@@ -1,83 +1,147 @@
-import { NextResponse } from 'next/server'
-import Program from '@/models/Program'
-import mongoose from 'mongoose'
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { programs, batches, programSubjects, type NewProgram } from '@/lib/db/schema'
+import { eq, and, asc, inArray } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
-async function connectDB() {
-  if (mongoose.connection.readyState >= 1) return
-  if (!process.env.MONGODB_URI) {
-    throw new Error('MONGODB_URI is not defined in environment variables')
+const PROGRAM_TYPES = ['JEE', 'NEET', 'Foundational', 'Other']
+const FIELDS = ['code', 'name', 'type', 'targetExam', 'duration', 'isActive', 'colorTheme'] as const
+
+function pickFields(body: any): Partial<NewProgram> {
+  const data: Record<string, any> = {}
+  for (const f of FIELDS) {
+    if (body[f] !== undefined) data[f] = typeof body[f] === 'string' ? body[f].trim() : body[f]
   }
-  await mongoose.connect(process.env.MONGODB_URI)
+  return data
 }
 
-export async function GET(request: Request) {
+// GET — list programs with live batch/student/subject counts
+export async function GET() {
   try {
-    await connectDB()
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = (session.user as any).schoolId as string | null
 
-    const count = await Program.countDocuments()
-    if (count === 0) {
-      await Program.insertMany([
-        {
-          title: 'JEE 2-Year Integrated',
-          target: 'JEE ADVANCED 2026',
-          batches: 4,
-          students: 180,
-          subjects: 3,
-          colorTheme: 'blue'
-        },
-        {
-          title: 'NEET One-Year Crash',
-          target: 'NEET 2025',
-          batches: 2,
-          students: 95,
-          subjects: 4,
-          colorTheme: 'green'
-        },
-        {
-          title: 'Foundational (Grade 8-10)',
-          target: 'BOARD EXAMS',
-          batches: 6,
-          students: 240,
-          subjects: 5,
-          colorTheme: 'purple'
-        }
-      ])
-    }
+    const rows = schoolId
+      ? await db.select().from(programs).where(eq(programs.schoolId, schoolId)).orderBy(asc(programs.createdAt))
+      : await db.select().from(programs).orderBy(asc(programs.createdAt))
 
-    const programs = await Program.find().sort({ createdAt: 1 })
+    const ids = rows.map(p => p.id)
+    const [batchRows, subjectRows] = ids.length
+      ? await Promise.all([
+          db.select({ programId: batches.programId, enrolledCount: batches.enrolledCount })
+            .from(batches).where(inArray(batches.programId, ids)),
+          db.select({ programId: programSubjects.programId })
+            .from(programSubjects).where(inArray(programSubjects.programId, ids)),
+        ])
+      : [[], []]
 
-    return NextResponse.json(programs, {
-      headers: {
-        'Cache-Control': 'no-store, max-age=0, must-revalidate'
+    const result = rows.map(p => {
+      const myBatches = batchRows.filter(b => b.programId === p.id)
+      return {
+        ...p,
+        _id: p.id,
+        // Legacy aliases kept for older consumers
+        title: p.name,
+        target: p.targetExam,
+        batches: myBatches.length,
+        students: myBatches.reduce((s, b) => s + (b.enrolledCount ?? 0), 0),
+        subjects: subjectRows.filter(s => s.programId === p.id).length,
       }
+    })
+
+    return NextResponse.json(result, {
+      headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' },
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-export async function POST(request: Request) {
+// POST — create a program (management only)
+export async function POST(req: NextRequest) {
   try {
-    await connectDB()
-    const body = await request.json()
-    const newProgram = await Program.create(body)
-    return NextResponse.json(newProgram)
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if ((session.user as any).role !== 'management') {
+      return NextResponse.json({ error: 'Only management can create programs' }, { status: 403 })
+    }
+    const schoolId = (session.user as any).schoolId as string | null
+
+    const body = await req.json()
+    const data = pickFields(body)
+    // Legacy form compat
+    if (!data.name && body.title) data.name = String(body.title).trim()
+    if (!data.targetExam && body.target) data.targetExam = String(body.target).trim()
+
+    if (!data.name) return NextResponse.json({ error: 'Program name is required' }, { status: 400 })
+    if (data.type && !PROGRAM_TYPES.includes(data.type)) {
+      return NextResponse.json({ error: `Type must be one of: ${PROGRAM_TYPES.join(', ')}` }, { status: 400 })
+    }
+
+    const [created] = await db.insert(programs).values({
+      ...(data as NewProgram),
+      name: data.name,
+      schoolId,
+    }).returning()
+
+    return NextResponse.json({ ...created, _id: created.id }, { status: 201 })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-export async function DELETE(request: Request) {
+// PATCH — update a program (?id=) (management only)
+export async function PATCH(req: NextRequest) {
   try {
-    await connectDB()
-    const { searchParams } = new URL(request.url)
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if ((session.user as any).role !== 'management') {
+      return NextResponse.json({ error: 'Only management can edit programs' }, { status: 403 })
+    }
+    const schoolId = (session.user as any).schoolId as string | null
+
+    const id = req.nextUrl.searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+
+    const body = await req.json()
+    const data = pickFields(body)
+    if (Object.keys(data).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    if (data.type && !PROGRAM_TYPES.includes(data.type)) {
+      return NextResponse.json({ error: `Type must be one of: ${PROGRAM_TYPES.join(', ')}` }, { status: 400 })
+    }
+
+    const condition = schoolId ? and(eq(programs.id, id), eq(programs.schoolId, schoolId)) : eq(programs.id, id)
+    const [updated] = await db.update(programs)
+      .set({ ...data, updatedAt: new Date() })
+      .where(condition)
+      .returning()
+    if (!updated) return NextResponse.json({ error: 'Program not found' }, { status: 404 })
+
+    return NextResponse.json({ ...updated, _id: updated.id })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+// DELETE — remove a program (?id=) (management only; its batches survive, unlinked)
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if ((session.user as any).role !== 'management') {
+      return NextResponse.json({ error: 'Only management can delete programs' }, { status: 403 })
+    }
+    const schoolId = (session.user as any).schoolId as string | null
+
+    const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-    if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 })
-
-    await Program.findByIdAndDelete(id)
+    const condition = schoolId ? and(eq(programs.id, id), eq(programs.schoolId, schoolId)) : eq(programs.id, id)
+    await db.delete(programs).where(condition)
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
