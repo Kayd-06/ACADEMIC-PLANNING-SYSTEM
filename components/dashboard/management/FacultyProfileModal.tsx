@@ -27,6 +27,11 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
   const [batches, setBatches] = useState<any[]>(teacher.batchAssignments ?? [])
   const [programs, setPrograms] = useState<any[]>(teacher.programAssignments ?? [])
 
+  // The school's actual programs & batches, for typo-proof dropdowns instead
+  // of free-text assignment fields.
+  const [programOptions, setProgramOptions] = useState<{ id: string; name: string }[]>([])
+  const [batchOptions, setBatchOptions] = useState<{ id: string; name: string }[]>([])
+
   const [newSubject, setNewSubject] = useState({ subjectName: '', programName: '', isPrimary: true })
   const [newBatch, setNewBatch] = useState({ batchName: '', subjectName: '', role: 'primary' })
   const [newProgram, setNewProgram] = useState({ programName: '', isPrimary: true })
@@ -45,6 +50,15 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
   }, [teacher.id])
 
   useEffect(() => { refresh() }, [refresh])
+
+  useEffect(() => {
+    fetch('/api/programs').then(r => r.ok ? r.json() : []).then(d => {
+      if (Array.isArray(d)) setProgramOptions(d.map((p: any) => ({ id: p._id, name: p.name })))
+    }).catch(() => {})
+    fetch('/api/batches').then(r => r.ok ? r.json() : []).then(d => {
+      if (Array.isArray(d)) setBatchOptions(d.map((b: any) => ({ id: b._id, name: b.name })))
+    }).catch(() => {})
+  }, [])
 
   async function addSubject() {
     if (!newSubject.subjectName.trim()) { showToast('Subject name is required'); return }
@@ -170,7 +184,10 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
               ))}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <input value={newProgram.programName} onChange={e => setNewProgram({ ...newProgram, programName: e.target.value })} placeholder="Program name" className={inputClass + ' w-44'} />
+              <select value={newProgram.programName} onChange={e => setNewProgram({ ...newProgram, programName: e.target.value })} className={inputClass + ' w-44'}>
+                <option value="">Select a program…</option>
+                {programOptions.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+              </select>
               <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer">
                 <input type="checkbox" checked={newProgram.isPrimary} onChange={e => setNewProgram({ ...newProgram, isPrimary: e.target.checked })} className="accent-purple-600" /> Primary
               </label>
@@ -196,7 +213,10 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <input value={newSubject.subjectName} onChange={e => setNewSubject({ ...newSubject, subjectName: e.target.value })} placeholder="Subject name" className={inputClass + ' w-40'} />
-              <input value={newSubject.programName} onChange={e => setNewSubject({ ...newSubject, programName: e.target.value })} placeholder="Program (opt)" className={inputClass + ' w-40'} />
+              <select value={newSubject.programName} onChange={e => setNewSubject({ ...newSubject, programName: e.target.value })} className={inputClass + ' w-40'}>
+                <option value="">Program (opt)</option>
+                {programOptions.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+              </select>
               <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer">
                 <input type="checkbox" checked={newSubject.isPrimary} onChange={e => setNewSubject({ ...newSubject, isPrimary: e.target.checked })} className="accent-indigo-600" /> Primary
               </label>
@@ -230,7 +250,10 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <input value={newBatch.batchName} onChange={e => setNewBatch({ ...newBatch, batchName: e.target.value })} placeholder="Batch name" className={inputClass + ' w-40'} />
+              <select value={newBatch.batchName} onChange={e => setNewBatch({ ...newBatch, batchName: e.target.value })} className={inputClass + ' w-40'}>
+                <option value="">Select a batch…</option>
+                {batchOptions.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+              </select>
               <input value={newBatch.subjectName} onChange={e => setNewBatch({ ...newBatch, subjectName: e.target.value })} placeholder="Subject (opt)" className={inputClass + ' w-36'} />
               <select value={newBatch.role} onChange={e => setNewBatch({ ...newBatch, role: e.target.value })} className={inputClass}>
                 {BATCH_ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
