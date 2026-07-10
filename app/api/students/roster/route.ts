@@ -40,6 +40,7 @@ export async function GET(req: Request) {
         initials,
         color: colors[nameHash],
         contact: s.parentContact || 'N/A',
+        profileImgUrl: s.profileImgUrl || null,
         isActive: s.isActive
       }
     })

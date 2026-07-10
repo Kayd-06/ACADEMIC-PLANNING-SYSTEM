@@ -236,9 +236,13 @@ export default function StudentRosterView() {
                       <td className="px-6 py-4 text-[13px] font-semibold text-slate-600">{student.roll}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold ${student.color}`}>
-                            {student.initials}
-                          </div>
+                          {student.profileImgUrl ? (
+                            <img src={student.profileImgUrl} alt={student.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold ${student.color}`}>
+                              {student.initials}
+                            </div>
+                          )}
                           <span className="text-[13px] font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{student.name}</span>
                         </div>
                       </td>
