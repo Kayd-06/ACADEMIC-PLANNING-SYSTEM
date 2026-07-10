@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { HelpCircle, Settings, X, CheckCircle, AlertCircle, BookOpen, Calendar, Mail, User, Shield, Info, Check, Globe, Building2, Hash, Loader2, LogIn, Bell, Megaphone, FileBarChart, ClipboardList, CreditCard, CalendarCheck, CheckCheck } from 'lucide-react'
+import { HelpCircle, Settings, X, CheckCircle, AlertCircle, BookOpen, Calendar, Mail, User, Shield, Info, Check, Globe, Building2, Hash, Loader2, LogIn, Bell, Megaphone, FileBarChart, ClipboardList, CreditCard, CalendarCheck, CheckCheck, Camera } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSession } from 'next-auth/react'
 import MyProfileModal from '@/components/dashboard/teacher/MyProfileModal'
@@ -45,7 +45,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
 
   // School info (for teacher)
   const [schoolName, setSchoolName] = useState<string | null>(null)
-  const [myPhotoUrl, setMyPhotoUrl] = useState<string | null>(null)
+  const [teacherPhotoUrl, setTeacherPhotoUrl] = useState<string | null>(null)
 
   // My Profile (teacher faculty record)
   const [showMyProfile, setShowMyProfile] = useState(false)
@@ -53,6 +53,44 @@ export default function TopHeader({ initials }: TopHeaderProps) {
   function openMyProfile() {
     setShowProfileMenu(false)
     setShowMyProfile(true)
+  }
+
+  // Edit Profile Picture (management — no faculty record to store a photo on,
+  // so this writes directly to users.profile_img_url instead)
+  const [showEditPhoto, setShowEditPhoto] = useState(false)
+  const [photoUrlInput, setPhotoUrlInput] = useState('')
+  const [savingPhoto, setSavingPhoto] = useState(false)
+  const [photoError, setPhotoError] = useState<string | null>(null)
+
+  const sessionPhotoUrl = (session?.user as any)?.profileImgUrl as string | null | undefined
+  const myPhotoUrl = role === 'teacher' ? teacherPhotoUrl : (sessionPhotoUrl ?? null)
+
+  function openEditPhoto() {
+    setShowProfileMenu(false)
+    setPhotoUrlInput(sessionPhotoUrl ?? '')
+    setPhotoError(null)
+    setShowEditPhoto(true)
+  }
+
+  async function handleSavePhoto(e: React.FormEvent) {
+    e.preventDefault()
+    setSavingPhoto(true)
+    setPhotoError(null)
+    try {
+      const res = await fetch('/api/user/profile-photo', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileImgUrl: photoUrlInput.trim() || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setPhotoError(data.error || 'Failed to save photo'); return }
+      await update({ profileImgUrl: data.profileImgUrl ?? null })
+      setShowEditPhoto(false)
+    } catch {
+      setPhotoError('Network error — please try again')
+    } finally {
+      setSavingPhoto(false)
+    }
   }
 
   // Join school form
@@ -94,7 +132,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
   useEffect(() => {
     if (role !== 'teacher') return
     fetch('/api/teacher/profile').then(r => r.json()).then(d => {
-      setMyPhotoUrl(d?.profile?.profileImgUrl || null)
+      setTeacherPhotoUrl(d?.profile?.profileImgUrl || null)
     }).catch(() => {})
   }, [role])
 
@@ -247,6 +285,19 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                   </div>
                 )}
 
+                {/* Profile picture (management — no faculty record for a photo) */}
+                {role === 'management' && (
+                  <div className="px-4 py-3 border-b border-slate-100">
+                    <button
+                      onClick={openEditPhoto}
+                      className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-lg py-1.5 transition-colors border border-indigo-100"
+                    >
+                      <Camera className="w-3 h-3" />
+                      {myPhotoUrl ? 'Change Profile Picture' : 'Add Profile Picture'}
+                    </button>
+                  </div>
+                )}
+
                 {/* Close */}
                 <div className="px-4 py-2.5">
                   <button
@@ -355,7 +406,69 @@ export default function TopHeader({ initials }: TopHeaderProps) {
       </AnimatePresence>
 
       {/* ─── My Profile Modal (teacher faculty record, editable) ─── */}
-      <MyProfileModal isOpen={showMyProfile} onClose={() => setShowMyProfile(false)} onSaved={(profile) => setMyPhotoUrl(profile.profileImgUrl || null)} />
+      <MyProfileModal isOpen={showMyProfile} onClose={() => setShowMyProfile(false)} onSaved={(profile) => setTeacherPhotoUrl(profile.profileImgUrl || null)} />
+
+      {/* ─── Edit Profile Picture Modal (management) ─── */}
+      <AnimatePresence>
+        {showEditPhoto && (
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-100 overflow-hidden"
+            >
+              <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Profile Picture</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Paste a link to an image hosted online</p>
+                </div>
+                <button onClick={() => setShowEditPhoto(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-50 transition-all">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <form onSubmit={handleSavePhoto} className="px-6 py-5 space-y-4">
+                <div className="flex justify-center">
+                  <div className="w-20 h-20 rounded-full bg-[#002045] flex items-center justify-center text-white text-xl font-bold overflow-hidden ring-2 ring-slate-100">
+                    {photoUrlInput.trim() ? (
+                      <img src={photoUrlInput.trim()} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                    ) : initials}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Image URL</label>
+                  <input
+                    value={photoUrlInput}
+                    onChange={e => { setPhotoUrlInput(e.target.value); setPhotoError(null) }}
+                    placeholder="https://…"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all"
+                  />
+                  {photoError && (
+                    <p className="mt-1.5 text-[11px] font-semibold text-red-500 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" /> {photoError}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2 pt-1">
+                  {myPhotoUrl && (
+                    <button type="button" onClick={() => setPhotoUrlInput('')}
+                      className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors">
+                      Remove
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={savingPhoto}
+                    className="flex-1 py-2.5 bg-[#002045] hover:bg-[#1a365d] disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    {savingPhoto ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</> : 'Save Photo'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ─── Help Center Modal ─── */}
       <AnimatePresence>

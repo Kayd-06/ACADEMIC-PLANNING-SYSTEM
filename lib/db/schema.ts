@@ -14,6 +14,7 @@ export const users = pgTable('users', {
   status: userStatusEnum('status').notNull().default('pending_verification'),
   department: varchar('department', { length: 255 }),
   employeeId: varchar('employee_id', { length: 255 }),
+  profileImgUrl: text('profile_img_url'),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'set null' }),
   activeSchoolId: uuid('active_school_id').references(() => schools.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
