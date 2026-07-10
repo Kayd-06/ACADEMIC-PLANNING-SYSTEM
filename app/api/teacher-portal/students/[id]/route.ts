@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
 import { getStudentById } from '@/lib/db/queries/students'
 import { db } from '@/lib/db'
 import { counselingSessions, studentReports, studentReportEntries, parentsGuardians, studentBatchEnrollments } from '@/lib/db/schema'
@@ -9,7 +8,6 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectDB()
     const { id } = await params
     const student = await getStudentById(id)
 
