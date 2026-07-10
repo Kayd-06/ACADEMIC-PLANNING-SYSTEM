@@ -1,9 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter, Plus, Pencil, Trash2, Upload } from 'lucide-react'
+import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter, Plus, Pencil, Trash2, Upload, Download } from 'lucide-react'
 import StudentFormModal from './StudentFormModal'
-import CsvUploadModal from './CsvUploadModal'
+import CsvUploadModal, { downloadTemplate } from './CsvUploadModal'
 import StudentProfileDrawer from './StudentProfileDrawer'
 
 export default function StudentRosterView() {
@@ -154,6 +154,9 @@ export default function StudentRosterView() {
             </button>
             <button onClick={() => setShowCsvModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
               <Upload className="w-4 h-4" /> Upload CSV
+            </button>
+            <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
+              <Download className="w-4 h-4" /> Export Sample CSV
             </button>
             <button onClick={() => showToast('Syncing with SIS...')} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
               <Filter className="w-4 h-4" /> Sync Data

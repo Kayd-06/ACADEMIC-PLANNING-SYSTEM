@@ -6,12 +6,33 @@ import { X, Upload, Download, Loader2, AlertCircle, CheckCircle2, FileSpreadshee
 
 interface ParsedRow {
   name: string
+  admissionNumber: string
+  aadharNumber: string
   rollNo: string
+  email: string
+  phone: string
+  parentContact: string
+  addressLine1: string
+  city: string
+  state: string
+  pincode: string
+  dob: string
+  gender: string
+  bloodGroup: string
+  profileImgUrl: string
+  previousSchool: string
+  previousPercentage: string
   class: string
   section: string
   program: string
   batch: string
-  parentContact: string
+  admissionDate: string
+  status: string
+  notes: string
+  guardianName: string
+  guardianRelationship: string
+  guardianPhone: string
+  guardianEmail: string
 }
 
 interface Defaults {
@@ -30,16 +51,42 @@ function resolveField(rowValue: string, defaultValue: string): string {
   return defaultValue.trim() ? defaultValue.trim() : rowValue
 }
 
-function downloadTemplate() {
-  const headers = ['Name', 'Roll No', 'Class', 'Section', 'Program', 'Batch', 'Parent Contact']
+// Every column the roster & guardian tables can store, so a filled-in copy
+// of this file leaves nothing empty after import. Column headers here must
+// stay in sync with the `get()` variants in handleFileChange below.
+export const TEMPLATE_HEADERS = [
+  'Name', 'Admission Number', 'Aadhar Number', 'Roll No',
+  'Email', 'Phone', 'Parent Contact', 'Address Line 1', 'City', 'State', 'Pincode',
+  'Date of Birth (YYYY-MM-DD)', 'Gender', 'Blood Group', 'Profile Image URL',
+  'Previous School', 'Previous Percentage', 'Class', 'Section', 'Program', 'Batch',
+  'Admission Date (YYYY-MM-DD)', 'Status', 'Notes',
+  'Guardian Name', 'Guardian Relationship', 'Guardian Phone', 'Guardian Email',
+]
+
+export function downloadTemplate() {
   const data = [
-    headers,
-    ['Rahul Sharma', '101', 'Grade 10', 'A', 'Science', 'Morning', '9876543210'],
-    ['Priya Patel', '102', 'Grade 10', 'A', 'Science', 'Morning', '9123456789'],
-    ['Amit Verma', '103', 'Grade 10', 'B', '', '', ''],
+    TEMPLATE_HEADERS,
+    [
+      'Rahul Sharma', 'ADM-101', '1234-5678-9012', '101',
+      'rahul.sharma@example.com', '9876500001', '9876543210', '12 MG Road', 'Ahmedabad', 'Gujarat', '380001',
+      '2010-04-12', 'Male', 'B+', 'https://example.com/photos/rahul.jpg',
+      'St. Xavier School', '82%', '9', 'A', 'JEE Foundation for 9th', 'Batch A',
+      '2025-06-01', 'active', 'Scores well in Physics',
+      'Suresh Sharma', 'Father', '9876543210', 'suresh.sharma@example.com',
+    ],
+    [
+      'Priya Patel', 'ADM-102', '2234-5678-9012', '102',
+      'priya.patel@example.com', '9876500002', '9123456789', '45 Ring Road', 'Surat', 'Gujarat', '395001',
+      '2010-09-03', 'Female', 'O+', '',
+      'DPS Surat', '91%', '9', 'A', 'NEET Foundation for 9th', 'Batch A',
+      '2025-06-01', 'active', '',
+      'Meena Patel', 'Mother', '9123456789', 'meena.patel@example.com',
+    ],
+    // Minimal row — only Name is required, every other column may be left blank
+    ['Amit Verma', '', '', '103', '', '', '', '', '', '', '', '', '', '', '', '', '', '9', 'B', '', '', '', 'active', '', '', '', '', ''],
   ]
   const ws = XLSX.utils.aoa_to_sheet(data)
-  ws['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 18 }]
+  ws['!cols'] = TEMPLATE_HEADERS.map(h => ({ wch: Math.max(14, Math.min(28, h.length + 4)) }))
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Students')
   XLSX.writeFile(wb, 'student_roster_template.xlsx')
@@ -92,19 +139,40 @@ export default function CsvUploadModal({ students, onClose, onImported }: CsvUpl
             const keys = Object.keys(r)
             const get = (variants: string[]) => {
               for (const v of variants) {
-                const found = keys.find((k) => k.toLowerCase().replace(/\s+/g, '') === v.toLowerCase())
+                const found = keys.find((k) => k.toLowerCase().replace(/[\s()_-]+/g, '') === v.toLowerCase())
                 if (found) return String(r[found]).trim()
               }
               return ''
             }
             return {
-              name: get(['name', 'studentname']),
+              name: get(['name', 'studentname', 'fullname']),
+              admissionNumber: get(['admissionnumber', 'admissionno', 'admission']),
+              aadharNumber: get(['aadharnumber', 'aadhaarnumber', 'aadhar', 'aadhaar']),
               rollNo: get(['rollno', 'roll', 'rollnumber', 'id']),
+              email: get(['email', 'studentemail']),
+              phone: get(['phone', 'studentphone', 'mobile']),
+              parentContact: get(['parentcontact', 'contact']),
+              addressLine1: get(['addressline1', 'address']),
+              city: get(['city']),
+              state: get(['state']),
+              pincode: get(['pincode', 'zip', 'zipcode']),
+              dob: get(['dateofbirthyyyymmdd', 'dateofbirth', 'dob']),
+              gender: get(['gender']),
+              bloodGroup: get(['bloodgroup']),
+              profileImgUrl: get(['profileimageurl', 'profileimgurl', 'photourl']),
+              previousSchool: get(['previousschool']),
+              previousPercentage: get(['previouspercentage']),
               class: get(['class', 'grade', 'classname']),
               section: get(['section', 'div', 'division']),
               program: get(['program']),
               batch: get(['batch']),
-              parentContact: get(['parentcontact', 'contact', 'phone', 'mobile']),
+              admissionDate: get(['admissiondateyyyymmdd', 'admissiondate']),
+              status: get(['status']),
+              notes: get(['notes']),
+              guardianName: get(['guardianname']),
+              guardianRelationship: get(['guardianrelationship']),
+              guardianPhone: get(['guardianphone']),
+              guardianEmail: get(['guardianemail']),
             }
           })
           .filter((r) => r.name)
@@ -216,7 +284,7 @@ export default function CsvUploadModal({ students, onClose, onImported }: CsvUpl
             className="hidden"
           />
           <button onClick={downloadTemplate} className="text-xs text-indigo-600 font-semibold hover:underline flex items-center gap-1">
-            <Download className="w-3.5 h-3.5" /> Download Template
+            <Download className="w-3.5 h-3.5" /> Download Sample CSV
           </button>
         </div>
 
@@ -240,7 +308,7 @@ export default function CsvUploadModal({ students, onClose, onImported }: CsvUpl
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 sticky top-0">
                   <tr>
-                    {['Name', 'Roll No', 'Class', 'Section', 'Program', 'Batch', 'Contact'].map((h) => (
+                    {['Name', 'Roll No', 'Class', 'Section', 'Program', 'Batch', 'Contact', 'Guardian'].map((h) => (
                       <th key={h} className="px-3 py-2 text-left font-bold text-slate-400 uppercase tracking-wider text-[10px]">{h}</th>
                     ))}
                   </tr>
@@ -254,7 +322,8 @@ export default function CsvUploadModal({ students, onClose, onImported }: CsvUpl
                       <td className="px-3 py-2 text-slate-600">{resolveField(r.section, defaults.section) || '—'}</td>
                       <td className="px-3 py-2 text-slate-600">{resolveField(r.program, defaults.program) || '—'}</td>
                       <td className="px-3 py-2 text-slate-600">{resolveField(r.batch, defaults.batch) || '—'}</td>
-                      <td className="px-3 py-2 text-slate-500">{r.parentContact || '—'}</td>
+                      <td className="px-3 py-2 text-slate-500">{r.parentContact || r.phone || '—'}</td>
+                      <td className="px-3 py-2 text-slate-500">{r.guardianName || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

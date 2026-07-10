@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { parentsGuardians } from '@/lib/db/schema'
 import { upsertStudentByRollClassSection, createStudent, deleteAllStudents } from '@/lib/db/queries/students'
+import type { NewStudent } from '@/lib/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +16,14 @@ interface BulkDefaults {
 function resolveField(rowValue: string, defaultValue?: string): string {
   return defaultValue?.trim() ? defaultValue.trim() : rowValue
 }
+
+// Every student field the "Add Student" form and CSV template support
+const STUDENT_ROW_FIELDS = [
+  'admissionNumber', 'aadharNumber',
+  'email', 'phone', 'addressLine1', 'city', 'state', 'pincode',
+  'dob', 'gender', 'bloodGroup', 'profileImgUrl',
+  'previousSchool', 'previousPercentage', 'admissionDate', 'notes',
+] as const
 
 // POST — bulk import students from parsed CSV/Excel rows (management or teacher)
 export async function POST(req: NextRequest) {
@@ -39,7 +50,7 @@ export async function POST(req: NextRequest) {
     }
 
     const results = await Promise.allSettled(
-      valid.map((s: any) => {
+      valid.map(async (s: any) => {
         const name = s.name.trim()
         const rollNo = s.rollNo?.trim() || ''
         const cls = s.class?.trim() || ''
@@ -47,14 +58,37 @@ export async function POST(req: NextRequest) {
         const program = resolveField(s.program?.trim() || '', defaults?.program)
         const batch = resolveField(s.batch?.trim() || '', defaults?.batch)
         const parentContact = s.parentContact?.trim() || ''
+        const status = s.status?.trim() || 'active'
+
+        const data: NewStudent = {
+          name, rollNo, class: cls, section, program, batch, parentContact,
+          status, isActive: status.toLowerCase() !== 'inactive',
+          schoolId,
+        }
+        for (const f of STUDENT_ROW_FIELDS) {
+          const v = s[f]
+          if (typeof v === 'string' && v.trim()) data[f] = v.trim()
+        }
 
         // If rollNo + class + section all present → upsert (prevents duplicates)
         // Otherwise → plain insert (name-only rows are always added)
-        if (rollNo && cls && section) {
-          return upsertStudentByRollClassSection({ name, rollNo, class: cls, section, program, batch, parentContact, isActive: true, schoolId })
-        } else {
-          return createStudent({ name, rollNo, class: cls, section, program, batch, parentContact, isActive: true, schoolId })
+        const student = rollNo && cls && section
+          ? await upsertStudentByRollClassSection(data)
+          : await createStudent(data)
+
+        const guardianName = s.guardianName?.trim()
+        if (guardianName) {
+          await db.insert(parentsGuardians).values({
+            studentId: student.id,
+            name: guardianName,
+            relationship: s.guardianRelationship?.trim() || 'Parent',
+            phone: s.guardianPhone?.trim() || undefined,
+            email: s.guardianEmail?.trim() || undefined,
+            isPrimary: true,
+          })
         }
+
+        return student
       })
     )
 
