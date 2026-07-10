@@ -46,6 +46,21 @@ export default function StudentRosterView() {
     return () => window.removeEventListener('batchChanged', applySelection)
   }, [])
 
+  // Follow the sidebar program switcher (localStorage + 'programChanged' event)
+  // — used only to pre-fill the "Add Student" form, since students store
+  // program as a free-text label rather than a foreign key.
+  const [selectedProgramName, setSelectedProgramName] = useState('')
+  useEffect(() => {
+    const applySelection = () => {
+      const stored = localStorage.getItem('selectedProgram')
+      if (!stored) { setSelectedProgramName(''); return }
+      try { setSelectedProgramName(JSON.parse(stored).name || '') } catch { setSelectedProgramName('') }
+    }
+    applySelection()
+    window.addEventListener('programChanged', applySelection)
+    return () => window.removeEventListener('programChanged', applySelection)
+  }, [])
+
   const fetchStudents = async () => {
     try {
       const res = await fetch('/api/students/roster')
@@ -290,7 +305,13 @@ export default function StudentRosterView() {
       </AnimatePresence>
 
       {showAddModal && (
-        <StudentFormModal mode="add" onClose={() => setShowAddModal(false)} onSaved={fetchStudents} />
+        <StudentFormModal
+          mode="add"
+          defaultBatch={batchFilter !== 'All Batches' ? batchFilter : ''}
+          defaultProgram={selectedProgramName}
+          onClose={() => setShowAddModal(false)}
+          onSaved={fetchStudents}
+        />
       )}
 
       {editingStudent && (

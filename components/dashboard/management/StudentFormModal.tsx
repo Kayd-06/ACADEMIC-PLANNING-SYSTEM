@@ -49,6 +49,8 @@ const STATUSES = ['active', 'inactive', 'transferred', 'completed']
 interface StudentFormModalProps {
   mode: 'add' | 'edit'
   student?: any
+  defaultBatch?: string
+  defaultProgram?: string
   onClose: () => void
   onSaved: () => void
 }
@@ -89,9 +91,11 @@ function valuesFromStudent(student: any): StudentFormValues {
   }
 }
 
-export default function StudentFormModal({ mode, student, onClose, onSaved }: StudentFormModalProps) {
+export default function StudentFormModal({ mode, student, defaultBatch, defaultProgram, onClose, onSaved }: StudentFormModalProps) {
   const [form, setForm] = useState<StudentFormValues>(
-    mode === 'edit' && student ? valuesFromStudent(student) : EMPTY_FORM
+    mode === 'edit' && student
+      ? valuesFromStudent(student)
+      : { ...EMPTY_FORM, batch: defaultBatch ?? '', program: defaultProgram ?? '' }
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
