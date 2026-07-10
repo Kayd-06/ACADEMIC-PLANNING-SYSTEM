@@ -47,8 +47,7 @@ export default function StudentRosterView() {
   }, [])
 
   // Follow the sidebar program switcher (localStorage + 'programChanged' event)
-  // — used only to pre-fill the "Add Student" form, since students store
-  // program as a free-text label rather than a foreign key.
+  // — filters the roster to that program and pre-fills the "Add Student" form.
   const [selectedProgramName, setSelectedProgramName] = useState('')
   useEffect(() => {
     const applySelection = () => {
@@ -109,11 +108,14 @@ export default function StudentRosterView() {
     ...(batchFilter !== 'All Batches' ? [batchFilter] : []),
   ]))]
 
-  // Filter students
+  // Filter students. Program filtering matches each student's own `program`
+  // field — a batch can be linked to several programs, so filtering by batch
+  // alone would show students who were never enrolled in the selected program.
   const filteredStudents = students.filter(s => {
     if (classFilter !== 'All Classes' && s.rawClass !== classFilter) return false
     if (sectionFilter !== 'All Sections' && s.rawSection !== sectionFilter) return false
     if (batchFilter !== 'All Batches' && s.batch !== batchFilter) return false
+    if (selectedProgramName && s.program !== selectedProgramName) return false
     return true
   })
 
