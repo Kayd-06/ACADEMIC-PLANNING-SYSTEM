@@ -191,9 +191,13 @@ export default function TeacherStudentRosterView() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${student.color}`}>
-                      {student.initials}
-                    </div>
+                    {student.profileImgUrl ? (
+                      <img src={student.profileImgUrl} alt={student.name} className="w-10 h-10 rounded-full object-cover shadow-sm shrink-0" />
+                    ) : (
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${student.color}`}>
+                        {student.initials}
+                      </div>
+                    )}
                     <div>
                       <h4 className="text-[13px] font-bold text-slate-900 truncate w-32">{student.name}</h4>
                       <p className="text-[11px] text-slate-500">Roll: {student.roll}</p>
