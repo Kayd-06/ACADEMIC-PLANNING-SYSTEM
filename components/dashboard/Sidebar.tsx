@@ -4,21 +4,120 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { LogOut, Plus, X, Building2, ChevronDown, Check, Loader2, ArrowRightLeft, Users } from 'lucide-react'
+import { LogOut, Plus, X, Building2, ChevronDown, Check, Loader2, ArrowRightLeft, Users, GraduationCap } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+
+type ProgramEntry = { id: string; name: string }
+
+function readSelectedProgram(): ProgramEntry | null {
+  const stored = localStorage.getItem('selectedProgram')
+  if (!stored) return null
+  try { return JSON.parse(stored) } catch { return null }
+}
+
+// Program switcher: narrows which batches the Batch switcher (and its "Manage
+// Batches" link) shows. Selection is shared via localStorage + a
+// 'programChanged' event; switching also clears any selected batch, since it
+// may not belong to the newly chosen program.
+function ProgramSwitcher() {
+  const [programList, setProgramList] = useState<ProgramEntry[]>([])
+  const [selected, setSelected] = useState<ProgramEntry | null>(null)
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const fetchPrograms = () => {
+    fetch('/api/programs')
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { if (Array.isArray(d)) setProgramList(d.map((p: any) => ({ id: p._id, name: p.name }))) })
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    setSelected(readSelectedProgram())
+    fetchPrograms()
+    const onChanged = () => setSelected(readSelectedProgram())
+    window.addEventListener('programChanged', onChanged)
+    return () => window.removeEventListener('programChanged', onChanged)
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function switchProgram(program: ProgramEntry | null) {
+    setSelected(program)
+    setOpen(false)
+    if (program) localStorage.setItem('selectedProgram', JSON.stringify(program))
+    else localStorage.removeItem('selectedProgram')
+    // The previously selected batch may not belong to the new program
+    localStorage.removeItem('selectedBatch')
+    window.dispatchEvent(new Event('programChanged'))
+    window.dispatchEvent(new Event('batchChanged'))
+  }
+
+  return (
+    <div className="px-4 pb-3" ref={ref}>
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all text-left">
+        <div className="flex items-center gap-2 min-w-0">
+          <GraduationCap className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+          <span className="text-[12px] font-semibold text-slate-700 truncate">{selected?.name ?? 'All Programs'}</span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+            className="mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+            <div className="py-1 max-h-56 overflow-y-auto">
+              <button onClick={() => switchProgram(null)}
+                className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${!selected ? 'bg-purple-50 text-purple-700' : 'text-slate-700 hover:bg-slate-50'}`}>
+                <span>All Programs</span>
+                {!selected && <Check className="w-3.5 h-3.5 shrink-0" />}
+              </button>
+              {programList.length === 0 && (
+                <p className="px-4 py-3 text-[11px] text-slate-400 italic">No programs yet</p>
+              )}
+              {programList.map(p => (
+                <button key={p.id} onClick={() => switchProgram(p)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${selected?.id === p.id ? 'bg-purple-50 text-purple-700' : 'text-slate-700 hover:bg-slate-50'}`}>
+                  <span className="truncate text-left">{p.name}</span>
+                  {selected?.id === p.id && <Check className="w-3.5 h-3.5 shrink-0" />}
+                </button>
+              ))}
+            </div>
+            <div className="border-t border-slate-100">
+              <Link href="/management/academic-planning" onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 transition-colors">
+                <Plus className="w-3.5 h-3.5" /> Manage Programs
+              </Link>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
 
 // Batch switcher: picks which batch's students the roster shows. Selection is
 // shared with StudentRosterView through localStorage + a 'batchChanged' event.
+// The list narrows to the Program switcher's selection, if any.
 function BatchSwitcher() {
   const router = useRouter()
   const pathname = usePathname()
   const [batchList, setBatchList] = useState<{ id: string; name: string; enrolledCount: number }[]>([])
   const [selected, setSelected] = useState<string>('All Batches')
+  const [programFilter, setProgramFilter] = useState<ProgramEntry | null>(null)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   const fetchBatches = () => {
-    fetch('/api/batches')
+    const program = readSelectedProgram()
+    setProgramFilter(program)
+    const url = program ? `/api/batches?programId=${program.id}` : '/api/batches'
+    fetch(url)
       .then(r => r.ok ? r.json() : [])
       .then(d => { if (Array.isArray(d)) setBatchList(d.map((b: any) => ({ id: b._id, name: b.name, enrolledCount: b.enrolledCount ?? 0 }))) })
       .catch(() => {})
@@ -29,11 +128,14 @@ function BatchSwitcher() {
     fetchBatches()
     const onUpdate = () => fetchBatches()
     const onChanged = () => setSelected(localStorage.getItem('selectedBatch') || 'All Batches')
+    const onProgramChanged = () => fetchBatches()
     window.addEventListener('batchesUpdated', onUpdate)
     window.addEventListener('batchChanged', onChanged)
+    window.addEventListener('programChanged', onProgramChanged)
     return () => {
       window.removeEventListener('batchesUpdated', onUpdate)
       window.removeEventListener('batchChanged', onChanged)
+      window.removeEventListener('programChanged', onProgramChanged)
     }
   }, [])
 
@@ -66,12 +168,20 @@ function BatchSwitcher() {
         {open && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
             className="mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+            {programFilter && (
+              <p className="px-4 pt-2.5 pb-1.5 text-[10px] font-bold text-purple-600 uppercase tracking-wider border-b border-slate-100">
+                In {programFilter.name}
+              </p>
+            )}
             <div className="py-1 max-h-56 overflow-y-auto">
               <button onClick={() => switchBatch('All Batches')}
                 className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${selected === 'All Batches' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50'}`}>
                 <span>All Batches</span>
                 {selected === 'All Batches' && <Check className="w-3.5 h-3.5 shrink-0" />}
               </button>
+              {batchList.length === 0 && (
+                <p className="px-4 py-3 text-[11px] text-slate-400 italic">No batches{programFilter ? ' in this program' : ''}</p>
+              )}
               {batchList.map(b => (
                 <button key={b.id} onClick={() => switchBatch(b.name)}
                   className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${selected === b.name ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50'}`}>
