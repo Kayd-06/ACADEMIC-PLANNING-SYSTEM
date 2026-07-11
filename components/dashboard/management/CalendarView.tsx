@@ -412,10 +412,10 @@ export default function CalendarView() {
   }
 
   return (
-    <div className="flex-1 p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-64px)] bg-gray-50 flex flex-col xl:flex-row gap-6">
+    <div className="flex-1 min-w-0 p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-64px)] bg-gray-50 flex flex-col 2xl:flex-row gap-6">
       
       {/* Calendar Main Section */}
-      <div className="flex-1 flex flex-col space-y-6">
+      <div className="flex-1 min-w-0 flex flex-col space-y-6">
         
         {/* Header toolbar */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -507,62 +507,62 @@ export default function CalendarView() {
             </div>
           ) : activeTab === 'Month' ? (
             /* Month Calendar Grid View */
-            <div className="flex flex-col">
-              {/* Day Titles Header */}
-              <div className="grid grid-cols-7 border-b border-slate-100 pb-2 mb-2 text-center text-xs font-bold text-slate-400 tracking-wider">
-                {WEEK_DAYS.map((day) => (
-                  <div key={day}>{day}</div>
-                ))}
-              </div>
-              
-              {/* Days Cell Grid */}
-              <div className="grid grid-cols-7 border-t border-l border-slate-100/50">
-                {calendarCells.map((cell, index) => {
-                  const dayEvents = getEventsForDate(cell.dateStr)
-                  const cellBg = getCellBgClass(cell.dateStr, cell.isCurrentMonth)
-                  
-                  return (
-                    <div
-                      key={index}
-                      onClick={() => openAddModal(cell.dateStr)}
-                      className={`min-h-[105px] p-2 border-r border-b border-slate-100 flex flex-col justify-start hover:bg-slate-50/50 transition cursor-pointer select-none relative ${cellBg}`}
-                    >
-                      {/* Day Number and dot container */}
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
-                          !cell.isCurrentMonth 
-                            ? 'text-slate-300' 
-                            : cell.dateStr === new Date().toISOString().split('T')[0]
-                              ? 'bg-blue-600 text-white font-bold shadow-sm'
-                              : 'text-slate-600'
-                        }`}>
-                          {cell.dayNum}
-                        </span>
-                        
+            <div className="flex flex-col overflow-x-auto custom-scrollbar">
+              <div className="min-w-[750px] flex flex-col">
+                {/* Day Titles Header */}
+                <div className="grid grid-cols-7 border-b border-slate-100 pb-2 mb-2 text-center text-xs font-bold text-slate-400 tracking-wider">
+                  {WEEK_DAYS.map((day) => (
+                    <div key={day}>{day}</div>
+                  ))}
+                </div>
+                
+                {/* Days Cell Grid */}
+                <div className="grid grid-cols-7 border-t border-l border-slate-100/50">
+                  {calendarCells.map((cell, index) => {
+                    const dayEvents = getEventsForDate(cell.dateStr)
+                    const cellBg = getCellBgClass(cell.dateStr, cell.isCurrentMonth)
+                    
+                    return (
+                      <div
+                        key={index}
+                        onClick={() => openAddModal(cell.dateStr)}
+                        className={`min-h-[105px] p-2 border-r border-b border-slate-100 flex flex-col justify-start hover:bg-slate-50/50 transition cursor-pointer select-none relative ${cellBg}`}
+                      >
+                        {/* Day Number and dot container */}
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
+                            !cell.isCurrentMonth 
+                              ? 'text-slate-300' 
+                              : cell.dateStr === new Date().toISOString().split('T')[0]
+                                ? 'bg-blue-600 text-white font-bold shadow-sm'
+                                : 'text-slate-600'
+                          }`}>
+                            {cell.dayNum}
+                          </span>
+                        </div>
 
+                        {/* Event Badges list with scroll overflow if many events */}
+                        <div className="space-y-1 overflow-y-auto max-h-[70px] pr-0.5 custom-scrollbar">
+                          {dayEvents.map((evt) => {
+                            const conf = EVENT_TYPES.find(t => t.name === evt.type)
+                            return (
+                              <div
+                                key={evt._id}
+                                onClick={(e) => openEditModal(evt, e)}
+                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded border truncate max-w-full block leading-snug ${
+                                  conf ? conf.color : 'bg-slate-100 text-slate-700'
+                                } transition hover:scale-102 hover:shadow-2xs`}
+                                title={`${evt.title} (${evt.scope})`}
+                              >
+                                {evt.title}
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
-
-                      {/* Event Badges list with scroll overflow if many events */}
-                      <div className="space-y-1 overflow-y-auto max-h-[70px] pr-0.5 custom-scrollbar">
-                        {dayEvents.map((evt) => {
-                          const conf = EVENT_TYPES.find(t => t.name === evt.type)
-                          return (
-                            <div
-                              key={evt._id}
-                              onClick={(e) => openEditModal(evt, e)}
-                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border truncate max-w-full block leading-snug ${
-                                conf ? conf.color : 'bg-slate-100 text-slate-700'
-                              } transition hover:scale-102 hover:shadow-2xs`}
-                              title={`${evt.title} (${evt.scope})`}
-                            >
-                              {evt.title}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             </div>
           ) : activeTab === 'Week' ? (
@@ -668,7 +668,7 @@ export default function CalendarView() {
       </div>
 
       {/* Right Column Panel: Upcoming Events */}
-      <div className="w-full xl:w-96 shrink-0 flex flex-col space-y-6">
+      <div className="w-full 2xl:w-96 shrink-0 flex flex-col space-y-6">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col flex-1">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
             <h2 className="text-lg font-bold text-slate-800">Upcoming Events</h2>

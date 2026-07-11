@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Clock } from 'lucide-react'
+import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Clock, Megaphone, Bell } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 const fadeUp = (delay = 0) => ({
@@ -154,27 +154,42 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
           </div>
         </motion.div>
 
-        {/* Protocols Card — 4 cols */}
-        <motion.div {...fadeUp(0.08)} className="col-span-4 bg-white border border-gray-100 rounded-xl p-5 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Protocols</p>
-            <ShieldCheck className="w-4 h-4 text-gray-400" />
+        {/* Announcements Card — 4 cols */}
+        <motion.div {...fadeUp(0.08)} className="col-span-4 bg-white border border-gray-100 rounded-xl p-5 shadow-sm overflow-hidden flex flex-col justify-between">
+          <div className="flex items-center gap-2 font-bold text-slate-900 text-[15px] mb-5 shrink-0">
+            <Bell className="w-5 h-5 text-slate-500" /> Announcements
           </div>
-          <div className="space-y-3 mt-4">
-            {protocols.length === 0 && <p className="text-[11px] text-gray-400 italic">Loading...</p>}
-            {protocols.slice(0, 3).map(p => (
-              <div key={p._id} className="flex gap-2.5">
-                <div className="mt-0.5 shrink-0">
-                  {p.status === 'completed' ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> :
-                   p.status === 'overdue' ? <AlertTriangle className="w-4 h-4 text-red-500" /> :
-                   <Clock className="w-4 h-4 text-[#1a365d]" />}
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-800 leading-tight">{p.label}</p>
-                  <p className={`text-[11px] mt-0.5 ${p.status === 'overdue' ? 'text-red-500' : 'text-gray-400'}`}>{p.sub}</p>
-                </div>
-              </div>
-            ))}
+          <div className="space-y-3 mt-4 flex-1 overflow-y-auto max-h-[140px] pr-0.5 custom-scrollbar">
+            {announcements.length === 0 ? (
+              <p className="text-[11px] text-gray-400 italic">No recent announcements</p>
+            ) : (
+              announcements.slice(0, 3).map((ann, i) => {
+                const title = ann.title || ann.label || 'Announcement'
+                const isUrgent = ann.type === 'Urgent' || ann.urgent
+                const isRead = readIds.includes(ann.id || ann._id)
+                const dateStr = ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Recent'
+                return (
+                  <div
+                    key={ann._id || ann.id || i}
+                    onClick={() => setSelectedAnnouncement(ann)}
+                    className="flex gap-2.5 items-start cursor-pointer hover:bg-slate-50/70 p-2 rounded-xl border border-slate-50 transition-all"
+                  >
+                    <div className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${
+                      isRead ? 'bg-transparent' : isUrgent ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500'
+                    }`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${isUrgent ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'}`}>
+                          {ann.type || (isUrgent ? 'Urgent' : 'General')}
+                        </span>
+                        <span className="text-[10px] font-medium text-slate-400 ml-auto">{dateStr}</span>
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-800 truncate mt-1 leading-snug">{title}</h4>
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </div>
         </motion.div>
       </div>
@@ -287,109 +302,70 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
             </div>
           </motion.div>
 
-          <motion.div {...fadeUp(0.3)} className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[15px] font-bold text-slate-900">Announcements</h2>
-            </div>
-            <div className="space-y-4">
-              {announcements.length === 0 ? (
-                <p className="text-[12px] text-slate-400 italic py-4 text-center">No recent announcements</p>
-              ) : (
-                announcements.slice(0, 4).map((ann, i) => {
-                  const title = ann.title || ann.label || 'Announcement'
-                  const desc = ann.content || ann.sub || ''
-                  const isUrgent = ann.type === 'Urgent' || ann.urgent
-                  const isRead = readIds.includes(ann.id || ann._id)
-                  const dateStr = ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : (ann.updatedAt ? new Date(ann.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Recent')
-                  return (
-                    <div 
-                      key={ann._id || ann.id || i} 
-                      onClick={() => setSelectedAnnouncement(ann)}
-                      className="flex gap-3 items-start pb-4 border-b border-slate-50 last:border-0 last:pb-0 cursor-pointer hover:bg-slate-50/70 p-2 rounded-xl transition-all"
-                    >
-                      <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
-                        isRead ? 'bg-transparent' : isUrgent ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500'
-                      }`} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex gap-2 items-center mb-0.5">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${isUrgent ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'}`}>
-                            {ann.type || (isUrgent ? 'Urgent' : 'General')}
-                          </span>
-                          <span className="text-[11px] font-medium text-slate-400 ml-auto">{dateStr}</span>
-                        </div>
-                        <h4 className="text-[13px] font-bold text-slate-800 leading-tight truncate">{title}</h4>
-                        <p className="text-[12px] text-slate-500 mt-1 leading-snug line-clamp-2">{desc}</p>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-
-            {/* Announcement Modal Popup */}
-            <AnimatePresence>
-              {selectedAnnouncement && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                    className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden"
-                  >
-                    {/* Header */}
-                    <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                        selectedAnnouncement.type === 'Urgent' || selectedAnnouncement.urgent
-                          ? 'bg-rose-50 text-rose-600'
-                          : 'bg-indigo-50 text-indigo-600'
-                      }`}>
-                        {selectedAnnouncement.type || (selectedAnnouncement.urgent ? 'Urgent' : 'General')}
-                      </span>
-                      <span className="text-xs font-semibold text-slate-400">
-                        {selectedAnnouncement.createdAt
-                          ? new Date(selectedAnnouncement.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                          : 'Recent'
-                        }
-                      </span>
-                    </div>
-
-                    {/* Body */}
-                    <div className="p-6 space-y-4">
-                      <h3 className="text-lg font-bold text-slate-900 leading-snug">
-                        {selectedAnnouncement.title || selectedAnnouncement.label}
-                      </h3>
-                      <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
-                        {selectedAnnouncement.content || selectedAnnouncement.sub}
-                      </p>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
-                      {!readIds.includes(selectedAnnouncement.id || selectedAnnouncement._id) && (
-                        <button
-                          onClick={() => {
-                            markAsRead(selectedAnnouncement.id || selectedAnnouncement._id)
-                            setSelectedAnnouncement(null)
-                          }}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-all"
-                        >
-                          Mark as Read
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setSelectedAnnouncement(null)}
-                        className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-all"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-          </motion.div>
         </div>
       </div>
+
+      {/* Announcement Modal Popup */}
+      <AnimatePresence>
+        {selectedAnnouncement && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                  selectedAnnouncement.type === 'Urgent' || selectedAnnouncement.urgent
+                    ? 'bg-rose-50 text-rose-600'
+                    : 'bg-indigo-50 text-indigo-600'
+                }`}>
+                  {selectedAnnouncement.type || (selectedAnnouncement.urgent ? 'Urgent' : 'General')}
+                </span>
+                <span className="text-xs font-semibold text-slate-400">
+                  {selectedAnnouncement.createdAt
+                    ? new Date(selectedAnnouncement.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'Recent'
+                  }
+                </span>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-4">
+                <h3 className="text-lg font-bold text-slate-900 leading-snug">
+                  {selectedAnnouncement.title || selectedAnnouncement.label}
+                </h3>
+                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                  {selectedAnnouncement.content || selectedAnnouncement.sub}
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                {!readIds.includes(selectedAnnouncement.id || selectedAnnouncement._id) && (
+                  <button
+                    onClick={() => {
+                      markAsRead(selectedAnnouncement.id || selectedAnnouncement._id)
+                      setSelectedAnnouncement(null)
+                    }}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-all"
+                  >
+                    Mark as Read
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedAnnouncement(null)}
+                  className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
 
     </div>

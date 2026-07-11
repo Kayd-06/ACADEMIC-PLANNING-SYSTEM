@@ -1,10 +1,12 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { Building2, Zap, FileText, TrendingUp, Plus, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Copy, Check } from 'lucide-react'
+import { Building2, Zap, FileText, TrendingUp, Plus, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Copy, Check, Megaphone, Bell, X } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 import SchoolDetailsModal from './SchoolDetailsModal'
 import ProtocolsModal from './ProtocolsModal'
+import AnnouncementsView from './AnnouncementsView'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -32,6 +34,7 @@ interface Protocol {
 }
 
 export default function InstitutionalDashboard() {
+  const { data: session } = useSession()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isProtocolsModalOpen, setIsProtocolsModalOpen] = useState(false)
   const [schoolData, setSchoolData] = useState<{
@@ -41,6 +44,16 @@ export default function InstitutionalDashboard() {
   const [codeCopied, setCodeCopied] = useState(false)
   const [audits, setAudits] = useState(auditRows)
   const [protocols, setProtocols] = useState<Protocol[]>([])
+  const [announcements, setAnnouncements] = useState<any[]>([])
+  const [readIds, setReadIds] = useState<string[]>([])
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null)
+  const [isManageAnnouncementsOpen, setIsManageAnnouncementsOpen] = useState(false)
+
+  async function fetchAnnouncements() {
+    const res = await fetch('/api/announcements')
+    const data = await res.json()
+    if (Array.isArray(data)) setAnnouncements(data)
+  }
 
   useEffect(() => {
     fetch('/api/school')
@@ -48,7 +61,28 @@ export default function InstitutionalDashboard() {
       .then(data => { if (!data.error) setSchoolData(data) })
       .finally(() => setSchoolLoading(false))
     fetchProtocols()
+    fetchAnnouncements()
   }, [])
+
+  useEffect(() => {
+    if (session?.user?.email) {
+      const stored = localStorage.getItem(`read_announcements_${session.user.email}`)
+      if (stored) {
+        try {
+          setReadIds(JSON.parse(stored))
+        } catch (e) {
+          console.error(e)
+        }
+      }
+    }
+  }, [session])
+
+  const markAsRead = (id: string) => {
+    if (!session?.user?.email) return
+    const updated = [...readIds, id]
+    setReadIds(updated)
+    localStorage.setItem(`read_announcements_${session.user.email}`, JSON.stringify(updated))
+  }
 
   async function fetchProtocols() {
     const res = await fetch('/api/protocols')
@@ -202,42 +236,57 @@ export default function InstitutionalDashboard() {
           </div>
         </motion.div>
 
-        {/* Protocols — 2 cols */}
-        <motion.div {...fadeUp(0.12)} className="col-span-2 bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center gap-2 font-bold text-slate-900 text-[15px] mb-5">
-            <ShieldCheck className="w-5 h-5 text-slate-700" /> Protocols
-          </div>
-          <div className="space-y-5">
-            {protocols.length === 0 && <p className="text-[12px] text-slate-400 italic">Loading...</p>}
-            {protocols.slice(0, 3).map(p => (
-              <div key={p._id} className="flex gap-4 items-start">
-                <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                  p.status === 'completed' ? 'bg-emerald-50 text-emerald-500' :
-                  p.status === 'overdue' ? 'bg-red-50 text-red-500' :
-                  'bg-amber-50 text-amber-500'
-                }`}>
-                  {p.status === 'completed' ? <CheckCircle2 className="w-4 h-4" /> :
-                   p.status === 'overdue' ? <AlertTriangle className="w-4 h-4" /> :
-                   <Clock className="w-4 h-4" />}
-                </div>
-                <div>
-                  <p className="text-[13px] font-bold text-slate-800 leading-tight">{p.label}</p>
-                  <p className={`text-[11px] mt-1 font-medium ${p.status === 'overdue' ? 'text-red-500' : 'text-slate-500'}`}>{p.sub}</p>
-                </div>
+        {/* Announcements — 2 cols */}
+        <motion.div {...fadeUp(0.12)} className="col-span-2 bg-white border border-gray-100 rounded-xl p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 font-bold text-slate-900 text-[15px]">
+                <Bell className="w-5 h-5 text-slate-500" /> Announcements
               </div>
-            ))}
+            </div>
+            <div className="space-y-4">
+              {announcements.length === 0 ? (
+                <p className="text-[12px] text-slate-400 italic py-4 text-center">No recent announcements</p>
+              ) : (
+                announcements.slice(0, 3).map((ann, i) => {
+                  const title = ann.title || ann.label || 'Announcement'
+                  const isUrgent = ann.type === 'Urgent' || ann.urgent
+                  const isRead = readIds.includes(ann.id || ann._id)
+                  const dateStr = ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Recent'
+                  return (
+                    <div
+                      key={ann._id || ann.id || i}
+                      onClick={() => setSelectedAnnouncement(ann)}
+                      className="flex gap-2.5 items-start cursor-pointer hover:bg-slate-50/70 p-2 rounded-xl border border-slate-50 transition-all"
+                    >
+                      <div className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${
+                        isRead ? 'bg-transparent' : isUrgent ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500'
+                      }`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${isUrgent ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'}`}>
+                            {ann.type || (isUrgent ? 'Urgent' : 'General')}
+                          </span>
+                          <span className="text-[10px] font-medium text-slate-400 ml-auto">{dateStr}</span>
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-800 truncate mt-1 leading-snug">{title}</h4>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </div>
           <div className="mt-6 pt-4 border-t border-slate-100 flex justify-center">
             <button
-              onClick={() => setIsProtocolsModalOpen(true)}
-              className="text-[13px] text-indigo-600 hover:text-indigo-700 font-bold transition-colors"
+              onClick={() => setIsManageAnnouncementsOpen(true)}
+              className="text-[13px] text-[#0b1320] hover:text-slate-800 font-bold transition-colors border-none bg-transparent cursor-pointer"
             >
               Manage All
             </button>
           </div>
         </motion.div>
       </div>
-
       {/* Academic Quality Monitoring table */}
       <motion.div {...fadeUp(0.16)} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
@@ -298,6 +347,103 @@ export default function InstitutionalDashboard() {
           <p className="text-xs text-gray-400">© 2024 EduAdmin Management System. Institutional Grade Security.</p>
         </div>
       </motion.div>
+
+      {/* Announcement Modal Popup */}
+      <AnimatePresence>
+        {selectedAnnouncement && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                  selectedAnnouncement.type === 'Urgent' || selectedAnnouncement.urgent
+                    ? 'bg-rose-50 text-rose-600'
+                    : 'bg-indigo-50 text-indigo-600'
+                }`}>
+                  {selectedAnnouncement.type || (selectedAnnouncement.urgent ? 'Urgent' : 'General')}
+                </span>
+                <span className="text-xs font-semibold text-slate-400">
+                  {selectedAnnouncement.createdAt
+                    ? new Date(selectedAnnouncement.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'Recent'
+                  }
+                </span>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-4">
+                <h3 className="text-lg font-bold text-slate-900 leading-snug">
+                  {selectedAnnouncement.title || selectedAnnouncement.label}
+                </h3>
+                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                  {selectedAnnouncement.content || selectedAnnouncement.sub}
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                {!readIds.includes(selectedAnnouncement.id || selectedAnnouncement._id) && (
+                  <button
+                    onClick={() => {
+                      markAsRead(selectedAnnouncement.id || selectedAnnouncement._id)
+                      setSelectedAnnouncement(null)
+                    }}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-all"
+                  >
+                    Mark as Read
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedAnnouncement(null)}
+                  className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Manage Announcements Modal */}
+      <AnimatePresence>
+        {isManageAnnouncementsOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-indigo-600" /> Manage Announcements
+                </h3>
+                <button
+                  onClick={() => {
+                    setIsManageAnnouncementsOpen(false)
+                    fetchAnnouncements()
+                  }}
+                  className="p-1.5 hover:bg-slate-200 rounded-lg text-gray-400 hover:text-gray-600 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body - Contains the view */}
+              <div className="flex-1 overflow-hidden relative">
+                <AnnouncementsView />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

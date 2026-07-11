@@ -494,14 +494,14 @@ export default function CounselingView() {
       {/* ── CREATE MODAL ── */}
       <AnimatePresence>
         {showCreate && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-8 bg-slate-900/40 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-100"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-100 max-h-[calc(100vh-8rem)] flex flex-col"
             >
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Schedule Session</h3>
                   <p className="text-[11px] text-slate-400 mt-0.5">Book a new counseling appointment</p>
@@ -511,7 +511,7 @@ export default function CounselingView() {
                 </button>
               </div>
 
-              <form onSubmit={handleCreate} className="p-6 space-y-4">
+              <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto flex-1">
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Student Name *</label>
                   <input required type="text" value={form.studentName} onChange={e => setForm({ ...form, studentName: e.target.value })}
@@ -596,15 +596,15 @@ export default function CounselingView() {
       {/* ── DETAIL MODAL ── */}
       <AnimatePresence>
         {showDetail && selected && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-8 bg-slate-900/40 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-100"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-100 max-h-[calc(100vh-8rem)] flex flex-col"
             >
               {/* header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
                 <div className="flex items-center gap-3">
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold ${avatarBg(selected.studentName)}`}>
                     {selected.studentInitials || getInitials(selected.studentName)}
@@ -620,7 +620,7 @@ export default function CounselingView() {
               </div>
 
               {/* body */}
-              <div className="p-6 space-y-5">
+              <div className="p-6 space-y-5 overflow-y-auto flex-1">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Type</p>

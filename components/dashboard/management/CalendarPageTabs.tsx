@@ -9,7 +9,7 @@ export default function CalendarPageTabs() {
   const [tab, setTab] = useState<'calendar' | 'schedules'>('calendar')
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto max-h-[calc(100vh-72px)]">
+    <div className="flex-1 min-w-0 flex flex-col overflow-y-auto max-h-[calc(100vh-72px)]">
       <div className="px-6 pt-5 bg-gray-50">
         <div className="flex gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shadow-sm w-fit">
           <button onClick={() => setTab('calendar')}

@@ -654,9 +654,6 @@ export default function FeeManagementView() {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold text-slate-900">Fee Management</h1>
-            <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 rounded-full text-[11px] font-bold uppercase tracking-wider flex items-center gap-1">
-              <Database className="w-3 h-3" /> Neon Postgres
-            </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
             Manage Fee Types, Financial Details, Scope & Relations, Student Records, and Transaction Logistics

@@ -16,7 +16,6 @@ export const MANAGEMENT_NAV = [
   { label: 'Feedback', href: '/management/feedback', icon: <MessageSquare className="w-4 h-4" /> },
   { label: 'Counseling', href: '/management/counseling', icon: <HeartHandshake className="w-4 h-4" /> },
   { label: 'Calendar', href: '/management/calendar', icon: <Calendar className="w-4 h-4" /> },
-  { label: 'Announcements', href: '/management/announcements', icon: <Bell className="w-4 h-4" /> },
 ]
 
 export const TEACHER_NAV = [

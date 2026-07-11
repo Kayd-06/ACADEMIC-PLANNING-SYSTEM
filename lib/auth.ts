@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { findUserByEmail } from '@/lib/db/queries/users'
+import { findUserByEmail, findUserById } from '@/lib/db/queries/users'
 import { authConfig } from '@/auth.config'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -48,4 +48,40 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt({ token, user, trigger, session }) {
+      if (authConfig.callbacks?.jwt) {
+        const result = await authConfig.callbacks.jwt({ token, user, trigger, session })
+        if (result) {
+          token = result
+        }
+      }
+      if (token?.id) {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token.id as string)
+        if (!isUuid) {
+          return {}
+        }
+        // Verify user still exists in the PostgreSQL database
+        const dbUser = await findUserById(token.id as string)
+        if (!dbUser) {
+          // User doesn't exist (e.g. stale session from MongoDB)
+          return {}
+        }
+      }
+      return token
+    },
+    async session({ session, token }) {
+      if (!token || !token.id) {
+        if (session.user) {
+          delete (session as any).user
+        }
+        return session
+      }
+      if (authConfig.callbacks?.session) {
+        return await (authConfig.callbacks.session as any)({ session, token })
+      }
+      return session
+    },
+  },
 })
