@@ -2,10 +2,11 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { Building2, Zap, FileText, TrendingUp, Plus, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Copy, Check, Megaphone, Bell } from 'lucide-react'
+import { Building2, Zap, FileText, TrendingUp, Plus, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Copy, Check, Megaphone, Bell, X } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import SchoolDetailsModal from './SchoolDetailsModal'
 import ProtocolsModal from './ProtocolsModal'
+import AnnouncementsView from './AnnouncementsView'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -46,6 +47,13 @@ export default function InstitutionalDashboard() {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [readIds, setReadIds] = useState<string[]>([])
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null)
+  const [isManageAnnouncementsOpen, setIsManageAnnouncementsOpen] = useState(false)
+
+  async function fetchAnnouncements() {
+    const res = await fetch('/api/announcements')
+    const data = await res.json()
+    if (Array.isArray(data)) setAnnouncements(data)
+  }
 
   useEffect(() => {
     fetch('/api/school')
@@ -53,12 +61,7 @@ export default function InstitutionalDashboard() {
       .then(data => { if (!data.error) setSchoolData(data) })
       .finally(() => setSchoolLoading(false))
     fetchProtocols()
-
-    fetch('/api/announcements')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setAnnouncements(data)
-      })
+    fetchAnnouncements()
   }, [])
 
   useEffect(() => {
@@ -275,9 +278,12 @@ export default function InstitutionalDashboard() {
             </div>
           </div>
           <div className="mt-6 pt-4 border-t border-slate-100 flex justify-center">
-            <Link href="/management/announcements" className="text-[13px] text-[#0b1320] hover:text-slate-800 font-bold transition-colors">
+            <button
+              onClick={() => setIsManageAnnouncementsOpen(true)}
+              className="text-[13px] text-[#0b1320] hover:text-slate-800 font-bold transition-colors border-none bg-transparent cursor-pointer"
+            >
               Manage All
-            </Link>
+            </button>
           </div>
         </motion.div>
       </div>
@@ -398,6 +404,41 @@ export default function InstitutionalDashboard() {
                 >
                   Close
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Manage Announcements Modal */}
+      <AnimatePresence>
+        {isManageAnnouncementsOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-indigo-600" /> Manage Announcements
+                </h3>
+                <button
+                  onClick={() => {
+                    setIsManageAnnouncementsOpen(false)
+                    fetchAnnouncements()
+                  }}
+                  className="p-1.5 hover:bg-slate-200 rounded-lg text-gray-400 hover:text-gray-600 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body - Contains the view */}
+              <div className="flex-1 overflow-hidden relative">
+                <AnnouncementsView />
               </div>
             </motion.div>
           </div>
