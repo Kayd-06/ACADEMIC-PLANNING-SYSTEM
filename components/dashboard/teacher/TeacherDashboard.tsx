@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Clock, Megaphone } from 'lucide-react'
+import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Clock, Megaphone, Bell } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 const fadeUp = (delay = 0) => ({
@@ -156,9 +156,8 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
 
         {/* Announcements Card — 4 cols */}
         <motion.div {...fadeUp(0.08)} className="col-span-4 bg-white border border-gray-100 rounded-xl p-5 shadow-sm overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3 shrink-0">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Announcements</p>
-            <Megaphone className="w-4 h-4 text-gray-400" />
+          <div className="flex items-center gap-2 font-bold text-slate-900 text-[15px] mb-5 shrink-0">
+            <Bell className="w-5 h-5 text-slate-500" /> Announcements
           </div>
           <div className="space-y-3 mt-4 flex-1 overflow-y-auto max-h-[140px] pr-0.5 custom-scrollbar">
             {announcements.length === 0 ? (

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { Building2, Zap, FileText, TrendingUp, Plus, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Copy, Check, Megaphone } from 'lucide-react'
+import { Building2, Zap, FileText, TrendingUp, Plus, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Copy, Check, Megaphone, Bell } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import SchoolDetailsModal from './SchoolDetailsModal'
 import ProtocolsModal from './ProtocolsModal'
@@ -238,7 +238,7 @@ export default function InstitutionalDashboard() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 font-bold text-slate-900 text-[15px]">
-                <Megaphone className="w-5 h-5 text-slate-700" /> Announcements
+                <Bell className="w-5 h-5 text-slate-500" /> Announcements
               </div>
             </div>
             <div className="space-y-4">
@@ -275,7 +275,7 @@ export default function InstitutionalDashboard() {
             </div>
           </div>
           <div className="mt-6 pt-4 border-t border-slate-100 flex justify-center">
-            <Link href="/management/announcements" className="text-[13px] text-indigo-600 hover:text-indigo-700 font-bold transition-colors">
+            <Link href="/management/announcements" className="text-[13px] text-[#0b1320] hover:text-slate-800 font-bold transition-colors">
               Manage All
             </Link>
           </div>
