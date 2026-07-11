@@ -44,7 +44,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     ...authConfig.callbacks,
     async jwt({ token, user, trigger, session }) {
       if (authConfig.callbacks?.jwt) {
-        token = await authConfig.callbacks.jwt({ token, user, trigger, session })
+        const result = await authConfig.callbacks.jwt({ token, user, trigger, session })
+        if (result) {
+          token = result
+        }
       }
       if (token?.id) {
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token.id as string)
@@ -68,7 +71,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return session
       }
       if (authConfig.callbacks?.session) {
-        return await authConfig.callbacks.session({ session, token })
+        return await (authConfig.callbacks.session as any)({ session, token })
       }
       return session
     },
