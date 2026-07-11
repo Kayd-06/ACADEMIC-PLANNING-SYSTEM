@@ -29,12 +29,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           throw new Error('EMAIL_NOT_VERIFIED')
         }
 
+        // "Active school" only applies to management accounts, which can
+        // belong to and switch between multiple schools. Teachers join
+        // exactly one school, so a stray activeSchoolId (e.g. left over
+        // from a role change) must never override their real schoolId.
+        const schoolId = user.role === 'management'
+          ? (user.activeSchoolId ?? user.schoolId ?? null)
+          : (user.schoolId ?? null)
+
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
-          schoolId: user.activeSchoolId ?? user.schoolId ?? null,
+          schoolId,
           profileImgUrl: user.profileImgUrl ?? null,
         }
       },
