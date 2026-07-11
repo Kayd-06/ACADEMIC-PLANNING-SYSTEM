@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { User, Lock, Mail, Building2, ChevronRight, Hash } from 'lucide-react'
+import { User, Lock, Mail, Building2, ChevronRight, Hash, Eye, EyeOff } from 'lucide-react'
 
 type Mode = 'login' | 'signup'
 type SignupStep = 'select' | 'teacher' | 'management'
@@ -22,6 +22,32 @@ function FieldInput({ icon, ...props }: { icon: React.ReactNode } & React.InputH
       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
         {icon}
       </span>
+    </div>
+  )
+}
+
+function PasswordInput({ value, onChange, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <div className="relative">
+      <input
+        {...props}
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        className="w-full bg-gray-100 rounded-lg px-4 py-2.5 pr-10 text-sm text-gray-800
+                   placeholder-gray-400 focus:outline-none focus:bg-gray-50
+                   focus:ring-2 focus:ring-indigo-400/30 transition-all"
+      />
+      <button
+        type="button"
+        onClick={() => setVisible(v => !v)}
+        tabIndex={-1}
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+      >
+        {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
     </div>
   )
 }
@@ -93,7 +119,7 @@ function LoginForm() {
       <ErrorMsg msg={error} />
       <form onSubmit={submit} className="space-y-3">
         <FieldInput icon={<User className="w-4 h-4" />} type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="Email" />
-        <FieldInput icon={<Lock className="w-4 h-4" />} type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Password" />
+        <PasswordInput value={password} onChange={e => setPassword(e.target.value)} required placeholder="Password" />
         <div className="text-right">
           <button type="button" className="text-xs text-gray-400 hover:text-indigo-500 transition-colors">
             Forgot Password?
@@ -178,7 +204,7 @@ function TeacherForm({ onBack }: { onBack: () => void }) {
         <form onSubmit={submit} className="space-y-2.5">
           <FieldInput icon={<User className="w-4 h-4" />} type="text" value={form.name} onChange={set('name')} required placeholder="Full name" />
           <FieldInput icon={<Mail className="w-4 h-4" />} type="email" value={form.email} onChange={set('email')} required placeholder="Institutional email" />
-          <FieldInput icon={<Lock className="w-4 h-4" />} type="password" value={form.password} onChange={set('password')} required placeholder="Password (min. 8 chars)" minLength={8} />
+          <PasswordInput value={form.password} onChange={set('password')} required placeholder="Password (min. 8 chars)" minLength={8} />
           <FieldInput icon={<Building2 className="w-4 h-4" />} type="text" value={form.department} onChange={set('department')} placeholder="Department (optional)" />
           <FieldInput icon={<Hash className="w-4 h-4" />} type="text" value={form.joinCode} onChange={set('joinCode')} placeholder="School join code (e.g. EDUA-4821)" />
           <div className="pt-1"><PrimaryBtn loading={loading}>Create Account</PrimaryBtn></div>
@@ -225,7 +251,7 @@ function ManagementForm({ onBack, onSuccess }: { onBack: () => void, onSuccess: 
         <form onSubmit={submit} className="space-y-2.5">
           <FieldInput icon={<User className="w-4 h-4" />} type="text" value={form.name} onChange={set('name')} required placeholder="Full name" />
           <FieldInput icon={<Mail className="w-4 h-4" />} type="email" value={form.email} onChange={set('email')} required placeholder="Email" />
-          <FieldInput icon={<Lock className="w-4 h-4" />} type="password" value={form.password} onChange={set('password')} required placeholder="Password (min. 8 chars)" minLength={8} />
+          <PasswordInput value={form.password} onChange={set('password')} required placeholder="Password (min. 8 chars)" minLength={8} />
           <FieldInput icon={<Building2 className="w-4 h-4" />} type="text" value={form.employeeId} onChange={set('employeeId')} placeholder="Employee ID (optional)" />
           <FieldInput icon={<Lock className="w-4 h-4" />} type="text" value={form.inviteCode} onChange={set('inviteCode')} required placeholder="Admin invite code" />
           <p className="text-[11px] text-gray-400 px-0.5">You'll create or join your school right after signing in.</p>
