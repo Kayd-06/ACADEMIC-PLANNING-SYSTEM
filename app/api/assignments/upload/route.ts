@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
+import { put } from '@vercel/blob'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { assignments } from '@/lib/db/schema'
@@ -21,16 +20,9 @@ export async function POST(req: NextRequest) {
   const file = formData.get('file') as File | null
   if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
 
-  const bytes = await file.arrayBuffer()
-  const buffer = Buffer.from(bytes)
-
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'assignments')
-  await mkdir(uploadDir, { recursive: true })
-
   const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-  await writeFile(path.join(uploadDir, safeName), buffer)
-
-  const fileUrl = `/uploads/assignments/${safeName}`
+  const blob = await put(`assignments/${safeName}`, file, { access: 'public' })
+  const fileUrl = blob.url
 
   const [updated] = await db.update(assignments).set({ fileUrl, updatedAt: new Date() }).where(eq(assignments.id, id)).returning()
   if (!updated) return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })

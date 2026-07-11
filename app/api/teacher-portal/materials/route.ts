@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { studyMaterials } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
+import { put } from '@vercel/blob'
 import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -52,13 +51,9 @@ export async function POST(req: NextRequest) {
     let fileSize: number | null = null
     const file = formData.get('file') as File | null
     if (file && file.name) {
-      const bytes = await file.arrayBuffer()
-      const buffer = Buffer.from(bytes)
-      const uploadDir = path.join(process.cwd(), 'public/uploads')
-      await mkdir(uploadDir, { recursive: true })
       const uniqueName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-      await writeFile(path.join(uploadDir, uniqueName), buffer)
-      fileUrl = `/uploads/${uniqueName}`
+      const blob = await put(`materials/${uniqueName}`, file, { access: 'public' })
+      fileUrl = blob.url
       fileSize = Math.round(file.size / 1024) // size in KB
     }
 
