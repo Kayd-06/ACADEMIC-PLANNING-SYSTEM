@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { faculty, teacherBatches, teacherPrograms } from '@/lib/db/schema'
-import { eq, or } from 'drizzle-orm'
+import { teacherBatches, teacherPrograms } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+import { findTeacherFaculty } from '@/lib/db/queries/faculty'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,9 +17,8 @@ export async function GET() {
     return NextResponse.json({ error: 'Only teachers have assignments' }, { status: 403 })
   }
 
-  const [profile] = await db.select({ id: faculty.id }).from(faculty).where(
-    or(eq(faculty.userId, session.user.id!), eq(faculty.email, session.user.email ?? ''))
-  ).limit(1)
+  const schoolId = (session.user as any).schoolId as string | null
+  const profile = await findTeacherFaculty(session.user.id!, session.user.email ?? '', schoolId)
 
   if (!profile) {
     return NextResponse.json({ programs: [], batches: [] })

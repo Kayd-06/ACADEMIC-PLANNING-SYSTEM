@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { faculty, teacherBatches, teacherPrograms } from '@/lib/db/schema'
-import { eq, or } from 'drizzle-orm'
+import { teacherBatches, teacherPrograms } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 import { listStudents } from '@/lib/db/queries/students'
+import { findTeacherFaculty } from '@/lib/db/queries/faculty'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,9 +21,7 @@ export async function GET(req: Request) {
     // explicitly assigned to. A teacher with no assignments yet still sees
     // everyone (back-compat with accounts set up before this feature).
     if (role === 'teacher') {
-      const [profile] = await db.select({ id: faculty.id }).from(faculty).where(
-        or(eq(faculty.userId, session.user.id!), eq(faculty.email, session.user.email ?? ''))
-      ).limit(1)
+      const profile = await findTeacherFaculty(session.user.id!, session.user.email ?? '', schoolId)
 
       if (profile) {
         const [programRows, batchRows] = await Promise.all([
