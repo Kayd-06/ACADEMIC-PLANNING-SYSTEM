@@ -412,10 +412,10 @@ export default function CalendarView() {
   }
 
   return (
-    <div className="flex-1 p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-64px)] bg-gray-50 flex flex-col xl:flex-row gap-6">
+    <div className="flex-1 min-w-0 p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-64px)] bg-gray-50 flex flex-col xl:flex-row gap-6">
       
       {/* Calendar Main Section */}
-      <div className="flex-1 flex flex-col space-y-6">
+      <div className="flex-1 min-w-0 flex flex-col space-y-6">
         
         {/* Header toolbar */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
