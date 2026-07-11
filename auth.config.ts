@@ -36,10 +36,7 @@ export const authConfig: NextAuthConfig = {
           return session
         }
       }
-      if (session.user) {
-        delete (session as any).user
-      }
-      return session
+      return null as any
     },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user?.id
