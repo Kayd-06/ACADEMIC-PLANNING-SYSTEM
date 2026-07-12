@@ -72,6 +72,12 @@ export default function SchoolsTab() {
       })
       const data = await res.json()
       if (data.error) { showMsg(data.error, 'error'); return }
+      // A selected batch/program is scoped to whichever school was active
+      // when it was picked — carrying it across a school switch would
+      // silently pre-fill forms (e.g. Add Student) with a batch/program
+      // name that belongs to the old school, not this one.
+      localStorage.removeItem('selectedBatch')
+      localStorage.removeItem('selectedProgram')
       await update({ schoolId })
       window.location.reload()
     } finally { setSwitching(null) }
@@ -132,9 +138,13 @@ export default function SchoolsTab() {
     if (data.error) { showMsg(data.error, 'error'); return }
     await fetchSchools()
     if (data.newSchoolId) {
+      localStorage.removeItem('selectedBatch')
+      localStorage.removeItem('selectedProgram')
       await update({ schoolId: data.newSchoolId })
       window.location.reload()
     } else if (activeSchoolId === school.id) {
+      localStorage.removeItem('selectedBatch')
+      localStorage.removeItem('selectedProgram')
       await update({ schoolId: null })
       window.location.reload()
     }

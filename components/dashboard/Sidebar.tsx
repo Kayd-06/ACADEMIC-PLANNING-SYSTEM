@@ -378,7 +378,16 @@ function SchoolSwitcher() {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ schoolId })
       })
       const data = await res.json()
-      if (!data.error) { await update({ schoolId }); window.location.reload() }
+      if (!data.error) {
+        // A selected batch/program is scoped to whichever school was active
+        // when it was picked — carrying it into a different school would
+        // silently pre-fill forms (e.g. Add Student) with a batch/program
+        // name that belongs to the old school, not this one.
+        localStorage.removeItem('selectedBatch')
+        localStorage.removeItem('selectedProgram')
+        await update({ schoolId })
+        window.location.reload()
+      }
     } finally { setSwitching(null); setOpen(false) }
   }
 
