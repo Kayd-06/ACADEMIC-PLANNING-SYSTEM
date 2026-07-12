@@ -43,6 +43,8 @@ interface Defaults {
 
 interface CsvUploadModalProps {
   students: any[]
+  defaultBatch?: string
+  defaultProgram?: string
   onClose: () => void
   onImported: () => void
 }
@@ -92,12 +94,20 @@ export function downloadTemplate() {
   XLSX.writeFile(wb, 'student_roster_template.xlsx')
 }
 
-export default function CsvUploadModal({ students, onClose, onImported }: CsvUploadModalProps) {
+export default function CsvUploadModal({ students, defaultBatch, defaultProgram, onClose, onImported }: CsvUploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [defaults, setDefaults] = useState<Defaults>({ program: '', batch: '', section: '' })
+  // Pre-fill from the sidebar's current Program/Batch switcher selection —
+  // when a specific one is selected (not "All Programs"/"All Batches"),
+  // every imported row should land there rather than wherever the CSV's own
+  // columns happen to say.
+  const [defaults, setDefaults] = useState<Defaults>({ program: defaultProgram ?? '', batch: defaultBatch ?? '', section: '' })
+  // Render the pre-filled default as an editable "custom" field rather than
+  // a <select> whenever it isn't (yet) among the existing students' values —
+  // otherwise the select would silently show blank despite a default being
+  // active, since a value with no matching <option> renders unselected.
   const [customField, setCustomField] = useState<{ program: boolean; batch: boolean; section: boolean }>({
-    program: false,
-    batch: false,
+    program: !!defaultProgram && !students.some((s) => s.program === defaultProgram),
+    batch: !!defaultBatch && !students.some((s) => s.batch === defaultBatch),
     section: false,
   })
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([])

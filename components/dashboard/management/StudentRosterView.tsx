@@ -336,6 +336,8 @@ export default function StudentRosterView() {
       {showCsvModal && (
         <CsvUploadModal
           students={students}
+          defaultBatch={batchFilter !== 'All Batches' ? batchFilter : ''}
+          defaultProgram={selectedProgramName}
           onClose={() => setShowCsvModal(false)}
           onImported={fetchStudents}
         />
