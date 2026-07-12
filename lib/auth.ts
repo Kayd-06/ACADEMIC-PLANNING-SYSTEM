@@ -85,3 +85,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
 })
+
+export function getSchoolId(session: any): string | null {
+  const schoolId = session?.user?.schoolId
+  if (!schoolId || schoolId === 'null' || schoolId === 'undefined' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(schoolId)) {
+    return null
+  }
+  return schoolId
+}
+

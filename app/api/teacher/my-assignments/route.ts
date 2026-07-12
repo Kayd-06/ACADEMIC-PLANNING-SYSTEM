@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { teacherBatches, teacherPrograms } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -17,7 +17,8 @@ export async function GET() {
     return NextResponse.json({ error: 'Only teachers have assignments' }, { status: 403 })
   }
 
-  const schoolId = (session.user as any).schoolId as string | null
+  const schoolId = getSchoolId(session)
+
   const profile = await findTeacherFaculty(session.user.id!, session.user.email ?? '', schoolId)
 
   if (!profile) {

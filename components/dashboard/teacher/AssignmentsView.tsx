@@ -166,13 +166,32 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
   // Fetch student roster to extract dynamic batches & subjects
   async function fetchRoster() {
     try {
-      const res = await fetch('/api/students/roster')
-      const data = await res.json()
+      const [rosterRes, assignmentsRes] = await Promise.all([
+        fetch('/api/students/roster'),
+        fetch('/api/teacher/my-assignments').catch(() => null)
+      ])
+      const data = await rosterRes.json()
+      let assignedBatches: string[] = []
+      if (assignmentsRes && assignmentsRes.ok) {
+        try {
+          const assignmentsData = await assignmentsRes.json()
+          if (Array.isArray(assignmentsData.batches)) {
+            assignedBatches = assignmentsData.batches
+          }
+        } catch (e) {
+          console.error('Error parsing teacher assignments:', e)
+        }
+      }
+
       if (Array.isArray(data)) {
         setStudents(data)
         
         // Extract unique batches and classes
-        const uniqueBatches = Array.from(new Set(data.map((s: any) => s.batch).filter(Boolean))) as string[]
+        const rosterBatches = data.map((s: any) => s.batch).filter(Boolean)
+        let uniqueBatches = Array.from(new Set([...rosterBatches, ...assignedBatches])) as string[]
+        if (uniqueBatches.length === 0) {
+          uniqueBatches = ['Batch 1']
+        }
         uniqueBatches.sort()
         setBatches(uniqueBatches)
         if (uniqueBatches.length > 0) {
@@ -190,6 +209,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
       console.error('Error fetching roster:', err)
     }
   }
+
 
   // Fetch Assignments from Neon
   async function fetchAssignments() {
@@ -269,7 +289,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
   // Create Assignment
   async function handleCreateAssignment(e: React.FormEvent) {
     e.preventDefault()
-    if (!newAsgTitle || !newAsgChapter || !newAsgDueDate) {
+    if (!newAsgTitle || !newAsgChapter || !newAsgDueDate || !newAsgBatch || !newAsgSubject || !newAsgType) {
       showAlert({ title: 'Validation Error', message: 'Please fill in all required fields.', type: 'warning' })
       return
     }

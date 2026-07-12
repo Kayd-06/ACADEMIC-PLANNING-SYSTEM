@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { teacherBatches, teacherPrograms } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -12,7 +12,8 @@ export async function GET(req: Request) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
+
     const role = (session.user as any).role as string | undefined
 
     let students = await listStudents({ activeOnly: false, schoolId })

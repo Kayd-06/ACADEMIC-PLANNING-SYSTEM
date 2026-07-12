@@ -80,15 +80,6 @@ function ErrorMsg({ msg }: { msg: string }) {
   )
 }
 
-function SocialBtn({ children }: { children: React.ReactNode }) {
-  return (
-    <button className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center
-                       text-gray-500 hover:border-indigo-300 hover:text-indigo-500 transition-colors">
-      {children}
-    </button>
-  )
-}
-
 // ─── Login form ───────────────────────────────────────────────────────────────
 
 function LoginForm() {
@@ -127,15 +118,6 @@ function LoginForm() {
         </div>
         <PrimaryBtn loading={loading}>Login</PrimaryBtn>
       </form>
-      <div className="mt-5 text-center">
-        <p className="text-xs text-gray-400 mb-3">or login with social platforms</p>
-        <div className="flex items-center justify-center gap-2.5">
-          <SocialBtn><span className="text-[13px] font-bold">G</span></SocialBtn>
-          <SocialBtn><span className="text-[13px] font-bold">f</span></SocialBtn>
-          <SocialBtn><span className="text-[11px] font-bold">gh</span></SocialBtn>
-          <SocialBtn><span className="text-[11px] font-extrabold">in</span></SocialBtn>
-        </div>
-      </div>
     </div>
   )
 }

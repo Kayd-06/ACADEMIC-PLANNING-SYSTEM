@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { faculty, teacherSubjects, teacherBatches, type NewFaculty } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { findTeacherFaculty } from '@/lib/db/queries/faculty'
+
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +40,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Only teachers have a faculty profile' }, { status: 403 })
   }
 
-  const schoolId = (session.user as any).schoolId as string | null
+  const schoolId = getSchoolId(session)
   const profile = await findTeacherFaculty(session.user.id!, session.user.email ?? '', schoolId)
 
   if (!profile) {
@@ -62,7 +63,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Only teachers can use this endpoint' }, { status: 403 })
   }
 
-  const schoolId = (session.user as any).schoolId as string | null
+  const schoolId = getSchoolId(session)
   const existing = await findTeacherFaculty(session.user.id!, session.user.email ?? '', schoolId)
   if (!existing) {
     return NextResponse.json({ error: 'No faculty profile found yet — join a school first.' }, { status: 404 })

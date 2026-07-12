@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { assignments } from '@/lib/db/schema'
 import { eq, and, count } from 'drizzle-orm'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,13 +15,6 @@ function getRelativeDateStr(offsetDays: number): string {
 
 const STATUS_PRIORITY: Record<string, number> = { Active: 1, 'Overdue Eval': 2, Evaluated: 3 }
 
-function getSchoolId(session: any): string | null {
-  const schoolId = session?.user?.schoolId
-  if (!schoolId || schoolId === 'null' || schoolId === 'undefined' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(schoolId)) {
-    return null
-  }
-  return schoolId
-}
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -66,8 +59,17 @@ export async function POST(req: NextRequest) {
     const { title, chapter, batch, subject, type, dueDate, dueTime, totalStudents, description, totalMarks } = body
     const schoolId = getSchoolId(session)
 
-    if (!title || !chapter || !batch || !subject || !type || !dueDate) {
-      return NextResponse.json({ error: 'Missing required assignment fields' }, { status: 400 })
+    const missing = []
+    if (!title) missing.push('title')
+    if (!chapter) missing.push('chapter')
+    if (!batch) missing.push('batch')
+    if (!subject) missing.push('subject')
+    if (!type) missing.push('type')
+    if (!dueDate) missing.push('dueDate')
+
+    if (missing.length > 0) {
+      console.error('Missing required assignment fields:', missing)
+      return NextResponse.json({ error: `Missing required assignment fields: ${missing.join(', ')}` }, { status: 400 })
     }
 
     const [created] = await db.insert(assignments).values({
