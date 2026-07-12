@@ -4,19 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Clock, Megaphone, Bell } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import { getLocalToday, buildTodaysClasses } from '@/lib/scheduleUtils'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
   transition: { delay, type: 'spring' as const, stiffness: 320, damping: 28 },
 })
-
-const STATUS_STYLES: Record<string, string> = {
-  Upcoming: 'bg-blue-50 text-blue-700 border-blue-200',
-  Scheduled: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  Pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  Completed: 'bg-gray-50 text-gray-700 border-gray-200',
-}
 
 export default function TeacherDashboard({ firstName }: { firstName: string }) {
   const { data: session } = useSession()
@@ -62,11 +56,18 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
       .then(data => {
         if (!data.error) setProtocols(data)
       })
-    fetch('/api/teacher-portal')
-      .then(res => res.json())
-      .then(data => {
-        if (!data.error && data.schedule) setSchedules(data.schedule)
-      })
+    const todayIso = getLocalToday()
+    const todayDow = new Date().getDay()
+    Promise.all([
+      fetch('/api/schedule?mine=true&activeOnly=true').then(r => r.ok ? r.json() : []),
+      fetch(`/api/special-classes?mine=true&date=${todayIso}`).then(r => r.ok ? r.json() : []),
+    ]).then(([regular, special]) => {
+      setSchedules(buildTodaysClasses(
+        Array.isArray(regular) ? regular : [],
+        Array.isArray(special) ? special : [],
+        todayIso, todayDow
+      ))
+    }).catch(() => {})
     fetch('/api/announcements')
       .then(res => res.json())
       .then(data => {
@@ -74,29 +75,13 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
       })
   }, [])
 
-  async function handleStatusChange(id: string, newStatus: string) {
-    const original = [...schedules]
-    setSchedules(schedules.map(s => s._id === id ? { ...s, status: newStatus } : s))
-    try {
-      const res = await fetch(`/api/teacher-portal/schedule?id=${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      })
-      if (!res.ok) throw new Error('Failed to update status')
-    } catch (err) {
-      console.error(err)
-      setSchedules(original)
-    }
-  }
-
   return (
     <div className="flex-1 p-6 overflow-auto bg-slate-50/50">
       <motion.div {...fadeUp(0)} className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome back, {firstName}</h1>
           <p className="text-[13px] font-medium text-slate-500 mt-1">
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })} • You have {schedules.filter(s => s.status === 'Upcoming' || s.status === 'Pending').length} classes today
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })} • You have {schedules.length} classes today
           </p>
         </div>
         <Link href="/teacher/daily-report">
@@ -250,30 +235,32 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
               </Link>
             </div>
             <div className="relative pl-4 space-y-6 before:absolute before:inset-y-0 before:left-[21px] before:w-0.5 before:bg-slate-100">
+              {schedules.length === 0 && (
+                <p className="pl-10 text-sm text-slate-400 italic">No classes scheduled today.</p>
+              )}
               {schedules.map((row, i) => (
-                <div key={row._id || i} className="relative pl-10">
-                  <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white ring-2 ${
-                    row.status === 'Completed' ? 'bg-slate-300 ring-slate-200' :
-                    row.status === 'Pending' ? 'bg-amber-400 ring-amber-100' :
-                    'bg-indigo-600 ring-indigo-100'
-                  }`} />
-                  
+                <div key={row.id || i} className="relative pl-10">
+                  <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-white ring-2 bg-indigo-600 ring-indigo-100" />
+
                   <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1">{row.time}</p>
-                        <h3 className="text-[15px] font-bold text-slate-900">{row.activity}</h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-[12px] font-bold text-slate-500 uppercase tracking-wider">{row.time}</p>
+                          {row.type && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 uppercase">{row.type}</span>
+                          )}
+                        </div>
+                        <h3 className="text-[15px] font-bold text-slate-900">{row.title}</h3>
                         <p className="text-[13px] font-medium text-slate-600 mt-1">
-                          {row.batch} • <span className="text-slate-400">{row.location}</span>
+                          {row.batch} • <span className="text-slate-400">{row.room || 'No room set'}</span>
                         </p>
                       </div>
-                      {row.status !== 'Completed' && (
-                        <Link href="/teacher/attendance">
-                          <span className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-bold rounded-lg transition-colors inline-block cursor-pointer">
-                            Mark Attendance
-                          </span>
-                        </Link>
-                      )}
+                      <Link href="/teacher/attendance">
+                        <span className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-bold rounded-lg transition-colors inline-block cursor-pointer">
+                          Mark Attendance
+                        </span>
+                      </Link>
                     </div>
                   </div>
                 </div>

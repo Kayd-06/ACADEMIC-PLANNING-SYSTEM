@@ -2,29 +2,18 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { Building2, Zap, FileText, TrendingUp, Plus, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Copy, Check, Megaphone, Bell, X } from 'lucide-react'
+import { Building2, Zap, FileText, CalendarClock, Plus, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Copy, Check, Megaphone, Bell, X } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import SchoolDetailsModal from './SchoolDetailsModal'
 import ProtocolsModal from './ProtocolsModal'
 import AnnouncementsView from './AnnouncementsView'
+import { getLocalToday, buildTodaysClasses, type TodayClassEntry } from '@/lib/scheduleUtils'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
   transition: { delay, type: 'spring' as const, stiffness: 320, damping: 28 },
 })
-
-const STATUS_STYLES: Record<string, string> = {
-  'In Progress': 'bg-blue-50 text-blue-700 border border-blue-100',
-  'Completed': 'bg-emerald-50 text-emerald-700 border border-emerald-100',
-  'Delayed': 'bg-red-50 text-red-600 border border-red-100',
-}
-
-const auditRows = [
-  { dept: 'Mathematics', cycle: 'Q1 2024', coordinator: 'Dr. Sarah Jenkins', initials: 'SJ', status: 'In Progress' },
-  { dept: 'Sciences (Physics/Chem)', cycle: 'Q4 2023', coordinator: 'Prof. Alan Turing', initials: 'AT', status: 'Completed' },
-  { dept: 'Humanities', cycle: 'Q2 2024', coordinator: 'Ms. Maria Bauer', initials: 'MB', status: 'Delayed' },
-]
 
 interface Protocol {
   _id: string
@@ -42,7 +31,7 @@ export default function InstitutionalDashboard() {
   } | null>(null)
   const [schoolLoading, setSchoolLoading] = useState(true)
   const [codeCopied, setCodeCopied] = useState(false)
-  const [audits, setAudits] = useState(auditRows)
+  const [todaysSchedule, setTodaysSchedule] = useState<TodayClassEntry[]>([])
   const [protocols, setProtocols] = useState<Protocol[]>([])
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [readIds, setReadIds] = useState<string[]>([])
@@ -62,6 +51,19 @@ export default function InstitutionalDashboard() {
       .finally(() => setSchoolLoading(false))
     fetchProtocols()
     fetchAnnouncements()
+
+    const todayIso = getLocalToday()
+    const todayDow = new Date().getDay()
+    Promise.all([
+      fetch('/api/schedule?activeOnly=true').then(r => r.ok ? r.json() : []),
+      fetch(`/api/special-classes?date=${todayIso}`).then(r => r.ok ? r.json() : []),
+    ]).then(([regular, special]) => {
+      setTodaysSchedule(buildTodaysClasses(
+        Array.isArray(regular) ? regular : [],
+        Array.isArray(special) ? special : [],
+        todayIso, todayDow, true
+      ))
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -287,58 +289,49 @@ export default function InstitutionalDashboard() {
           </div>
         </motion.div>
       </div>
-      {/* Academic Quality Monitoring table */}
+      {/* Today's Class Schedule — across every faculty member in the school */}
       <motion.div {...fadeUp(0.16)} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div className="flex items-center gap-2 font-bold text-slate-900 text-[15px]">
-            <TrendingUp className="w-5 h-5 text-slate-700" /> Academic Quality Monitoring
+            <CalendarClock className="w-5 h-5 text-slate-700" /> Today's Class Schedule
           </div>
-          <div className="flex items-center gap-2">
-            <button className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors">
-              <span className="text-xl leading-none">⋮</span>
-            </button>
-          </div>
+          <Link href="/management/academic-planning" className="text-[13px] font-bold text-indigo-600 hover:text-indigo-700">
+            Manage Schedule
+          </Link>
         </div>
         <table className="w-full">
           <thead>
             <tr className="border-b border-slate-100">
-              {['Department', 'Audit Cycle', 'Lead Coordinator', 'Status', 'Action'].map(h => (
+              {['Time', 'Class', 'Batch', 'Teacher', 'Room'].map(h => (
                 <th key={h} className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {audits.map((row, i) => (
+            {todaysSchedule.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-400 italic">No classes scheduled today.</td>
+              </tr>
+            ) : todaysSchedule.map((row, i) => (
               <motion.tr
-                key={row.dept}
+                key={row.id}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 + i * 0.05 }}
                 className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
               >
-                <td className="px-6 py-4 text-[13px] text-slate-800 font-bold">{row.dept}</td>
-                <td className="px-6 py-4 text-[13px] text-slate-600 font-medium">{row.cycle}</td>
+                <td className="px-6 py-4 text-[13px] text-slate-600 font-medium whitespace-nowrap">{row.time}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700">{row.initials}</div>
-                    <span className="text-[13px] font-semibold text-slate-800">{row.coordinator}</span>
+                    <span className="text-[13px] text-slate-800 font-bold">{row.title}</span>
+                    {row.type && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 uppercase">{row.type}</span>
+                    )}
                   </div>
                 </td>
-                <td className="px-6 py-4">
-                  <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full ${
-                    row.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' :
-                    row.status === 'Delayed' ? 'bg-red-50 text-red-600' :
-                    row.status === 'Upcoming' ? 'bg-blue-50 text-blue-600' :
-                    'bg-amber-50 text-amber-600'
-                  }`}>
-                    {row.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <button className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 transition-colors">
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </td>
+                <td className="px-6 py-4 text-[13px] text-slate-600 font-medium">{row.batch || '—'}</td>
+                <td className="px-6 py-4 text-[13px] font-semibold text-slate-800">{row.teacherName || '—'}</td>
+                <td className="px-6 py-4 text-[13px] text-slate-600">{row.room || '—'}</td>
               </motion.tr>
             ))}
           </tbody>
