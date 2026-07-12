@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { ChevronDown, Filter, Mail, Phone, MessageSquare, User, Loader2, Search, Briefcase, MapPin } from 'lucide-react'
+import { getBlobUrl } from '@/lib/blob'
 
 function InfoField({ label, value }: { label: string; value: any }) {
   return (
@@ -192,7 +193,7 @@ export default function TeacherStudentRosterView() {
                 >
                   <div className="flex items-center gap-3">
                     {student.profileImgUrl ? (
-                      <img src={student.profileImgUrl} alt={student.name} className="w-10 h-10 rounded-full object-cover shadow-sm shrink-0" />
+                      <img src={getBlobUrl(student.profileImgUrl)} alt={student.name} className="w-10 h-10 rounded-full object-cover shadow-sm shrink-0" />
                     ) : (
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${student.color}`}>
                         {student.initials}
@@ -237,7 +238,7 @@ export default function TeacherStudentRosterView() {
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col sm:flex-row items-start justify-between gap-4">
                 <div className="flex items-center gap-6">
                   {s.profileImgUrl ? (
-                    <img src={s.profileImgUrl} alt={activeStudent.name} className="w-20 h-20 rounded-full object-cover shadow-sm border-[3px] border-white ring-1 ring-slate-100" />
+                    <img src={getBlobUrl(s.profileImgUrl)} alt={activeStudent.name} className="w-20 h-20 rounded-full object-cover shadow-sm border-[3px] border-white ring-1 ring-slate-100" />
                   ) : (
                     <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold shadow-sm border-[3px] border-white ring-1 ring-slate-100 ${activeStudent.color}`}>
                       {activeStudent.initials}

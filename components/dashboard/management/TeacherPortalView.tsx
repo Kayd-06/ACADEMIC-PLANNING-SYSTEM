@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertical, FileIcon, MessageCircle, Loader2, X, ExternalLink, Edit2, Save, Pencil, Trash2, ChevronDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import FacultyProfileModal from './FacultyProfileModal'
+import { getBlobUrl } from '@/lib/blob'
 
 type FacultyMember = { _id: string; name: string; sub: string; spec: string; specTheme: string; batches: number; exp: string; status: string; initials: string; color: string; profileImgUrl?: string | null }
 type Material = { _id: string; title: string; type: string; fileUrl: string; spec: string; specTheme: string; author: string; time: string; iconColor: string; iconBg: string }
@@ -340,13 +341,13 @@ export default function TeacherPortalView() {
               <div className="flex items-center justify-between p-4 border-b border-slate-100">
                 <div><h2 className="text-base font-bold text-slate-900">{previewMaterial.title}</h2><p className="text-xs text-slate-500">{previewMaterial.type} · {previewMaterial.author}</p></div>
                 <div className="flex items-center gap-2">
-                  {previewMaterial.fileUrl && <a href={previewMaterial.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"><ExternalLink className="w-3.5 h-3.5" /> Open in new tab</a>}
+                  {previewMaterial.fileUrl && <a href={getBlobUrl(previewMaterial.fileUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"><ExternalLink className="w-3.5 h-3.5" /> Open in new tab</a>}
                   <button onClick={() => setPreviewMaterial(null)} className="text-slate-400 hover:text-slate-600 ml-1"><X className="w-5 h-5" /></button>
                 </div>
               </div>
               <div className="flex-1 overflow-hidden p-2">
                 {previewMaterial.fileUrl
-                  ? <iframe src={previewMaterial.fileUrl} className="w-full h-full rounded-lg border border-slate-100" title={previewMaterial.title} />
+                  ? <iframe src={getBlobUrl(previewMaterial.fileUrl)} className="w-full h-full rounded-lg border border-slate-100" title={previewMaterial.title} />
                   : <div className="flex flex-col items-center justify-center h-full text-slate-400"><FileIcon className="w-12 h-12 mb-3 text-slate-300" /><p className="text-sm font-medium">No file attached.</p></div>}
               </div>
             </motion.div>
@@ -465,7 +466,7 @@ export default function TeacherPortalView() {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             {fac.profileImgUrl ? (
-                              <img src={fac.profileImgUrl} alt={fac.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
+                              <img src={getBlobUrl(fac.profileImgUrl)} alt={fac.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
                             ) : (
                               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${fac.color}`}>{fac.initials}</div>
                             )}

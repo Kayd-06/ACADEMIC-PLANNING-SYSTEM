@@ -5,6 +5,7 @@ import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter, Plus, Pencil, 
 import StudentFormModal from './StudentFormModal'
 import CsvUploadModal, { downloadTemplate } from './CsvUploadModal'
 import StudentProfileDrawer from './StudentProfileDrawer'
+import { getBlobUrl } from '@/lib/blob'
 
 export default function StudentRosterView() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
@@ -242,7 +243,7 @@ export default function StudentRosterView() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {student.profileImgUrl ? (
-                            <img src={student.profileImgUrl} alt={student.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                            <img src={getBlobUrl(student.profileImgUrl)} alt={student.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
                           ) : (
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold ${student.color}`}>
                               {student.initials}

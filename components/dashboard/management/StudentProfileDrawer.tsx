@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { X, User, Phone, Mail, Loader2, Plus, Pencil, Trash2, MapPin, Briefcase, IndianRupee } from 'lucide-react'
+import { getBlobUrl } from '@/lib/blob'
 
 const inputClass = 'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors'
 const labelClass = 'block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5'
@@ -304,7 +305,7 @@ export default function StudentProfileDrawer({ studentRow, onClose, onEdit, onDe
           {/* Identity */}
           <div className="flex flex-col items-center mb-8">
             {s?.profileImgUrl ? (
-              <img src={s.profileImgUrl} alt={studentRow.name} className="w-24 h-24 rounded-full object-cover mb-4 shadow-sm border-4 border-white ring-2 ring-slate-100" />
+              <img src={getBlobUrl(s.profileImgUrl)} alt={studentRow.name} className="w-24 h-24 rounded-full object-cover mb-4 shadow-sm border-4 border-white ring-2 ring-slate-100" />
             ) : (
               <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold mb-4 shadow-sm border-4 border-white ring-2 ring-slate-100 ${studentRow.color}`}>
                 {studentRow.initials}

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { BookOpen, FileText, Download, Search, Filter, Upload, Pencil, Trash2 } from 'lucide-react'
 import UploadMaterialModal from '../management/UploadMaterialModal'
 import EditMaterialModal from './EditMaterialModal'
+import { getBlobUrl } from '@/lib/blob'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -149,7 +150,7 @@ export default function TeacherCourses({ firstName: _firstName }: { firstName: s
                     {m.fileName && (
                       <div className="mt-4 pt-4 border-t border-gray-100">
                         {m.fileUrl ? (
-                          <a href={m.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2.5 bg-white border border-gray-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50/50 transition-all group/link">
+                          <a href={getBlobUrl(m.fileUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2.5 bg-white border border-gray-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50/50 transition-all group/link">
                             <div className="flex items-center gap-2 overflow-hidden">
                               <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
                               <span className="text-xs font-semibold text-gray-700 truncate group-hover/link:text-indigo-700">{m.fileName}</span>

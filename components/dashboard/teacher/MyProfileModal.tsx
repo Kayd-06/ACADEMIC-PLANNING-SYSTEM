@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Loader2, Pencil, Save, ArrowLeft } from 'lucide-react'
+import { X, Loader2, Pencil, Save, ArrowLeft, Upload } from 'lucide-react'
+import { getBlobUrl } from '@/lib/blob'
 
 const GENDERS = ['', 'Male', 'Female', 'Other']
 const STREAMS = ['', 'Science', 'Mathematics', 'Commerce', 'Humanities', 'Languages', 'Computer Science', 'Arts', 'Physical Education']
@@ -36,6 +37,30 @@ export default function MyProfileModal({ isOpen, onClose, onSaved }: { isOpen: b
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [uploadingBlob, setUploadingBlob] = useState(false)
+
+  async function handlePhotoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingBlob(true)
+    setError('')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('folder', 'profiles')
+      const res = await fetch('/api/blob/upload', { method: 'POST', body: formData })
+      const resData = await res.json()
+      if (!res.ok) {
+        setError(resData.error || 'Upload failed')
+        return
+      }
+      setForm(f => ({ ...f, profileImgUrl: resData.url }))
+    } catch {
+      setError('Network error uploading file')
+    } finally {
+      setUploadingBlob(false)
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) { setEditing(false); setError(''); return }
@@ -130,8 +155,17 @@ export default function MyProfileModal({ isOpen, onClose, onSaved }: { isOpen: b
                       </select>
                     </div>
                   </div>
-                  <div><label className={labelClass}>Bio</label><textarea value={form.bio} onChange={set('bio')} rows={2} className={inputClass + ' resize-none'} placeholder="Short introduction…" /></div>
-                  <div><label className={labelClass}>Profile Image URL</label><input value={form.profileImgUrl} onChange={set('profileImgUrl')} className={inputClass} placeholder="https://…" /></div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className={labelClass + ' mb-0'}>Profile Image URL or File</label>
+                      <label className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer flex items-center gap-1">
+                        {uploadingBlob ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                        {uploadingBlob ? 'Uploading...' : 'Upload File'}
+                        <input type="file" accept="image/*" onChange={handlePhotoFileChange} className="hidden" disabled={uploadingBlob} />
+                      </label>
+                    </div>
+                    <input value={form.profileImgUrl} onChange={set('profileImgUrl')} className={inputClass} placeholder="https://… or click Upload File" />
+                  </div>
 
                   <p className={sectionClass}>Contact Information</p>
                   <div className="grid grid-cols-2 gap-3">
@@ -171,7 +205,7 @@ export default function MyProfileModal({ isOpen, onClose, onSaved }: { isOpen: b
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       {p.profileImgUrl ? (
-                        <img src={p.profileImgUrl} alt={p.name} className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-100" />
+                        <img src={getBlobUrl(p.profileImgUrl)} alt={p.name} className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-100" />
                       ) : (
                         <div className="w-14 h-14 rounded-full bg-[#002045] text-white flex items-center justify-center text-lg font-bold">
                           {p.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}

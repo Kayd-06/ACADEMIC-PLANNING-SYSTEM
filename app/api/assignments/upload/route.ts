@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
 
   const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-  const blob = await put(`assignments/${safeName}`, file, { access: 'public' })
+  const blob = await put(`assignments/${safeName}`, file, { access: 'private' })
   const fileUrl = blob.url
 
   const [updated] = await db.update(assignments).set({ fileUrl, updatedAt: new Date() }).where(eq(assignments.id, id)).returning()

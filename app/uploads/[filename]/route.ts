@@ -13,7 +13,7 @@ export async function GET(
 
     // Check if file exists on disk
     if (!fs.existsSync(filePath)) {
-      return new NextResponse('File not found', { status: 404 })
+      return NextResponse.redirect(new URL(`/api/blob/serve?url=${encodeURIComponent(`uploads/${filename}`)}`, req.url))
     }
 
     const fileBuffer = fs.readFileSync(filePath)

@@ -1,9 +1,10 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { HelpCircle, Settings, X, CheckCircle, AlertCircle, BookOpen, Calendar, Mail, User, Shield, Info, Check, Globe, Building2, Hash, Loader2, LogIn, Bell, Megaphone, FileBarChart, ClipboardList, CreditCard, CalendarCheck, CheckCheck, Camera } from 'lucide-react'
+import { HelpCircle, Settings, X, CheckCircle, AlertCircle, BookOpen, Calendar, Mail, User, Shield, Info, Check, Globe, Building2, Hash, Loader2, LogIn, Bell, Megaphone, FileBarChart, ClipboardList, CreditCard, CalendarCheck, CheckCheck, Camera, Upload } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSession } from 'next-auth/react'
 import MyProfileModal from '@/components/dashboard/teacher/MyProfileModal'
+import { getBlobUrl } from '@/lib/blob'
 
 
 
@@ -61,6 +62,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
   const [photoUrlInput, setPhotoUrlInput] = useState('')
   const [savingPhoto, setSavingPhoto] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
+  const [uploadingBlob, setUploadingBlob] = useState(false)
 
   const sessionPhotoUrl = (session?.user as any)?.profileImgUrl as string | null | undefined
   const myPhotoUrl = role === 'teacher' ? teacherPhotoUrl : (sessionPhotoUrl ?? null)
@@ -70,6 +72,29 @@ export default function TopHeader({ initials }: TopHeaderProps) {
     setPhotoUrlInput(sessionPhotoUrl ?? '')
     setPhotoError(null)
     setShowEditPhoto(true)
+  }
+
+  async function handlePhotoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingBlob(true)
+    setPhotoError(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('folder', 'profiles')
+      const res = await fetch('/api/blob/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) {
+        setPhotoError(data.error || 'Upload failed')
+        return
+      }
+      setPhotoUrlInput(data.url)
+    } catch {
+      setPhotoError('Network error uploading file')
+    } finally {
+      setUploadingBlob(false)
+    }
   }
 
   async function handleSavePhoto(e: React.FormEvent) {
@@ -230,7 +255,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
             onClick={() => setShowProfileMenu(v => !v)}
             className="w-8 h-8 rounded-full bg-[#002045] flex items-center justify-center text-white text-xs font-semibold hover:bg-[#1a365d] transition-colors focus:outline-none focus:ring-2 focus:ring-[#002045]/30 overflow-hidden"
           >
-            {myPhotoUrl ? <img src={myPhotoUrl} alt="" className="w-full h-full object-cover" /> : initials}
+            {myPhotoUrl ? <img src={getBlobUrl(myPhotoUrl)} alt="" className="w-full h-full object-cover" /> : initials}
           </button>
 
           <AnimatePresence>
@@ -246,7 +271,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-[#002045] flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden">
-                      {myPhotoUrl ? <img src={myPhotoUrl} alt="" className="w-full h-full object-cover" /> : initials}
+                      {myPhotoUrl ? <img src={getBlobUrl(myPhotoUrl)} alt="" className="w-full h-full object-cover" /> : initials}
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-800 truncate">{session?.user?.name ?? '—'}</p>
@@ -431,16 +456,23 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                 <div className="flex justify-center">
                   <div className="w-20 h-20 rounded-full bg-[#002045] flex items-center justify-center text-white text-xl font-bold overflow-hidden ring-2 ring-slate-100">
                     {photoUrlInput.trim() ? (
-                      <img src={photoUrlInput.trim()} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                      <img src={getBlobUrl(photoUrlInput.trim())} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                     ) : initials}
                   </div>
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Image URL</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Image URL or File</label>
+                    <label className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer flex items-center gap-1">
+                      {uploadingBlob ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                      {uploadingBlob ? 'Uploading...' : 'Upload File'}
+                      <input type="file" accept="image/*" onChange={handlePhotoFileChange} className="hidden" disabled={uploadingBlob} />
+                    </label>
+                  </div>
                   <input
                     value={photoUrlInput}
                     onChange={e => { setPhotoUrlInput(e.target.value); setPhotoError(null) }}
-                    placeholder="https://…"
+                    placeholder="https://… or click Upload File"
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all"
                   />
                   {photoError && (
@@ -557,7 +589,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                 {session && (
                   <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow overflow-hidden">
-                      {myPhotoUrl ? <img src={myPhotoUrl} alt="" className="w-full h-full object-cover" /> : initials}
+                      {myPhotoUrl ? <img src={getBlobUrl(myPhotoUrl)} alt="" className="w-full h-full object-cover" /> : initials}
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-800 truncate">{session.user?.name}</p>

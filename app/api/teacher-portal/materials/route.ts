@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null
     if (file && file.name) {
       const uniqueName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-      const blob = await put(`materials/${uniqueName}`, file, { access: 'public' })
+      const blob = await put(`materials/${uniqueName}`, file, { access: 'private' })
       fileUrl = blob.url
       fileSize = Math.round(file.size / 1024) // size in KB
     }

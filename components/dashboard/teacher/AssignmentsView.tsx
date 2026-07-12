@@ -48,6 +48,8 @@ function formatShortDate(dateStr: string) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+import { getBlobUrl } from '@/lib/blob'
+
 // Helper to get initials
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -875,7 +877,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
                                 </button>
                                 {asg.fileUrl && (
                                   <button
-                                    onClick={() => setPreviewFile({ title: asg.title, url: asg.fileUrl })}
+                                    onClick={() => setPreviewFile({ title: asg.title, url: getBlobUrl(asg.fileUrl) })}
                                     title="View question paper"
                                     className="p-1.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 rounded-lg cursor-pointer transition-colors"
                                   >
@@ -1048,7 +1050,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
 
                       {mat.fileUrl ? (
                         <a
-                          href={mat.fileUrl}
+                          href={getBlobUrl(mat.fileUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 bg-slate-150 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border-none"
@@ -1193,7 +1195,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
                                 <td className="px-6 py-4">
                                   {sub.fileUrl ? (
                                     <button
-                                      onClick={() => setPreviewFile({ title: `${sub.studentName}'s Submission`, url: sub.fileUrl })}
+                                      onClick={() => setPreviewFile({ title: `${sub.studentName}'s Submission`, url: getBlobUrl(sub.fileUrl) })}
                                       className="inline-flex items-center gap-1.5 text-indigo-650 hover:underline border-none bg-transparent cursor-pointer"
                                     >
                                       <Paperclip className="w-3.5 h-3.5 shrink-0" />
@@ -2005,7 +2007,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
                 </div>
                 <div className="flex items-center gap-2">
                   <a
-                    href={previewFile.url}
+                    href={getBlobUrl(previewFile.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
@@ -2021,10 +2023,10 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
               <div className="flex-1 overflow-hidden rounded-b-2xl bg-slate-100">
                 {/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(previewFile.url) ? (
                   <div className="h-full flex items-center justify-center p-4">
-                    <img src={previewFile.url} alt={previewFile.title} className="max-h-full max-w-full object-contain rounded-lg shadow-sm" />
+                    <img src={getBlobUrl(previewFile.url)} alt={previewFile.title} className="max-h-full max-w-full object-contain rounded-lg shadow-sm" />
                   </div>
                 ) : (
-                  <iframe src={previewFile.url} className="w-full h-full border-none" title="Resource preview" />
+                  <iframe src={getBlobUrl(previewFile.url)} className="w-full h-full border-none" title="Resource preview" />
                 )}
               </div>
             </motion.div>

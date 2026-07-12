@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { X, Loader2, Upload } from 'lucide-react'
 
 interface StudentFormValues {
   // Identification
@@ -99,6 +99,30 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [uploadingBlob, setUploadingBlob] = useState(false)
+
+  async function handlePhotoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingBlob(true)
+    setError('')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('folder', 'students')
+      const res = await fetch('/api/blob/upload', { method: 'POST', body: formData })
+      const resData = await res.json()
+      if (!res.ok) {
+        setError(resData.error || 'Upload failed')
+        return
+      }
+      setForm(f => ({ ...f, profileImgUrl: resData.url }))
+    } catch {
+      setError('Network error uploading file')
+    } finally {
+      setUploadingBlob(false)
+    }
+  }
 
   const set = (field: keyof StudentFormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }))
@@ -228,8 +252,15 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Profile Image URL</label>
-                <input value={form.profileImgUrl} onChange={set('profileImgUrl')} className={inputClass} placeholder="https://…" />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={labelClass + ' mb-0'}>Profile Image URL or File</label>
+                  <label className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer flex items-center gap-1">
+                    {uploadingBlob ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                    {uploadingBlob ? 'Uploading...' : 'Upload File'}
+                    <input type="file" accept="image/*" onChange={handlePhotoFileChange} className="hidden" disabled={uploadingBlob} />
+                  </label>
+                </div>
+                <input value={form.profileImgUrl} onChange={set('profileImgUrl')} className={inputClass} placeholder="https://… or click Upload File" />
               </div>
             </div>
           </div>
