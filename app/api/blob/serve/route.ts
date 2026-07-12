@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { get } from '@vercel/blob'
 import { auth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -27,26 +28,21 @@ export async function GET(req: NextRequest) {
     const isVercelBlob = url.includes('.blob.vercel-storage.com')
     const isPublicVercelBlob = url.includes('.public.blob.vercel-storage.com')
 
-    // If it's a private Vercel Blob URL, fetch it using the BLOB_READ_WRITE_TOKEN
+    // If it's a private Vercel Blob URL, fetch it via the SDK — this project
+    // is connected to Blob through OIDC federation rather than a static
+    // BLOB_READ_WRITE_TOKEN, and get() authenticates with whichever of the
+    // two is actually available (same as put() already does for uploads).
     if (isVercelBlob && !isPublicVercelBlob) {
-      const headers: Record<string, string> = {}
-      if (process.env.BLOB_READ_WRITE_TOKEN) {
-        headers['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`
+      const result = await get(url, { access: 'private' })
+      if (!result || result.statusCode !== 200) {
+        return NextResponse.json({ error: 'Failed to access private blob file' }, { status: 404 })
       }
 
-      const blobRes = await fetch(url, { headers })
-      if (!blobRes.ok) {
-        return NextResponse.json({ error: 'Failed to access private blob file' }, { status: blobRes.status })
-      }
-
-      const contentType = blobRes.headers.get('content-type') || 'application/octet-stream'
-      const contentDisposition = blobRes.headers.get('content-disposition') || 'inline'
-
-      return new NextResponse(blobRes.body, {
+      return new NextResponse(result.stream, {
         status: 200,
         headers: {
-          'Content-Type': contentType,
-          'Content-Disposition': contentDisposition,
+          'Content-Type': result.blob.contentType,
+          'Content-Disposition': result.blob.contentDisposition || 'inline',
           'Cache-Control': 'private, max-age=3600',
         },
       })
