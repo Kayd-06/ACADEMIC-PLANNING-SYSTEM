@@ -9,6 +9,9 @@ interface ReportEntry {
   maxMarks: number
   grade: string
   attendance: number | null
+  attendanceDetail: string | null
+  assignmentAverage: number | null
+  assignmentGradedCount: number
   remarks: string | null
 }
 
@@ -86,7 +89,7 @@ export default function ReportDetailModal({ reportId, onClose }: ReportDetailMod
               <table className="w-full text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    {['Name', 'Roll No', 'Marks', 'Grade', 'Attendance', 'Remarks'].map((h) => (
+                    {['Name', 'Roll No', 'Marks', 'Grade', 'Attendance', 'Assignment Avg', 'Remarks'].map((h) => (
                       <th key={h} className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase tracking-wider text-[10px]">{h}</th>
                     ))}
                   </tr>
@@ -100,7 +103,16 @@ export default function ReportDetailModal({ reportId, onClose }: ReportDetailMod
                       <td className="px-4 py-3">
                         <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-indigo-50 text-indigo-700">{e.grade}</span>
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{e.attendance !== null ? `${e.attendance}%` : '—'}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {e.attendance !== null ? `${e.attendance}%` : '—'}
+                        {e.attendanceDetail && <span className="text-slate-400"> ({e.attendanceDetail})</span>}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {e.assignmentAverage !== null ? `${e.assignmentAverage}%` : '—'}
+                        {e.assignmentGradedCount > 0 && (
+                          <span className="text-slate-400"> ({e.assignmentGradedCount} graded)</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-slate-500">{e.remarks || '—'}</td>
                     </tr>
                   ))}

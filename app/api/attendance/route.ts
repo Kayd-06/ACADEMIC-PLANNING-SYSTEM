@@ -22,11 +22,15 @@ function resolveClassFromBatch(batch: string): string {
   return cls
 }
 
-function sessionCondition(date: string, batch: string, subject: string, schoolId: string | null) {
+// classTime disambiguates multiple sessions of the same subject/batch on the
+// same day (e.g. a regular period plus a same-subject revision session) —
+// without it, marking one silently overwrote the other's attendance sheet.
+function sessionCondition(date: string, batch: string, subject: string, classTime: string, schoolId: string | null) {
   const conditions = [
     eq(attendanceSessions.date, date),
     eq(attendanceSessions.batch, batch),
     eq(attendanceSessions.subject, subject),
+    eq(attendanceSessions.classTime, classTime),
   ]
   if (schoolId) conditions.push(eq(attendanceSessions.schoolId, schoolId))
   return and(...conditions)
@@ -65,14 +69,18 @@ export async function GET(req: NextRequest) {
     const date = searchParams.get('date')
     const batch = searchParams.get('batch')
     const subject = searchParams.get('subject')
+    let classTime = searchParams.get('classTime') || ''
 
     if (!date || !batch || !subject) {
       return NextResponse.json({ error: 'Missing query parameters: date, batch, subject' }, { status: 400 })
     }
 
+    const linked = await findLinkedClass(date, batch, subject, schoolId)
+    if (!classTime) classTime = linked.classTime
+
     // Existing marked sheet?
     const [existing] = await db.select().from(attendanceSessions)
-      .where(sessionCondition(date, batch, subject, schoolId))
+      .where(sessionCondition(date, batch, subject, classTime, schoolId))
     if (existing) {
       const entries = await db.select().from(attendanceEntries)
         .where(eq(attendanceEntries.sessionId, existing.id))
@@ -109,13 +117,11 @@ export async function GET(req: NextRequest) {
     }))
     defaultRecords.sort((a, b) => a.studentName.localeCompare(b.studentName))
 
-    const linked = await findLinkedClass(date, batch, subject, schoolId)
-
     return NextResponse.json({
       date,
       batch,
       subject,
-      classTime: linked.classTime || '09:00 AM - 10:00 AM',
+      classTime: classTime || '09:00 AM - 10:00 AM',
       records: defaultRecords,
       isNew: true,
     })
@@ -148,16 +154,17 @@ export async function POST(req: NextRequest) {
     }
 
     const linked = await findLinkedClass(date, batch, subject, schoolId)
+    const resolvedClassTime = classTime || linked.classTime || '09:00 AM - 10:00 AM'
 
     // Upsert the session
     const [existing] = await db.select().from(attendanceSessions)
-      .where(sessionCondition(date, batch, subject, schoolId))
+      .where(sessionCondition(date, batch, subject, resolvedClassTime, schoolId))
 
     let sessionId: string
     if (existing) {
       sessionId = existing.id
       await db.update(attendanceSessions).set({
-        classTime: classTime || existing.classTime,
+        classTime: resolvedClassTime,
         markedByName: session.user.name ?? '',
         markedByEmail: session.user.email ?? '',
         scheduleId: linked.scheduleId,
@@ -169,7 +176,7 @@ export async function POST(req: NextRequest) {
     } else {
       const [created] = await db.insert(attendanceSessions).values({
         date, batch, subject,
-        classTime: classTime || linked.classTime || '09:00 AM - 10:00 AM',
+        classTime: resolvedClassTime,
         markedByName: session.user.name ?? '',
         markedByEmail: session.user.email ?? '',
         scheduleId: linked.scheduleId,
@@ -193,7 +200,7 @@ export async function POST(req: NextRequest) {
     const entries = await db.select().from(attendanceEntries).where(eq(attendanceEntries.sessionId, sessionId))
     return NextResponse.json({
       _id: sessionId, date, batch, subject,
-      classTime: classTime || linked.classTime,
+      classTime: resolvedClassTime,
       markedByName: session.user.name ?? '',
       records: entries.map(e => ({
         studentId: e.studentId, studentName: e.studentName, rollNo: e.rollNo, status: e.status, notes: e.notes,

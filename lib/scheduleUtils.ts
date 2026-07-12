@@ -22,8 +22,12 @@ export function parseHour(t: string): number {
 
 export interface TodayClassEntry {
   id: string
+  date: string
+  startTime: string
+  endTime: string
   time: string
   title: string
+  subject: string
   batch: string
   room: string
   teacherName?: string
@@ -50,8 +54,12 @@ export function buildTodaysClasses(
     if (s.effectiveTo && todayIso > s.effectiveTo) return
     entries.push({
       id: s._id,
+      date: todayIso,
+      startTime: s.startTime,
+      endTime: s.endTime,
       time: `${s.startTime} - ${s.endTime}`,
       title: s.subject,
+      subject: s.subject,
       batch: s.batch,
       room: s.room,
       teacherName: includeTeacher ? s.teacherName : undefined,
@@ -63,9 +71,13 @@ export function buildTodaysClasses(
     if (sc.date !== todayIso) return
     entries.push({
       id: sc._id,
+      date: sc.date,
+      startTime: sc.startTime,
+      endTime: sc.endTime,
       time: `${sc.startTime} - ${sc.endTime}`,
       title: sc.title,
-      batch: [sc.batch, sc.subject].filter(Boolean).join(' • '),
+      subject: sc.subject || sc.title,
+      batch: sc.batch,
       room: sc.room,
       teacherName: includeTeacher ? sc.teacherName : undefined,
       type: sc.type,

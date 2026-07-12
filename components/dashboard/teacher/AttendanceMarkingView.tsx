@@ -1,20 +1,22 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  CheckCircle, 
-  XCircle, 
-  Calendar, 
-  Clock, 
-  Search, 
-  FileText, 
-  X, 
-  RefreshCw, 
-  User, 
-  ChevronDown 
+import {
+  CheckCircle,
+  XCircle,
+  Calendar,
+  Clock,
+  Search,
+  FileText,
+  X,
+  RefreshCw,
+  User,
+  ChevronDown
 } from 'lucide-react'
+import { buildTodaysClasses, type TodayClassEntry } from '@/lib/scheduleUtils'
 
 // Avatar background colors helper
 const avatarBgs = [
@@ -41,14 +43,13 @@ function getInitials(name: string) {
 
 export default function AttendanceMarkingView() {
   const { showAlert } = useAlert()
+  const searchParams = useSearchParams()
+
   // Selection states
-  const [selectedBatch, setSelectedBatch] = useState('')
-  const [availableBatches, setAvailableBatches] = useState<string[]>([])
-  const [selectedSubject, setSelectedSubject] = useState('Physics (PHY-101)')
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date()
-    return today.toISOString().split('T')[0]
-  })
+  const [selectedDate, setSelectedDate] = useState(() => searchParams.get('date') || new Date().toISOString().split('T')[0])
+  const [classesForDate, setClassesForDate] = useState<TodayClassEntry[]>([])
+  const [classesLoading, setClassesLoading] = useState(true)
+  const [selectedClassId, setSelectedClassId] = useState('')
 
   // Attendance Records & Loading state
   const [records, setRecords] = useState<any[]>([])
@@ -60,30 +61,67 @@ export default function AttendanceMarkingView() {
   const [activeNoteRecordIdx, setActiveNoteRecordIdx] = useState<number | null>(null)
   const [noteText, setNoteText] = useState('')
 
+  // Fetch this teacher's own scheduled classes (regular + special) for the
+  // selected date, so attendance is always marked against a real class
+  // rather than a free-standing batch/subject guess.
   useEffect(() => {
-    fetch('/api/daily-report', { method: 'PUT' })
-      .then(r => r.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setAvailableBatches(data)
-          if (data.length > 0) {
-            setSelectedBatch(data[0])
-          }
-        }
-      })
-      .catch((err) => console.error(err))
-  }, [])
+    setClassesLoading(true)
+    const dow = new Date(`${selectedDate}T00:00:00`).getDay()
+    Promise.all([
+      fetch('/api/schedule?mine=true&activeOnly=true').then(r => r.ok ? r.json() : []),
+      fetch(`/api/special-classes?mine=true&date=${selectedDate}`).then(r => r.ok ? r.json() : []),
+    ]).then(([regular, special]) => {
+      let entries = buildTodaysClasses(
+        Array.isArray(regular) ? regular : [],
+        Array.isArray(special) ? special : [],
+        selectedDate, dow
+      )
 
-  // Fetch student roster or marked sheet on selection changes
+      // Arrived via a "Mark Attendance" deep link from the Dashboard —
+      // make sure that exact class is selected, adding it as a synthetic
+      // entry if it didn't come back in the fetched list for some reason.
+      const urlBatch = searchParams.get('batch')
+      const urlSubject = searchParams.get('subject')
+      const urlClassTime = searchParams.get('classTime')
+      let matchId = ''
+      if (urlBatch && urlSubject) {
+        const match = entries.find(e => e.batch === urlBatch && e.subject === urlSubject && (!urlClassTime || e.time === urlClassTime))
+        if (match) {
+          matchId = match.id
+        } else {
+          const synthetic: TodayClassEntry = {
+            id: '__url__', date: selectedDate,
+            startTime: '', endTime: '', time: urlClassTime || '',
+            title: urlSubject, subject: urlSubject, batch: urlBatch, room: '',
+            sortKey: -1,
+          }
+          entries = [synthetic, ...entries]
+          matchId = synthetic.id
+        }
+      }
+
+      setClassesForDate(entries)
+      setSelectedClassId(prev => {
+        if (matchId) return matchId
+        if (prev && entries.some(e => e.id === prev)) return prev
+        return entries[0]?.id ?? ''
+      })
+    }).catch(() => setClassesForDate([])).finally(() => setClassesLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate])
+
+  const activeClass = classesForDate.find(c => c.id === selectedClassId) || null
+
+  // Fetch the marked sheet (or a fresh template) for the selected class
   async function fetchAttendanceSheet() {
-    if (!selectedBatch) {
+    if (!activeClass) {
       setRecords([])
       setLoading(false)
       return
     }
     setLoading(true)
     try {
-      const res = await fetch(`/api/attendance?date=${selectedDate}&batch=${encodeURIComponent(selectedBatch)}&subject=${encodeURIComponent(selectedSubject)}`)
+      const res = await fetch(`/api/attendance?date=${activeClass.date}&batch=${encodeURIComponent(activeClass.batch)}&subject=${encodeURIComponent(activeClass.subject)}&classTime=${encodeURIComponent(activeClass.time)}`)
       const data = await res.json()
       if (!data.error) {
         setRecords(data.records || [])
@@ -100,7 +138,8 @@ export default function AttendanceMarkingView() {
 
   useEffect(() => {
     fetchAttendanceSheet()
-  }, [selectedBatch, selectedSubject, selectedDate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClassId, classesForDate])
 
   // Bulk Actions
   function markAll(status: 'Present' | 'Absent') {
@@ -136,13 +175,14 @@ export default function AttendanceMarkingView() {
 
   // Submit to DB
   async function executeSubmitAttendance() {
+    if (!activeClass) return
     setSubmitting(true)
     try {
       const payload = {
-        date: selectedDate,
-        batch: selectedBatch,
-        subject: selectedSubject,
-        classTime: '09:00 AM - 10:00 AM',
+        date: activeClass.date,
+        batch: activeClass.batch,
+        subject: activeClass.subject,
+        classTime: activeClass.time,
         records: records.map(r => ({
           ...r,
           status: r.status || 'Absent' // fallback unmarked to Absent
@@ -238,49 +278,12 @@ export default function AttendanceMarkingView() {
         </div>
 
         {/* Selection Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-8 items-end">
-          
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">Batch</label>
-            <div className="relative">
-              <select
-                value={selectedBatch}
-                onChange={(e) => setSelectedBatch(e.target.value)}
-                disabled={availableBatches.length === 0}
-                className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-sm font-semibold outline-none focus:border-slate-400 transition-colors cursor-pointer appearance-none disabled:opacity-50"
-              >
-                {availableBatches.map(b => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-                {availableBatches.length === 0 && (
-                  <option value="">No batches available</option>
-                )}
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">Subject</label>
-            <div className="relative">
-              <select
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-sm font-semibold outline-none focus:border-slate-400 transition-colors cursor-pointer appearance-none"
-              >
-                <option value="Physics (PHY-101)">Physics (PHY-101)</option>
-                <option value="Chemistry (CHE-101)">Chemistry (CHE-101)</option>
-                <option value="Mathematics (MAT-101)">Mathematics (MAT-101)</option>
-                <option value="English (ENG-101)">English (ENG-101)</option>
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-8 items-end">
 
           <div>
             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">Date</label>
             <div className="relative">
-              <input 
+              <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
@@ -289,12 +292,34 @@ export default function AttendanceMarkingView() {
             </div>
           </div>
 
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">Class</label>
+            <div className="relative">
+              <select
+                value={selectedClassId}
+                onChange={(e) => setSelectedClassId(e.target.value)}
+                disabled={classesLoading || classesForDate.length === 0}
+                className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-sm font-semibold outline-none focus:border-slate-400 transition-colors cursor-pointer appearance-none disabled:opacity-50"
+              >
+                {classesForDate.length === 0 && (
+                  <option value="">{classesLoading ? 'Loading…' : 'No classes scheduled this date'}</option>
+                )}
+                {classesForDate.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.time ? `${c.time} • ` : ''}{c.subject} • {c.batch}{c.type ? ` (${c.type})` : ''}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
           {/* Read only Class Time Box */}
           <div className="flex items-center gap-3 bg-slate-50/50 border border-slate-200 rounded-xl p-3.5 h-[42px] mb-[1px]">
             <Clock className="w-4 h-4 text-slate-700" />
             <div className="flex flex-col">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Class Time</span>
-              <span className="text-xs font-bold text-slate-700">09:00 AM - 10:00 AM</span>
+              <span className="text-xs font-bold text-slate-700">{activeClass?.time || '—'}</span>
             </div>
           </div>
 
@@ -470,9 +495,9 @@ export default function AttendanceMarkingView() {
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Late: <strong className="text-slate-800">{lateCount}</strong></span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-sky-500" /> Excused: <strong className="text-slate-800">{excusedCount}</strong></span>
         </div>
-        <button 
+        <button
           onClick={submitAttendance}
-          disabled={submitting || records.length === 0}
+          disabled={submitting || records.length === 0 || !activeClass}
           className="flex items-center gap-2 px-6 py-2.5 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-bold transition-all shadow-md disabled:opacity-50"
         >
           {submitting && <RefreshCw className="w-4 h-4 animate-spin" />}

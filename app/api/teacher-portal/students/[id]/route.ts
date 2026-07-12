@@ -1,13 +1,20 @@
 import { NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
 import { getStudentById } from '@/lib/db/queries/students'
 import { db } from '@/lib/db'
 import { counselingSessions, studentReports, studentReportEntries, parentsGuardians, studentBatchEnrollments } from '@/lib/db/schema'
 import { eq, desc, asc } from 'drizzle-orm'
+import { computeStudentAttendance } from '@/lib/db/queries/attendance'
+import { getLocalToday } from '@/lib/scheduleUtils'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = (session.user as any).schoolId as string | null
+
     const { id } = await params
     const student = await getStudentById(id)
 
@@ -68,6 +75,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       notes: c.notes || `Counseling session with ${c.counselor}`,
     }))
 
+    const attendanceStats = await computeStudentAttendance(student.id, student.batch, schoolId, getLocalToday())
+
     return NextResponse.json({
       student,
       guardians,
@@ -75,8 +84,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       recentTests,
       currentPerformance,
       counselingNotes,
-      attendance: 92,
-      attendanceDays: '42/45',
+      attendance: attendanceStats.percentage,
+      attendanceDays: `${attendanceStats.presentCount}/${attendanceStats.totalClasses}`,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

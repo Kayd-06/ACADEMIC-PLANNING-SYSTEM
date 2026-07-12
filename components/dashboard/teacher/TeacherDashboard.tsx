@@ -253,10 +253,10 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
                         </div>
                         <h3 className="text-[15px] font-bold text-slate-900">{row.title}</h3>
                         <p className="text-[13px] font-medium text-slate-600 mt-1">
-                          {row.batch} • <span className="text-slate-400">{row.room || 'No room set'}</span>
+                          {[row.batch, row.type ? row.subject : null].filter(Boolean).join(' • ')} • <span className="text-slate-400">{row.room || 'No room set'}</span>
                         </p>
                       </div>
-                      <Link href="/teacher/attendance">
+                      <Link href={`/teacher/attendance?date=${row.date}&batch=${encodeURIComponent(row.batch)}&subject=${encodeURIComponent(row.subject)}&classTime=${encodeURIComponent(row.time)}`}>
                         <span className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-bold rounded-lg transition-colors inline-block cursor-pointer">
                           Mark Attendance
                         </span>
