@@ -2,10 +2,15 @@
 // specialClasses (one-off sessions) rows into a single "today's classes"
 // list, used by both the management and teacher dashboards.
 
+// Fixed to IST rather than the runtime's own timezone: this must return the
+// same calendar date whether it's called from a browser (viewer's local
+// clock) or a Vercel serverless function (which runs in UTC) — using
+// getTimezoneOffset() here would silently disagree between the two,
+// making "today" resolve to the wrong date on the server for part of the
+// day (e.g. treating an evening IST class as tomorrow, or excluding it as
+// "yesterday" once past midnight UTC).
 export function getLocalToday(): string {
-  const d = new Date()
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-  return d.toISOString().split('T')[0]
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
 }
 
 export function parseHour(t: string): number {

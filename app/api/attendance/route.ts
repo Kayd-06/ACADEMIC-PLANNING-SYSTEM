@@ -1,25 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { attendanceSessions, attendanceEntries, classSchedules, specialClasses } from '@/lib/db/schema'
+import { attendanceSessions, attendanceEntries, classSchedules, specialClasses, students } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
-import { findStudentsByClasses } from '@/lib/db/queries/students'
 
 export const dynamic = 'force-dynamic'
 
 const STATUSES = ['Present', 'Absent', 'Late', 'Excused']
 
-// Helper to map UI Batch dropdown values to DB Student Class formats
-function resolveClassFromBatch(batch: string): string {
-  let cls = batch.trim()
-  if (cls.toLowerCase().startsWith('grade ')) {
-    cls = cls.substring(6)
-  }
-  if (/^\d+-[A-Z]$/.test(cls)) {
-    const parts = cls.split('-')
-    cls = `${parts[0]} - ${parts[1]}`
-  }
-  return cls
+// A class's roster is every active student whose own `batch` field matches
+// — batches and classes (grade levels) are independent fields, so matching
+// on class here would silently return nobody for schools that name batches
+// like "Batch 1" rather than a grade level.
+async function findBatchRoster(batch: string, schoolId: string | null) {
+  const conditions = [eq(students.batch, batch), eq(students.isActive, true)]
+  if (schoolId) conditions.push(eq(students.schoolId, schoolId))
+  return db.select().from(students).where(and(...conditions)).orderBy(students.rollNo, students.name)
 }
 
 // classTime disambiguates multiple sessions of the same subject/batch on the
@@ -106,9 +102,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Fresh template from the batch roster
-    const resolvedClass = resolveClassFromBatch(batch)
-    const students = await findStudentsByClasses([resolvedClass, batch], true, schoolId)
-    const defaultRecords = students.map(st => ({
+    const roster = await findBatchRoster(batch, schoolId)
+    const defaultRecords = roster.map(st => ({
       studentId: st.id,
       studentName: st.name,
       rollNo: st.rollNo || '',

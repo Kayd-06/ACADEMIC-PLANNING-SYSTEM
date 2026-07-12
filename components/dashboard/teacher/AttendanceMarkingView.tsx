@@ -16,7 +16,7 @@ import {
   User,
   ChevronDown
 } from 'lucide-react'
-import { buildTodaysClasses, type TodayClassEntry } from '@/lib/scheduleUtils'
+import { buildTodaysClasses, getLocalToday, type TodayClassEntry } from '@/lib/scheduleUtils'
 
 // Avatar background colors helper
 const avatarBgs = [
@@ -46,7 +46,7 @@ export default function AttendanceMarkingView() {
   const searchParams = useSearchParams()
 
   // Selection states
-  const [selectedDate, setSelectedDate] = useState(() => searchParams.get('date') || new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(() => searchParams.get('date') || getLocalToday())
   const [classesForDate, setClassesForDate] = useState<TodayClassEntry[]>([])
   const [classesLoading, setClassesLoading] = useState(true)
   const [selectedClassId, setSelectedClassId] = useState('')
