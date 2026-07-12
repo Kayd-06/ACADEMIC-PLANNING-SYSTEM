@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       url: blob.url,
       pathname: blob.pathname,
-      size: blob.size,
+      size: file.size,
       contentType: blob.contentType,
     })
   } catch (error: any) {
