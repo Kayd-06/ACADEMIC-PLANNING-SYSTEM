@@ -36,53 +36,22 @@ export async function GET(req: Request) {
     // 3. Get chapters
     let chapterRows = await db.select().from(chapters).where(eq(chapters.subjectId, subjectRow.id)).orderBy(asc(chapters.orderIndex))
 
-    // 4. Seed default chapters if empty
-    if (chapterRows.length === 0) {
-      const seedData = [
-        { name: 'Chapter 01: Physical World', expectedHours: 12, description: 'Introductory concepts clear. Ready for test.', orderIndex: 1 },
-        { name: 'Chapter 02: Units and Measurements', expectedHours: 10, description: '', orderIndex: 2 },
-        { name: 'Chapter 03: Motion in a Straight Line', expectedHours: 14, description: 'Students struggled with calculus derivations.', orderIndex: 3 },
-        { name: 'Chapter 04: Kinematics', expectedHours: 15, description: 'Requires extra doubt session for relative velocity.', orderIndex: 4 },
-        { name: 'Chapter 05: Laws of Motion', expectedHours: 10, description: '', orderIndex: 5 },
-        { name: 'Chapter 06: Work, Energy and Power', expectedHours: 16, description: '', orderIndex: 6 }
-      ]
-      const insertedChapters = await db.insert(chapters).values(seedData.map(c => ({
-        subjectId: subjectRow.id,
-        name: c.name,
-        expectedHours: c.expectedHours,
-        description: c.description,
-        orderIndex: c.orderIndex
-      }))).returning()
-      chapterRows = insertedChapters
-    }
+    // 4. Get or create batchSyllabus entries for existing chapters
+    if (chapterRows.length > 0) {
+      const existingSyllabus = await db.select().from(batchSyllabus).where(eq(batchSyllabus.batchId, batchRow.id))
+      const existingChapterIds = new Set(existingSyllabus.map(s => s.chapterId))
 
-    // 5. Get or create batchSyllabus entries
-    const existingSyllabus = await db.select().from(batchSyllabus).where(eq(batchSyllabus.batchId, batchRow.id))
-    const existingChapterIds = new Set(existingSyllabus.map(s => s.chapterId))
-
-    const missingChapters = chapterRows.filter(c => !existingChapterIds.has(c.id))
-    if (missingChapters.length > 0) {
-      const seedSyllabus = missingChapters.map(c => {
-        let datesStr = 'Aug 15 - Aug 28'
-        if (c.orderIndex === 2) datesStr = 'Sep 01 - Sep 15'
-        else if (c.orderIndex === 3) datesStr = 'Sep 16 - Oct 10'
-        else if (c.orderIndex === 4) datesStr = 'Oct 12 - Oct 25'
-        else if (c.orderIndex === 5) datesStr = 'Oct 26 - Nov 05'
-        else if (c.orderIndex === 6) datesStr = 'Nov 06 - Nov 25'
-
-        let initialStatus = 'Not Started'
-        if (c.orderIndex <= 3) initialStatus = 'Completed'
-        else if (c.orderIndex === 4) initialStatus = 'In Progress'
-
-        return {
+      const missingChapters = chapterRows.filter(c => !existingChapterIds.has(c.id))
+      if (missingChapters.length > 0) {
+        const seedSyllabus = missingChapters.map(c => ({
           batchId: batchRow!.id,
           chapterId: c.id,
-          targetStartDate: datesStr.split(' - ')[0] || 'Aug 15',
-          targetEndDate: datesStr.split(' - ')[1] || 'Aug 28',
-          status: initialStatus
-        }
-      })
-      await db.insert(batchSyllabus).values(seedSyllabus)
+          targetStartDate: 'Aug 15',
+          targetEndDate: 'Aug 28',
+          status: 'Not Started'
+        }))
+        await db.insert(batchSyllabus).values(seedSyllabus)
+      }
     }
 
     // 6. Query joined result
