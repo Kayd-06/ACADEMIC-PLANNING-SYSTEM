@@ -92,6 +92,8 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
 
   const [showDiffModal, setShowDiffModal] = useState(false)
   const [selectedAudit, setSelectedAudit] = useState<any>(null)
+  const [showAuditEditModal, setShowAuditEditModal] = useState(false)
+  const [editingAudit, setEditingAudit] = useState<any>(null)
 
   // Form states
   const [reqForm, setReqForm] = useState({
@@ -152,6 +154,16 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
     reviewStatus: 'Pending',
     scheduledDate: '',
     isCompleted: false
+  })
+
+  const [auditForm, setAuditForm] = useState({
+    userActionType: '',
+    tableName: '',
+    recordId: '',
+    authorName: '',
+    authorRole: '',
+    oldValues: '',
+    newValues: ''
   })
 
   useEffect(() => {
@@ -348,6 +360,39 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
       fetchAllData()
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  // Handlers for Audit Logs
+  const handleSaveAuditLog = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const targetId = editingAudit?.id || editingAudit?._id
+      if (!targetId) return
+
+      await fetch('/api/recruitment/audit-logs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: targetId,
+          ...auditForm
+        })
+      })
+      setShowAuditEditModal(false)
+      setEditingAudit(null)
+      fetchAllData()
+    } catch (err) {
+      console.error('Failed to update audit log:', err)
+    }
+  }
+
+  const handleDeleteAuditLog = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this audit log entry?')) return
+    try {
+      await fetch(`/api/recruitment/audit-logs?id=${id}`, { method: 'DELETE' })
+      fetchAllData()
+    } catch (err) {
+      console.error('Failed to delete audit log:', err)
     }
   }
 
@@ -1333,7 +1378,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       <th className="p-4">Author</th>
                       <th className="p-4">IP Address & Agent</th>
                       <th className="p-4">Timestamp</th>
-                      <th className="p-4 text-right">Inspect Diffs</th>
+                      <th className="p-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -1366,16 +1411,45 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                           {new Date(log.timestamp).toLocaleString()}
                         </td>
                         <td className="p-4 text-right">
-                          <button
-                            onClick={() => {
-                              setSelectedAudit(log)
-                              setShowDiffModal(true)
-                            }}
-                            className="p-2 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors inline-flex items-center gap-1 text-xs font-bold border border-slate-200"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Diffs</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedAudit(log)
+                                setShowDiffModal(true)
+                              }}
+                              className="p-2 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors inline-flex items-center gap-1 text-xs font-bold border border-slate-200"
+                              title="Inspect Diffs"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Diffs</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingAudit(log)
+                                setAuditForm({
+                                  userActionType: log.userActionType || '',
+                                  tableName: log.tableName || '',
+                                  recordId: log.recordId || '',
+                                  authorName: log.authorName || '',
+                                  authorRole: log.authorRole || '',
+                                  oldValues: log.oldValues || '',
+                                  newValues: log.newValues || ''
+                                })
+                                setShowAuditEditModal(true)
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 hover:text-blue-600 transition-colors"
+                              title="Edit Audit Log Entry"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAuditLog(log.id || log._id)}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-slate-700 hover:text-red-600 transition-colors"
+                              title="Delete Audit Log Entry"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -2111,6 +2185,123 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   Close Inspector
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 6. Audit Log Edit Modal */}
+      <AnimatePresence>
+        {showAuditEditModal && editingAudit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Edit className="w-5 h-5 text-indigo-600" />
+                  <span>Edit Audit Log Entry</span>
+                </h3>
+                <button onClick={() => setShowAuditEditModal(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAuditLog} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Action Type *</label>
+                    <input
+                      type="text"
+                      required
+                      value={auditForm.userActionType}
+                      onChange={e => setAuditForm({ ...auditForm, userActionType: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Table Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={auditForm.tableName}
+                      onChange={e => setAuditForm({ ...auditForm, tableName: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Record ID</label>
+                    <input
+                      type="text"
+                      value={auditForm.recordId}
+                      onChange={e => setAuditForm({ ...auditForm, recordId: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Author Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={auditForm.authorName}
+                      onChange={e => setAuditForm({ ...auditForm, authorName: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Author Role *</label>
+                    <input
+                      type="text"
+                      required
+                      value={auditForm.authorRole}
+                      onChange={e => setAuditForm({ ...auditForm, authorRole: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Old Values (JSON / Text)</label>
+                  <textarea
+                    rows={3}
+                    value={auditForm.oldValues}
+                    onChange={e => setAuditForm({ ...auditForm, oldValues: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">New Values (JSON / Text)</label>
+                  <textarea
+                    rows={3}
+                    value={auditForm.newValues}
+                    onChange={e => setAuditForm({ ...auditForm, newValues: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-mono"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowAuditEditModal(false)}
+                    className="px-5 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-bold border border-slate-200/60 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-md transition-all cursor-pointer"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}
