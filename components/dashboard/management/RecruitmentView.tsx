@@ -35,7 +35,8 @@ import {
   Columns,
   RefreshCw,
   Eye,
-  ChevronDown
+  ChevronDown,
+  Building2
 } from 'lucide-react'
 
 interface RecruitmentViewProps {
@@ -72,7 +73,9 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
   const [searchTerm, setSearchTerm] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [schoolFilter, setSchoolFilter] = useState('ALL')
   const [candidateSubTab, setCandidateSubTab] = useState<'profiles' | 'interviews'>('profiles')
+  const [adminSchools, setAdminSchools] = useState<any[]>([])
 
   // Modals
   const [showReqModal, setShowReqModal] = useState(false)
@@ -117,7 +120,8 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
     workflowStatus: 'Requirement',
     roleApplied: '',
     department: 'SCIENCE',
-    requirementId: ''
+    requirementId: '',
+    schoolId: ''
   })
 
   const [intForm, setIntForm] = useState({
@@ -157,13 +161,14 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
   const fetchAllData = async () => {
     setLoading(true)
     try {
-      const [dashRes, reqRes, candRes, intRes, appRes, auditRes] = await Promise.all([
+      const [dashRes, reqRes, candRes, intRes, appRes, auditRes, schoolsRes] = await Promise.all([
         fetch('/api/recruitment/dashboard'),
         fetch('/api/recruitment/requirements'),
         fetch('/api/recruitment/candidates'),
         fetch('/api/recruitment/interviews'),
         fetch('/api/recruitment/appraisals'),
-        fetch('/api/recruitment/audit-logs')
+        fetch('/api/recruitment/audit-logs'),
+        fetch('/api/admin/schools')
       ])
 
       if (dashRes.ok) setDashboardData(await dashRes.json())
@@ -172,11 +177,21 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
       if (intRes.ok) setInterviews(await intRes.json())
       if (appRes.ok) setAppraisals(await appRes.json())
       if (auditRes.ok) setAuditLogs(await auditRes.json())
+      if (schoolsRes.ok) {
+        const schs = await schoolsRes.json()
+        if (Array.isArray(schs)) setAdminSchools(schs)
+      }
     } catch (err) {
       console.error('Failed to fetch recruitment data:', err)
     } finally {
       setLoading(false)
     }
+  }
+
+  const getSchoolName = (id?: string) => {
+    if (!id) return null
+    const found = adminSchools.find((sc: any) => sc.id === id)
+    return found ? found.name : null
   }
 
   // Handlers for Requirements
@@ -379,7 +394,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 setShowReqModal(true)
               } else if (activeTab === 'candidates' || activeTab === 'overview') {
                 setEditingCand(null)
-                setCandForm({ name: '', contactEmail: '', contactPhone: '', qualification: '', resumeLink: '', yearsOfExperience: '3', currentOrganization: '', specialization: '', expectedSalary: '', appliedDate: new Date().toISOString().split('T')[0], workflowStatus: 'Requirement', roleApplied: '', department: 'SCIENCE', requirementId: '' })
+                setCandForm({ name: '', contactEmail: '', contactPhone: '', qualification: '', resumeLink: '', yearsOfExperience: '3', currentOrganization: '', specialization: '', expectedSalary: '', appliedDate: new Date().toISOString().split('T')[0], workflowStatus: 'Requirement', roleApplied: '', department: 'SCIENCE', requirementId: '', schoolId: schoolId || (adminSchools.length === 1 ? adminSchools[0].id : '') })
                 setShowCandModal(true)
               } else if (activeTab === 'appraisals') {
                 setEditingApp(null)
@@ -387,7 +402,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 setShowAppModal(true)
               } else {
                 setEditingCand(null)
-                setCandForm({ name: '', contactEmail: '', contactPhone: '', qualification: '', resumeLink: '', yearsOfExperience: '3', currentOrganization: '', specialization: '', expectedSalary: '', appliedDate: new Date().toISOString().split('T')[0], workflowStatus: 'Requirement', roleApplied: '', department: 'SCIENCE', requirementId: '' })
+                setCandForm({ name: '', contactEmail: '', contactPhone: '', qualification: '', resumeLink: '', yearsOfExperience: '3', currentOrganization: '', specialization: '', expectedSalary: '', appliedDate: new Date().toISOString().split('T')[0], workflowStatus: 'Requirement', roleApplied: '', department: 'SCIENCE', requirementId: '', schoolId: schoolId || (adminSchools.length === 1 ? adminSchools[0].id : '') })
                 setShowCandModal(true)
               }
             }}
@@ -503,12 +518,26 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
 
             {/* Kanban Pipeline Board */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Hiring Pipeline Board</h2>
-                  <p className="text-xs font-medium text-slate-500 mt-0.5">
-                    Drag-free interactive workflow status across all candidate stages
-                  </p>
+              <div className="flex justify-between items-center flex-wrap gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Hiring Pipeline Board</h2>
+                    <p className="text-xs font-medium text-slate-500 mt-0.5">
+                      Drag-free interactive workflow status across all candidate stages
+                    </p>
+                  </div>
+                  {adminSchools.length > 0 && (
+                    <select
+                      value={schoolFilter}
+                      onChange={e => setSchoolFilter(e.target.value)}
+                      className="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    >
+                      <option value="ALL">All Schools ({adminSchools.length})</option>
+                      {adminSchools.map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <button
                   onClick={() => setActiveTab('candidates')}
@@ -521,7 +550,11 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 overflow-x-auto pb-4">
                 {stages.map(stage => {
-                  const stageCandidates = candidates.filter(c => (c.workflowStatus || 'Requirement').toLowerCase() === stage.toLowerCase())
+                  const stageCandidates = candidates.filter(c => {
+                    const matchStage = (c.workflowStatus || 'Requirement').toLowerCase() === stage.toLowerCase()
+                    const matchSchool = schoolFilter === 'ALL' || c.schoolId === schoolFilter
+                    return matchStage && matchSchool
+                  })
                   return (
                     <div
                       key={stage}
@@ -561,6 +594,12 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                                       <span className="text-slate-300">•</span>
                                       <span className="px-1.5 py-0.2 bg-slate-50 border border-slate-200/60 rounded text-[9px] font-bold text-slate-500 uppercase">{cand.department || 'SCIENCE'}</span>
                                     </p>
+                                    {getSchoolName(cand.schoolId) && (
+                                      <div className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60 text-[10px] font-bold">
+                                        <Building2 className="w-3 h-3 text-indigo-600 shrink-0" />
+                                        <span className="truncate max-w-[130px]">{getSchoolName(cand.schoolId)}</span>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -824,7 +863,19 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 font-medium"
                     />
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {adminSchools.length > 0 && (
+                      <select
+                        value={schoolFilter}
+                        onChange={e => setSchoolFilter(e.target.value)}
+                        className="bg-white px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      >
+                        <option value="ALL">All Schools ({adminSchools.length})</option>
+                        {adminSchools.map((s: any) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    )}
                     <select
                       value={statusFilter}
                       onChange={e => setStatusFilter(e.target.value)}
@@ -855,7 +906,8 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                           const matchSearch = (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                             (c.roleApplied || '').toLowerCase().includes(searchTerm.toLowerCase())
                           const matchStatus = statusFilter === 'ALL' || (c.workflowStatus || '').toLowerCase() === statusFilter.toLowerCase()
-                          return matchSearch && matchStatus
+                          const matchSchool = schoolFilter === 'ALL' || c.schoolId === schoolFilter
+                          return matchSearch && matchStatus && matchSchool
                         })
                         .map(cand => (
                           <tr key={cand.id || cand._id} className="hover:bg-slate-50/80 transition-colors">
@@ -874,9 +926,17 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                             </td>
                             <td className="p-4">
                               <div className="font-bold text-slate-900">{cand.roleApplied || 'General Faculty'}</div>
-                              <span className="inline-block mt-1 px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                                {cand.department || 'SCIENCE'}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                                <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                  {cand.department || 'SCIENCE'}
+                                </span>
+                                {getSchoolName(cand.schoolId) && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    <Building2 className="w-3 h-3 text-indigo-600" />
+                                    <span>{getSchoolName(cand.schoolId)}</span>
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-4 text-slate-700">
                               <div className="font-bold">{cand.yearsOfExperience} yrs exp</div>
@@ -932,7 +992,8 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                                       workflowStatus: cand.workflowStatus || 'Requirement',
                                       roleApplied: cand.roleApplied || '',
                                       department: cand.department || 'SCIENCE',
-                                      requirementId: cand.requirementId || ''
+                                      requirementId: cand.requirementId || '',
+                                      schoolId: cand.schoolId || ''
                                     })
                                     setShowCandModal(true)
                                   }}
@@ -1503,6 +1564,29 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
               </div>
 
               <form onSubmit={handleSaveCandidate} className="space-y-4">
+                {/* Target School Selection */}
+                <div className="bg-indigo-50/60 p-4 rounded-xl border border-indigo-100 shadow-xs">
+                  <label className="block text-xs font-bold text-indigo-900 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4 text-indigo-600" />
+                    <span>Target School * (Connected to {adminSchools.length} school{adminSchools.length === 1 ? '' : 's'} you manage)</span>
+                  </label>
+                  <select
+                    value={candForm.schoolId}
+                    onChange={e => setCandForm({ ...candForm, schoolId: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-indigo-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all cursor-pointer shadow-sm"
+                  >
+                    <option value="">-- General / All Schools --</option>
+                    {adminSchools.map((s: any) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} {s.board ? `(${s.board})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-indigo-700/80 mt-1.5 font-medium flex items-center gap-1">
+                    <span>💡 Admin can select from the schools connected to their account.</span>
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Full Name *</label>

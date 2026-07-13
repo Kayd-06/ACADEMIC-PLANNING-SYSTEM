@@ -41,7 +41,8 @@ export async function POST(req: Request) {
       requirementId = null,
       avatarInitials = '',
       theme = 'blue',
-      schedule = ''
+      schedule = '',
+      schoolId = null
     } = body
 
     if (!name.trim()) {
@@ -69,7 +70,8 @@ export async function POST(req: Request) {
       requirementId: requirementId || null,
       avatarInitials: initials,
       theme,
-      schedule
+      schedule,
+      schoolId: schoolId ? schoolId : null
     }).returning()
 
     await logAuditAction({
@@ -97,6 +99,9 @@ export async function PATCH(req: Request) {
     if (!oldCand) return NextResponse.json({ error: 'Candidate not found' }, { status: 404 })
 
     const finalStatus = updates.workflowStatus || status || oldCand.workflowStatus
+    if ('schoolId' in updates) {
+      updates.schoolId = updates.schoolId ? updates.schoolId : null
+    }
 
     const [updatedCand] = await db.update(recruitmentCandidates).set({
       ...updates,
