@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { recruitmentInterviews } from '@/lib/db/schema'
 import { desc, eq } from 'drizzle-orm'
 import { logAuditAction } from '@/lib/audit'
+import { notifyRoleInSchool } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,6 +63,21 @@ export async function POST(req: Request) {
       req
     })
 
+    // Notify teachers and admins 24 hours prior
+    const eventTime = new Date(newInt.dateTime)
+    const notifyTime = new Date(eventTime.getTime() - 24 * 60 * 60 * 1000)
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      null,
+      {
+        category: 'General',
+        title: `Upcoming Interview: ${newInt.candidateName}`,
+        message: `Interview scheduled on ${new Date(newInt.dateTime).toLocaleString()} (${newInt.mode}) with Interviewer: ${newInt.interviewerName}.`,
+        createdAt: notifyTime,
+        link: '/management/recruitment',
+      }
+    )
+
     return NextResponse.json({ ...newInt, _id: newInt.id }, { status: 201 })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to create interview' }, { status: 500 })
@@ -93,6 +109,21 @@ export async function PATCH(req: Request) {
       req
     })
 
+    // Notify teachers and admins 24 hours prior
+    const eventTime = new Date(updatedInt.dateTime)
+    const notifyTime = new Date(eventTime.getTime() - 24 * 60 * 60 * 1000)
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      null,
+      {
+        category: 'General',
+        title: `Interview Updated: ${updatedInt.candidateName}`,
+        message: `Interview schedule updated: ${new Date(updatedInt.dateTime).toLocaleString()} (${updatedInt.mode}).`,
+        createdAt: notifyTime,
+        link: '/management/recruitment',
+      }
+    )
+
     return NextResponse.json({ ...updatedInt, _id: updatedInt.id })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to update interview' }, { status: 500 })
@@ -115,6 +146,17 @@ export async function DELETE(req: Request) {
         oldValues: oldInt,
         req
       })
+      // Notify teachers and admins immediately
+      await notifyRoleInSchool(
+        ['teacher', 'management'],
+        null,
+        {
+          category: 'General',
+          title: `Interview Cancelled: ${oldInt.candidateName}`,
+          message: `The interview scheduled for ${new Date(oldInt.dateTime).toLocaleString()} has been cancelled.`,
+          link: '/management/recruitment',
+        }
+      )
     }
 
     return NextResponse.json({ success: true })

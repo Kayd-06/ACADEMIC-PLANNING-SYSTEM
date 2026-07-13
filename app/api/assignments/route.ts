@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { assignments } from '@/lib/db/schema'
 import { eq, and, count } from 'drizzle-orm'
 import { auth, getSchoolId } from '@/lib/auth'
+import { notifyRoleInSchool } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,6 +89,18 @@ export async function POST(req: NextRequest) {
       totalMarks: totalMarks !== undefined ? Number(totalMarks) : 100,
       schoolId,
     }).returning()
+
+    // Notify teachers and admins of the new assignment
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      schoolId,
+      {
+        category: 'Assignment',
+        title: `New Assignment: ${created.title}`,
+        message: `A new assignment has been posted for Subject: ${created.subject} (Batch: ${created.batch}) due on ${created.dueDate} ${created.dueTime}.`,
+      },
+      (role) => role === 'teacher' ? '/teacher/assignments' : '/management/academic-planning'
+    )
 
     return NextResponse.json(created, { status: 201 })
   } catch (error: any) {

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { attendanceSessions, attendanceEntries, classSchedules, specialClasses, students } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { notifyRoleInSchool } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -193,6 +194,19 @@ export async function POST(req: NextRequest) {
     }
 
     const entries = await db.select().from(attendanceEntries).where(eq(attendanceEntries.sessionId, sessionId))
+
+    // Notify teachers and admins
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      schoolId,
+      {
+        category: 'Attendance',
+        title: `Attendance Marked: ${subject} - ${batch}`,
+        message: `Attendance for Subject: ${subject} (Batch: ${batch}) was marked by ${session.user.name ?? 'Faculty'} on ${date} for class time ${resolvedClassTime}.`,
+      },
+      (role) => role === 'teacher' ? '/teacher/attendance' : '/management/attendance'
+    )
+
     return NextResponse.json({
       _id: sessionId, date, batch, subject,
       classTime: resolvedClassTime,

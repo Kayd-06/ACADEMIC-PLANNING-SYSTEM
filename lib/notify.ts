@@ -1,4 +1,4 @@
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and, inArray, or } from 'drizzle-orm'
 import { db } from './db'
 import { users, notifications } from './db/schema'
 
@@ -10,6 +10,7 @@ interface NotifyPayload {
   message?: string
   link?: string
   schoolId?: string | null
+  createdAt?: Date
 }
 
 // Insert one notification per user id
@@ -23,6 +24,7 @@ export async function notifyUsers(userIds: string[], payload: NotifyPayload): Pr
       message: payload.message ?? '',
       link: payload.link ?? '',
       schoolId: payload.schoolId ?? null,
+      createdAt: payload.createdAt ?? new Date(),
     }))
   )
 }
@@ -32,10 +34,36 @@ export async function notifyUsers(userIds: string[], payload: NotifyPayload): Pr
 export async function notifyRoleInSchool(
   roles: Array<'teacher' | 'management'>,
   schoolId: string | null,
-  payload: NotifyPayload
+  payload: NotifyPayload,
+  getLink?: (role: 'teacher' | 'management') => string
 ): Promise<void> {
   const conditions = [inArray(users.role, roles)]
-  if (schoolId) conditions.push(eq(users.schoolId, schoolId))
-  const rows = await db.select({ id: users.id }).from(users).where(and(...conditions))
-  await notifyUsers(rows.map(r => r.id), { ...payload, schoolId })
+  if (schoolId) {
+    conditions.push(
+      or(
+        eq(users.schoolId, schoolId as string),
+        eq(users.activeSchoolId, schoolId as string)
+      ) as any
+    )
+  }
+  const rows = await db.select({ id: users.id, role: users.role })
+    .from(users)
+    .where(and(...conditions.filter((c): c is any => !!c)))
+  if (rows.length === 0) return
+
+  await db.insert(notifications).values(
+    rows.map(row => {
+      const role = row.role as 'teacher' | 'management'
+      const link = getLink ? getLink(role) : (payload.link ?? '')
+      return {
+        userId: row.id,
+        category: payload.category,
+        title: payload.title,
+        message: payload.message ?? '',
+        link,
+        schoolId: schoolId ?? null,
+        createdAt: payload.createdAt ?? new Date(),
+      }
+    })
+  )
 }

@@ -4,6 +4,7 @@ import Test from '@/models/Test'
 import TestResult from '@/models/TestResult'
 import { auth } from '@/lib/auth'
 import { findStudentsByClasses } from '@/lib/db/queries/students'
+import { notifyRoleInSchool } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -322,6 +323,18 @@ export async function POST(req: NextRequest) {
       averageScore,
       status: 'Graded'
     })
+
+    // Notify teachers and admins
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      test.schoolId,
+      {
+        category: 'Result',
+        title: `Test Results Declared: ${test.title}`,
+        message: `Results for Subject: ${test.subject} (Batch: ${test.batch}) have been declared. Class Average: ${averageScore}%.`,
+      },
+      (role) => role === 'teacher' ? '/teacher/tests' : '/management/tests-bank'
+    )
 
     return NextResponse.json({
       success: true,

@@ -68,6 +68,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           // User doesn't exist (e.g. stale session from MongoDB)
           return {}
         }
+        // Refresh token values from database
+        token.role = dbUser.role
+        token.schoolId = dbUser.role === 'management'
+          ? (dbUser.activeSchoolId ?? dbUser.schoolId ?? null)
+          : (dbUser.schoolId ?? null)
+        token.profileImgUrl = dbUser.profileImgUrl ?? null
       }
       return token
     },

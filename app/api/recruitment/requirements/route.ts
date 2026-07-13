@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { recruitmentRequirements } from '@/lib/db/schema'
 import { desc, eq } from 'drizzle-orm'
 import { logAuditAction } from '@/lib/audit'
+import { notifyRoleInSchool } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +59,18 @@ export async function POST(req: Request) {
       req
     })
 
+    // Notify teachers and admins
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      newReq.schoolId,
+      {
+        category: 'General',
+        title: `New Job Requirement: ${newReq.jobTitle}`,
+        message: `Vacancies: ${newReq.vacancies} in ${newReq.department} department.`,
+        link: '/management/recruitment',
+      }
+    )
+
     return NextResponse.json({ ...newReq, _id: newReq.id, title: newReq.jobTitle }, { status: 201 })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to create requirement' }, { status: 500 })
@@ -89,6 +102,18 @@ export async function PATCH(req: Request) {
       req
     })
 
+    // Notify teachers and admins
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      updatedReq.schoolId,
+      {
+        category: 'General',
+        title: `Job Requirement Updated: ${updatedReq.jobTitle}`,
+        message: `Status: ${updatedReq.status}, Vacancies: ${updatedReq.vacancies}.`,
+        link: '/management/recruitment',
+      }
+    )
+
     return NextResponse.json({ ...updatedReq, _id: updatedReq.id, title: updatedReq.jobTitle })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to update requirement' }, { status: 500 })
@@ -111,6 +136,17 @@ export async function DELETE(req: Request) {
         oldValues: oldReq,
         req
       })
+      // Notify teachers and admins
+      await notifyRoleInSchool(
+        ['teacher', 'management'],
+        oldReq.schoolId,
+        {
+          category: 'General',
+          title: `Job Requirement Closed: ${oldReq.jobTitle}`,
+          message: `The job opening for ${oldReq.jobTitle} has been closed.`,
+          link: '/management/recruitment',
+        }
+      )
     }
 
     return NextResponse.json({ success: true })

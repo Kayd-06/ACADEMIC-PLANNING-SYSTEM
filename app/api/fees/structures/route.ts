@@ -7,6 +7,7 @@ import {
   deleteFeeStructure,
   getFeeStructureById
 } from '@/lib/db/queries/fees'
+import { notifyRoleInSchool } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,6 +84,18 @@ export async function POST(req: NextRequest) {
       isActive: true
     })
 
+    // Notify teachers and admins
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      targetSchoolId,
+      {
+        category: 'Fee',
+        title: `New Fee Structure: ${created.name}`,
+        message: `A new fee structure of amount $${created.amount} (${created.frequency}) is set up for ${created.programAssociation} - ${created.batchAssociation}.`,
+        link: '/management/fee-management',
+      }
+    )
+
     return NextResponse.json({ ...created, _id: created.id }, { status: 201 })
   } catch (error: any) {
     console.error('POST /api/fees/structures error:', error)
@@ -120,6 +133,18 @@ export async function PUT(req: NextRequest) {
     const updated = await updateFeeStructure(id, updatePayload)
     if (!updated) return NextResponse.json({ error: 'Fee structure not found' }, { status: 404 })
 
+    // Notify teachers and admins
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      updated.schoolId,
+      {
+        category: 'Fee',
+        title: `Fee Structure Updated: ${updated.name}`,
+        message: `The fee structure "${updated.name}" is updated. Amount is now $${updated.amount} (${updated.frequency}).`,
+        link: '/management/fee-management',
+      }
+    )
+
     return NextResponse.json({ ...updated, _id: updated.id })
   } catch (error: any) {
     console.error('PUT /api/fees/structures error:', error)
@@ -140,8 +165,23 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Fee Type ID is required' }, { status: 400 })
 
+    const struct = await getFeeStructureById(id)
     const success = await deleteFeeStructure(id)
     if (!success) return NextResponse.json({ error: 'Fee structure not found or already deleted' }, { status: 404 })
+
+    if (struct) {
+      // Notify teachers and admins immediately
+      await notifyRoleInSchool(
+        ['teacher', 'management'],
+        struct.schoolId,
+        {
+          category: 'Fee',
+          title: `Fee Structure Deleted: ${struct.name}`,
+          message: `The fee structure of amount $${struct.amount} (${struct.frequency}) has been deleted.`,
+          link: '/management/fee-management',
+        }
+      )
+    }
 
     return NextResponse.json({ message: 'Fee structure deleted successfully' })
   } catch (error: any) {

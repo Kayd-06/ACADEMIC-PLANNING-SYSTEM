@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, dailyReports, students } from '@/lib/db'
 import { eq, and, desc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
+import { notifyRoleInSchool } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,6 +73,18 @@ export async function POST(req: NextRequest) {
     schoolId,
   }).returning()
 
+  // Notify teachers and admins
+  await notifyRoleInSchool(
+    ['teacher', 'management'],
+    schoolId,
+    {
+      category: 'General',
+      title: `Daily Report Submitted: ${report.teacherName}`,
+      message: `Daily report for Subject: ${report.subject} (Batch: ${report.batch}) submitted.${report.isLate ? ' (Late Submission)' : ''}`,
+    },
+    (role) => role === 'teacher' ? '/teacher/daily-report' : '/management/daily-reports'
+  )
+
   return NextResponse.json(report, { status: 201 })
 }
 
@@ -101,6 +114,19 @@ export async function PATCH(req: NextRequest) {
 
   const [updated] = await db.update(dailyReports).set(updates).where(and(...conditions)).returning()
   if (!updated) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
+
+  // Notify teachers and admins
+  await notifyRoleInSchool(
+    ['teacher', 'management'],
+    schoolId,
+    {
+      category: 'General',
+      title: `Daily Report Updated: ${updated.teacherName}`,
+      message: `Daily report for Subject: ${updated.subject} (Batch: ${updated.batch}) has been updated.`,
+    },
+    (role) => role === 'teacher' ? '/teacher/daily-report' : '/management/daily-reports'
+  )
+
   return NextResponse.json(updated)
 }
 
@@ -119,7 +145,20 @@ export async function DELETE(req: NextRequest) {
   if (role === 'teacher') conditions.push(eq(dailyReports.teacherEmail, session.user.email!))
   else if (role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  await db.delete(dailyReports).where(and(...conditions))
+  const [deleted] = await db.delete(dailyReports).where(and(...conditions)).returning()
+  if (deleted) {
+    // Notify teachers and admins
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      schoolId,
+      {
+        category: 'General',
+        title: `Daily Report Deleted`,
+        message: `Daily report for Subject: ${deleted.subject} (Batch: ${deleted.batch}) submitted by ${deleted.teacherName} has been deleted.`,
+      },
+      (role) => role === 'teacher' ? '/teacher/daily-report' : '/management/daily-reports'
+    )
+  }
   return NextResponse.json({ success: true })
 }
 

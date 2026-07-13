@@ -3,6 +3,30 @@ import { db } from '@/lib/db'
 import { counselingSessions, type CounselingSession } from '@/lib/db/schema'
 import { eq, and, or, ilike, desc, asc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
+import { notifyRoleInSchool } from '@/lib/notify'
+
+function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): Date {
+  const time = timeStr ? timeStr.trim() : '00:00'
+  let hours = 0
+  let minutes = 0
+
+  const match = time.match(/^(\d+):(\d+)\s*(AM|PM)$/i)
+  if (match) {
+    hours = Number(match[1])
+    minutes = Number(match[2])
+    const ampm = match[3].toUpperCase()
+    if (ampm === 'PM' && hours < 12) hours += 12
+    if (ampm === 'AM' && hours === 12) hours = 0
+  } else {
+    const parts = time.split(':').map(Number)
+    hours = parts[0] || 0
+    minutes = parts[1] || 0
+  }
+
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const eventDate = new Date(year, month - 1, day, hours, minutes)
+  return new Date(eventDate.getTime() - 24 * 60 * 60 * 1000)
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -144,6 +168,20 @@ export async function POST(req: NextRequest) {
       schoolId,
     }).returning()
 
+    // Notify teachers and admins 24 hours prior
+    const notifyTime = getScheduleNotificationTime(session.date, session.time)
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      schoolId,
+      {
+        category: 'General',
+        title: `Counseling Scheduled: ${session.studentName}`,
+        message: `Session for ${session.studentName} with Counselor: ${session.counselor} is scheduled on ${session.date} at ${session.time}.`,
+        createdAt: notifyTime,
+      },
+      (role) => role === 'teacher' ? '/teacher/counseling-log' : '/management/counseling'
+    )
+
     return NextResponse.json(toApiShape(session), { status: 201 })
   } catch (error) {
     const err = error as Error
@@ -191,6 +229,20 @@ export async function PATCH(req: NextRequest) {
 
     if (!updated) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })
 
+    // Notify teachers and admins 24 hours prior
+    const notifyTime = getScheduleNotificationTime(updated.date, updated.time)
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      schoolId,
+      {
+        category: 'General',
+        title: `Counseling Updated: ${updated.studentName}`,
+        message: `Counseling session status updated to ${updated.status}. Scheduled on ${updated.date} at ${updated.time}.`,
+        createdAt: notifyTime,
+      },
+      (role) => role === 'teacher' ? '/teacher/counseling-log' : '/management/counseling'
+    )
+
     return NextResponse.json(toApiShape(updated))
   } catch (error) {
     const err = error as Error
@@ -217,6 +269,18 @@ export async function DELETE(req: NextRequest) {
       .returning()
 
     if (!deleted) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })
+
+    // Notify teachers and admins immediately
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      schoolId,
+      {
+        category: 'General',
+        title: `Counseling Cancelled: ${deleted.studentName}`,
+        message: `The counseling session scheduled for ${deleted.studentName} on ${deleted.date} at ${deleted.time} has been cancelled.`,
+      },
+      (role) => role === 'teacher' ? '/teacher/counseling-log' : '/management/counseling'
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {

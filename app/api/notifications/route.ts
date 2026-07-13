@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { notifications } from '@/lib/db/schema'
-import { eq, and, desc, count } from 'drizzle-orm'
+import { eq, and, desc, count, lte, ne } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,14 +19,23 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get('category')
     const unreadOnly = searchParams.get('unreadOnly') === 'true'
 
-    const conditions = [eq(notifications.userId, userId)]
+    const conditions = [
+      eq(notifications.userId, userId),
+      lte(notifications.createdAt, new Date()),
+      ne(notifications.category, 'Announcement')
+    ]
     if (category && CATEGORIES.includes(category)) conditions.push(eq(notifications.category, category))
     if (unreadOnly) conditions.push(eq(notifications.isRead, false))
 
     const [items, [{ value: unreadCount }]] = await Promise.all([
       db.select().from(notifications).where(and(...conditions)).orderBy(desc(notifications.createdAt)).limit(100),
       db.select({ value: count() }).from(notifications)
-        .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false))),
+        .where(and(
+          eq(notifications.userId, userId),
+          eq(notifications.isRead, false),
+          lte(notifications.createdAt, new Date()),
+          ne(notifications.category, 'Announcement')
+        )),
     ])
 
     return NextResponse.json({ items, unreadCount: Number(unreadCount) })

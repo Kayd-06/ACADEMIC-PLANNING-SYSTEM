@@ -3,6 +3,30 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { calendarEvents } from '@/lib/db/schema'
 import { eq, and, asc } from 'drizzle-orm'
+import { notifyRoleInSchool } from '@/lib/notify'
+
+function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): Date {
+  const time = timeStr ? timeStr.trim() : '00:00'
+  let hours = 0
+  let minutes = 0
+
+  const match = time.match(/^(\d+):(\d+)\s*(AM|PM)$/i)
+  if (match) {
+    hours = Number(match[1])
+    minutes = Number(match[2])
+    const ampm = match[3].toUpperCase()
+    if (ampm === 'PM' && hours < 12) hours += 12
+    if (ampm === 'AM' && hours === 12) hours = 0
+  } else {
+    const parts = time.split(':').map(Number)
+    hours = parts[0] || 0
+    minutes = parts[1] || 0
+  }
+
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const eventDate = new Date(year, month - 1, day, hours, minutes)
+  return new Date(eventDate.getTime() - 24 * 60 * 60 * 1000)
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +82,20 @@ export async function POST(req: NextRequest) {
       schoolId,
     }).returning()
 
+    // Notify teachers and admins 24 hours prior
+    const notifyTime = getScheduleNotificationTime(date)
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      schoolId,
+      {
+        category: 'General',
+        title: `Upcoming Event: ${event.title}`,
+        message: `An event of type "${event.type}" (${event.scope}${event.scopeValue ? ` - ${event.scopeValue}` : ''}) is scheduled for ${event.date}${event.endDate ? ` to ${event.endDate}` : ''}.`,
+        createdAt: notifyTime,
+      },
+      (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
+    )
+
     return NextResponse.json(toApiShape(event), { status: 201 })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -96,6 +134,21 @@ export async function PUT(req: NextRequest) {
     }).where(condition).returning()
 
     if (!event) return NextResponse.json({ error: 'Event not found.' }, { status: 404 })
+
+    // Notify teachers and admins of update 24 hours prior
+    const notifyTime = getScheduleNotificationTime(date)
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      schoolId,
+      {
+        category: 'General',
+        title: `Updated Event: ${event.title}`,
+        message: `The event details for "${event.title}" have been updated. Scheduled for ${event.date}${event.endDate ? ` to ${event.endDate}` : ''}.`,
+        createdAt: notifyTime,
+      },
+      (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
+    )
+
     return NextResponse.json(toApiShape(event))
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -119,7 +172,19 @@ export async function DELETE(req: NextRequest) {
     const condition = schoolId
       ? and(eq(calendarEvents.id, id), eq(calendarEvents.schoolId, schoolId))
       : eq(calendarEvents.id, id)
-    await db.delete(calendarEvents).where(condition)
+    const [deleted] = await db.delete(calendarEvents).where(condition).returning()
+    if (deleted) {
+      await notifyRoleInSchool(
+        ['teacher', 'management'],
+        schoolId,
+        {
+          category: 'General',
+          title: `Cancelled Event: ${deleted.title}`,
+          message: `The event scheduled for ${deleted.date} has been cancelled.`,
+        },
+        (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
+      )
+    }
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

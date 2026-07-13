@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { recruitmentCandidates } from '@/lib/db/schema'
 import { desc, eq } from 'drizzle-orm'
 import { logAuditAction } from '@/lib/audit'
+import { notifyRoleInSchool } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,6 +83,18 @@ export async function POST(req: Request) {
       req
     })
 
+    // Notify teachers and admins
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      newCand.schoolId,
+      {
+        category: 'General',
+        title: `New Candidate: ${newCand.name}`,
+        message: `Candidate ${newCand.name} applied for role: ${newCand.roleApplied} (${newCand.department}).`,
+        link: '/management/recruitment',
+      }
+    )
+
     return NextResponse.json({ ...newCand, _id: newCand.id, status: newCand.workflowStatus }, { status: 201 })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to create candidate' }, { status: 500 })
@@ -118,6 +131,18 @@ export async function PATCH(req: Request) {
       req
     })
 
+    // Notify teachers and admins
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      updatedCand.schoolId,
+      {
+        category: 'General',
+        title: `Candidate Status Updated: ${updatedCand.name}`,
+        message: `Candidate ${updatedCand.name}'s status has been updated to: ${updatedCand.workflowStatus}.`,
+        link: '/management/recruitment',
+      }
+    )
+
     return NextResponse.json({ ...updatedCand, _id: updatedCand.id, status: updatedCand.workflowStatus })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to update candidate' }, { status: 500 })
@@ -140,6 +165,17 @@ export async function DELETE(req: Request) {
         oldValues: oldCand,
         req
       })
+      // Notify teachers and admins
+      await notifyRoleInSchool(
+        ['teacher', 'management'],
+        oldCand.schoolId,
+        {
+          category: 'General',
+          title: `Candidate Removed: ${oldCand.name}`,
+          message: `Candidate ${oldCand.name} (Role: ${oldCand.roleApplied}) has been deleted from recruitment records.`,
+          link: '/management/recruitment',
+        }
+      )
     }
 
     return NextResponse.json({ success: true })

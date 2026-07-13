@@ -2,6 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, tests } from '@/lib/db'
 import { eq, and, asc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
+import { notifyRoleInSchool } from '@/lib/notify'
+
+function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): Date {
+  const time = timeStr ? timeStr.trim() : '00:00'
+  let hours = 0
+  let minutes = 0
+
+  const match = time.match(/^(\d+):(\d+)\s*(AM|PM)$/i)
+  if (match) {
+    hours = Number(match[1])
+    minutes = Number(match[2])
+    const ampm = match[3].toUpperCase()
+    if (ampm === 'PM' && hours < 12) hours += 12
+    if (ampm === 'AM' && hours === 12) hours = 0
+  } else {
+    const parts = time.split(':').map(Number)
+    hours = parts[0] || 0
+    minutes = parts[1] || 0
+  }
+
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const eventDate = new Date(year, month - 1, day, hours, minutes)
+  return new Date(eventDate.getTime() - 24 * 60 * 60 * 1000)
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -64,6 +88,20 @@ export async function POST(req: NextRequest) {
       schoolId,
     }).returning()
 
+    // Notify teachers and admins 24 hours prior
+    const notifyTime = getScheduleNotificationTime(created.date, created.time)
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      schoolId,
+      {
+        category: 'Result',
+        title: `New Test Scheduled: ${created.title}`,
+        message: `A test for Subject: ${created.subject} (Batch: ${created.batch}) has been scheduled on ${created.date} at ${created.time}.`,
+        createdAt: notifyTime,
+      },
+      (role) => role === 'teacher' ? '/teacher/tests' : '/management/tests-bank'
+    )
+
     return NextResponse.json(created, { status: 201 })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -105,6 +143,21 @@ export async function PUT(req: NextRequest) {
     }).where(condition).returning()
 
     if (!updated) return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
+
+    // Notify teachers and admins 24 hours prior
+    const notifyTime = getScheduleNotificationTime(updated.date, updated.time)
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      schoolId,
+      {
+        category: 'Result',
+        title: `Test Schedule Updated: ${updated.title}`,
+        message: `The test details have been updated. Scheduled on ${updated.date} at ${updated.time} (${updated.subject} - ${updated.batch}).`,
+        createdAt: notifyTime,
+      },
+      (role) => role === 'teacher' ? '/teacher/tests' : '/management/tests-bank'
+    )
+
     return NextResponse.json(updated)
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -131,6 +184,19 @@ export async function DELETE(req: NextRequest) {
 
     const [deleted] = await db.delete(tests).where(condition).returning()
     if (!deleted) return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
+
+    // Notify teachers and admins immediately
+    await notifyRoleInSchool(
+      ['teacher', 'management'],
+      schoolId,
+      {
+        category: 'Result',
+        title: `Test Cancelled: ${deleted.title}`,
+        message: `The scheduled test for Subject: ${deleted.subject} (Batch: ${deleted.batch}) on ${deleted.date} has been cancelled.`,
+      },
+      (role) => role === 'teacher' ? '/teacher/tests' : '/management/tests-bank'
+    )
+
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

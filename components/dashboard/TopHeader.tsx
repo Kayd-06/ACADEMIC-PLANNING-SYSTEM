@@ -24,6 +24,22 @@ const applyTheme = (themeName: string) => {
   root.style.setProperty('--accent-primary-rgb', selected.rgb)
 }
 
+function formatRelativeTime(dateInput: string | Date) {
+  const date = new Date(dateInput)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHr = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHr / 24)
+
+  if (diffSec < 60) return 'Just now'
+  if (diffMin < 60) return `${diffMin}m ago`
+  if (diffHr < 24) return `${diffHr}h ago`
+  if (diffDay === 1) return 'Yesterday'
+  return `${diffDay}d ago`
+}
+
 interface TopHeaderProps {
   initials: string
 }
@@ -37,6 +53,89 @@ export default function TopHeader({ initials }: TopHeaderProps) {
   const [showSettings, setShowSettings] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showJoinSchool, setShowJoinSchool] = useState(false)
+
+  // Notifications state
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [loadingNotifications, setLoadingNotifications] = useState(false)
+  const notificationsRef = useRef<HTMLDivElement>(null)
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications')
+      if (res.ok) {
+        const data = await res.json()
+        setNotifications(data.items || [])
+        setUnreadCount(data.unreadCount || 0)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const markAsRead = async (id: string) => {
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      })
+      if (res.ok) {
+        fetchNotifications()
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const markAllAsRead = async () => {
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true })
+      })
+      if (res.ok) {
+        fetchNotifications()
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const deleteNotification = async (id: string) => {
+    try {
+      const res = await fetch(`/api/notifications?id=${id}`, {
+        method: 'DELETE'
+      })
+      if (res.ok) {
+        fetchNotifications()
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const clearReadNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications?read=true', {
+        method: 'DELETE'
+      })
+      if (res.ok) {
+        fetchNotifications()
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => {
+    if (!session?.user?.id) return
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [session?.user?.id])
 
   // Settings preferences
   const [prefEmail, setPrefEmail] = useState(true)
@@ -161,11 +260,14 @@ export default function TopHeader({ initials }: TopHeaderProps) {
     }).catch(() => {})
   }, [role])
 
-  // Close profile menu on outside click
+  // Close profile menu and notifications on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setShowProfileMenu(false)
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
+        setShowNotifications(false)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -243,6 +345,112 @@ export default function TopHeader({ initials }: TopHeaderProps) {
         <button onClick={() => setShowHelp(true)} className="p-2 rounded-full text-gray-500 hover:text-[#002045] hover:bg-slate-100 transition-colors">
           <HelpCircle className="w-5 h-5" />
         </button>
+
+        {/* Notifications */}
+        <div ref={notificationsRef} className="relative">
+          <button
+            onClick={() => setShowNotifications(v => !v)}
+            className="p-2 rounded-full text-gray-500 hover:text-[#002045] hover:bg-slate-100 transition-colors relative"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px] font-bold">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+
+          <AnimatePresence>
+            {showNotifications && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                transition={{ duration: 0.13 }}
+                className="absolute right-0 top-10 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden"
+              >
+                {/* Header */}
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-800">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                    >
+                      Mark all as read
+                    </button>
+                  )}
+                </div>
+
+                {/* List */}
+                <div className="max-h-[300px] overflow-y-auto divide-y divide-slate-100">
+                  {loadingNotifications ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                      <Bell className="w-8 h-8 text-slate-300 mb-2" />
+                      <p className="text-xs text-slate-500 font-medium">No notifications yet</p>
+                    </div>
+                  ) : (
+                    notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => {
+                          markAsRead(n.id)
+                          if (n.link) {
+                            window.location.href = n.link
+                          }
+                          setShowNotifications(false)
+                        }}
+                        className={`p-3 flex gap-3 hover:bg-slate-50 transition-colors cursor-pointer relative group ${!n.isRead ? 'bg-indigo-50/30' : ''}`}
+                      >
+                        {/* Category icon */}
+                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 shrink-0 mt-0.5">
+                          <CalendarCheck className="w-4 h-4 text-indigo-500" />
+                        </div>
+                        {/* Text content */}
+                        <div className="min-w-0 flex-1 pr-4">
+                          <p className="text-xs font-bold text-slate-800 leading-tight truncate">{n.title}</p>
+                          <p className="text-[11px] text-slate-500 leading-snug mt-0.5 line-clamp-2">{n.message}</p>
+                          <span className="text-[9px] text-slate-400 mt-1 inline-block">{formatRelativeTime(n.createdAt)}</span>
+                        </div>
+                        {/* Status / actions */}
+                        <div className="flex flex-col items-end justify-between shrink-0">
+                          {!n.isRead && (
+                            <span className="w-2 h-2 rounded-full bg-indigo-600 mt-2"></span>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              deleteNotification(n.id)
+                            }}
+                            className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-slate-100 transition-all opacity-0 group-hover:opacity-100"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Footer */}
+                {notifications.length > 0 && (
+                  <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 text-center">
+                    <button
+                      onClick={clearReadNotifications}
+                      className="text-[10px] font-extrabold text-slate-500 hover:text-slate-700 uppercase tracking-wider"
+                    >
+                      Clear read notifications
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Settings */}
         <button onClick={() => setShowSettings(true)} className="p-2 rounded-full text-gray-500 hover:text-[#002045] hover:bg-slate-100 transition-colors">
