@@ -36,9 +36,9 @@ export default function AttendanceOverviewView() {
   
   // Data States
   const [data, setData] = useState<any>({
-    overallRate: 92.4,
-    batchesBelow75: 3,
-    perfectAttendanceCount: 142,
+    overallRate: 0,
+    batchesBelow75: 0,
+    perfectAttendanceCount: 0,
     heatmap: [],
     batchesAttention: [],
     studentTable: [],
@@ -182,19 +182,23 @@ export default function AttendanceOverviewView() {
           
           {/* Card 1: Overall Attendance */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
-            <div className="space-y-1">
+            <div className="space-y-1 w-full">
               <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Overall Attendance Rate</span>
-              <div className="flex items-baseline gap-2.5">
-                <span className="text-3xl font-extrabold text-slate-900">{data.overallRate}%</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 border ${
-                  !data.trend || data.trend.startsWith('-')
-                    ? 'text-rose-600 bg-rose-50 border-rose-100'
-                    : 'text-green-600 bg-green-50 border-green-100'
-                }`}>
-                  {(!data.trend || !data.trend.startsWith('-')) && <TrendingUp className="w-2.5 h-2.5" />}
-                  {data.trend || '+2.1%'}
-                </span>
-              </div>
+              {loading ? (
+                <div className="h-9 w-32 bg-slate-100 rounded-lg animate-pulse" />
+              ) : (
+                <div className="flex items-baseline gap-2.5">
+                  <span className="text-3xl font-extrabold text-slate-900">{data.overallRate}%</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 border ${
+                    !data.trend || data.trend.startsWith('-')
+                      ? 'text-rose-600 bg-rose-50 border-rose-100'
+                      : 'text-green-600 bg-green-50 border-green-100'
+                  }`}>
+                    {(!data.trend || !data.trend.startsWith('-')) && <TrendingUp className="w-2.5 h-2.5" />}
+                    {data.trend || '+0.0%'}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
               <BarChart2 className="w-6 h-6" />
@@ -205,10 +209,14 @@ export default function AttendanceOverviewView() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
             <div className="space-y-1">
               <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Batches Below 75%</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-red-600">{data.batchesBelow75}</span>
-                <span className="text-[12px] font-bold text-slate-500">Needs attention</span>
-              </div>
+              {loading ? (
+                <div className="h-9 w-28 bg-slate-100 rounded-lg animate-pulse" />
+              ) : (
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-extrabold text-red-600">{data.batchesBelow75}</span>
+                  <span className="text-[12px] font-bold text-slate-500">Needs attention</span>
+                </div>
+              )}
             </div>
             <div className="p-3 bg-red-50 text-red-500 rounded-2xl">
               <AlertTriangle className="w-6 h-6" />
@@ -219,10 +227,14 @@ export default function AttendanceOverviewView() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
             <div className="space-y-1">
               <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Perfect Attendance</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-green-600">{data.perfectAttendanceCount}</span>
-                <span className="text-[12px] font-bold text-slate-500">Students</span>
-              </div>
+              {loading ? (
+                <div className="h-9 w-28 bg-slate-100 rounded-lg animate-pulse" />
+              ) : (
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-extrabold text-green-600">{data.perfectAttendanceCount}</span>
+                  <span className="text-[12px] font-bold text-slate-500">Students</span>
+                </div>
+              )}
             </div>
             <div className="p-3 bg-emerald-50 text-emerald-500 rounded-2xl">
               <Star className="w-6 h-6" />
@@ -253,7 +265,15 @@ export default function AttendanceOverviewView() {
             </div>
 
             {loading ? (
-              <div className="py-12 text-center text-xs font-bold text-slate-400">Loading Heatmap...</div>
+              <div className="grid grid-cols-6 sm:grid-cols-10 gap-3">
+                {Array.from({ length: 30 }).map((_, i) => (
+                  <div 
+                    key={i} 
+                    className="p-3 rounded-xl bg-slate-100 animate-pulse border border-slate-200/20" 
+                    style={{ minHeight: '68px' }} 
+                  />
+                ))}
+              </div>
             ) : (
               <div className="grid grid-cols-6 sm:grid-cols-10 gap-3">
                 {data.heatmap.map((day: any, i: number) => {
@@ -289,7 +309,17 @@ export default function AttendanceOverviewView() {
             </div>
 
             {loading ? (
-              <div className="py-12 text-center text-xs font-bold text-slate-400">Loading Batches...</div>
+              <div className="space-y-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 animate-pulse flex items-center justify-between">
+                    <div className="space-y-2 flex-1">
+                      <div className="h-3 w-28 bg-slate-200 rounded" />
+                      <div className="h-2.5 w-16 bg-slate-150 rounded" />
+                    </div>
+                    <div className="h-5 w-10 bg-slate-200 rounded" />
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="space-y-4">
                 {data.batchesAttention.map((ba: any, i: number) => (
@@ -357,9 +387,16 @@ export default function AttendanceOverviewView() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12 text-xs font-bold text-slate-400">Loading Student Details...</td>
-                  </tr>
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="px-6 py-4"><div className="h-3 w-28 bg-slate-200 rounded" /></td>
+                      <td className="px-6 py-4"><div className="h-3 w-20 bg-slate-150 rounded" /></td>
+                      <td className="px-6 py-4"><div className="h-3 w-10 bg-slate-200 rounded mx-auto" /></td>
+                      <td className="px-6 py-4"><div className="h-3 w-10 bg-slate-200 rounded mx-auto" /></td>
+                      <td className="px-6 py-4"><div className="h-5 w-14 bg-slate-150 rounded mx-auto" /></td>
+                      <td className="px-6 py-4 text-right"><div className="h-3 w-20 bg-slate-150 rounded ml-auto" /></td>
+                    </tr>
+                  ))
                 ) : paginatedStudents.length > 0 ? (
                   paginatedStudents.map((st: any, i: number) => (
                     <tr key={i} className="hover:bg-slate-50/30 transition-colors">
