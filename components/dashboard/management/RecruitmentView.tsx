@@ -34,11 +34,26 @@ import {
   List,
   Columns,
   RefreshCw,
-  Eye
+  Eye,
+  ChevronDown
 } from 'lucide-react'
 
 interface RecruitmentViewProps {
   schoolId?: string
+}
+
+const avatarColors = [
+  'bg-indigo-50 text-indigo-700 border border-indigo-200/60',
+  'bg-emerald-50 text-emerald-700 border border-emerald-200/60',
+  'bg-purple-50 text-purple-700 border border-purple-200/60',
+  'bg-rose-50 text-rose-700 border border-rose-200/60',
+  'bg-amber-50 text-amber-700 border border-amber-200/60',
+  'bg-sky-50 text-sky-700 border border-sky-200/60'
+]
+const getAvatarColor = (name: string) => {
+  const cleanName = name || 'XX'
+  const charCode = cleanName.charCodeAt(0) + (cleanName.charCodeAt(1) || 0)
+  return avatarColors[charCode % avatarColors.length]
 }
 
 export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) => {
@@ -327,7 +342,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
     return (
       <div className="flex items-center justify-center min-h-[400px] bg-slate-50">
         <div className="flex flex-col items-center gap-3">
-          <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+          <RefreshCw className="w-8 h-8 animate-spin text-indigo-600" />
           <p className="text-sm font-semibold text-slate-700">Loading Recruitment & Appraisals...</p>
         </div>
       </div>
@@ -350,7 +365,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
         <div className="flex items-center gap-3">
           <button
             onClick={fetchAllData}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
+            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 hover:text-slate-900 text-slate-600 transition-colors shadow-xs bg-white cursor-pointer"
             title="Refresh Data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -376,7 +391,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 setShowCandModal(true)
               }
             }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-md transition-all transform active:scale-95"
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold text-sm rounded-xl shadow-md transition-all transform active:scale-95 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>
@@ -403,10 +418,10 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-semibold text-sm transition-all ${
+              className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-semibold text-sm transition-all cursor-pointer ${
                 isActive
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
+                  ? 'bg-indigo-500 text-white shadow-sm hover:bg-indigo-600'
+                  : 'bg-white text-slate-655 hover:bg-slate-50 hover:text-slate-800 border border-slate-200'
               }`}
             >
               <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
@@ -415,7 +430,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                   isActive
                     ? 'bg-white/20 text-white'
-                    : 'bg-slate-200 text-slate-800'
+                    : 'bg-slate-100 text-slate-500 border border-slate-200/60'
                 }`}>
                   {tab.count}
                 </span>
@@ -454,10 +469,10 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                         {kpi.label}
                       </span>
-                      <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+                      <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100/60">
                         <KpiIcon className="w-5 h-5" />
                       </div>
                     </div>
@@ -466,9 +481,20 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                         {kpi.value}
                       </span>
                     </div>
-                    <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                      <TrendingUp className="w-3.5 h-3.5 text-emerald-600 font-bold" />
-                      <span>{kpi.change}</span>
+                    <div className="mt-3.5 flex items-center justify-between">
+                      <span className="text-xs font-medium text-slate-500">{kpi.change}</span>
+                      <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                        kpi.trend === 'up'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                          : kpi.trend === 'down'
+                          ? 'bg-rose-50 text-rose-700 border-rose-200/60'
+                          : 'bg-slate-50 text-slate-650 border-slate-200/60'
+                      }`}>
+                        {kpi.trend === 'up' && <TrendingUp className="w-3 h-3 text-emerald-650" />}
+                        {kpi.trend === 'down' && <AlertCircle className="w-3 h-3 text-rose-650" />}
+                        {kpi.trend === 'neutral' && <Clock className="w-3 h-3 text-slate-400" />}
+                        <span>{kpi.trend === 'up' ? 'Active' : kpi.trend === 'down' ? 'Action' : 'Stable'}</span>
+                      </span>
                     </div>
                   </div>
                 )
@@ -486,7 +512,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 </div>
                 <button
                   onClick={() => setActiveTab('candidates')}
-                  className="text-sm font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+                  className="text-sm font-bold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <span>View All Candidates</span>
                   <ChevronRight className="w-4 h-4" />
@@ -499,13 +525,13 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   return (
                     <div
                       key={stage}
-                      className="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex flex-col min-h-[380px]"
+                      className="bg-slate-50/70 rounded-2xl p-3 border border-slate-200 flex flex-col min-h-[440px] shadow-xs"
                     >
-                      <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
-                        <span className="font-bold text-sm text-slate-900">
+                      <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200/80">
+                        <span className="font-bold text-xs uppercase tracking-wider text-slate-700">
                           {stage}
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-800">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
                           {stageCandidates.length}
                         </span>
                       </div>
@@ -523,43 +549,48 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0">
+                                  <div className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shadow-xs shrink-0 ${getAvatarColor(cand.name)}`}>
                                     {cand.avatarInitials || 'XX'}
                                   </div>
                                   <div>
-                                    <h4 className="font-bold text-sm text-slate-900 group-hover:text-blue-600 transition-colors">
+                                    <h4 className="font-bold text-xs text-slate-800 group-hover:text-indigo-600 transition-colors tracking-tight">
                                       {cand.name}
                                     </h4>
-                                    <p className="text-xs font-medium text-slate-500">
-                                      {cand.roleApplied || 'General'} • {cand.department || 'SCIENCE'}
+                                    <p className="text-[10px] text-slate-500 mt-0.5 font-medium flex items-center gap-1.5 flex-wrap">
+                                      <span>{cand.roleApplied || 'General'}</span>
+                                      <span className="text-slate-300">•</span>
+                                      <span className="px-1.5 py-0.2 bg-slate-50 border border-slate-200/60 rounded text-[9px] font-bold text-slate-500 uppercase">{cand.department || 'SCIENCE'}</span>
                                     </p>
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700">
-                                <span className="flex items-center gap-1 text-slate-600">
+                              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-600">
+                                <span className="flex items-center gap-1 text-slate-500">
                                   <Clock className="w-3.5 h-3.5 text-slate-400" />
                                   {cand.yearsOfExperience} yrs exp
                                 </span>
                                 {cand.expectedSalary && (
-                                  <span className="font-bold text-slate-900">
+                                  <span className="font-bold text-slate-700">
                                     {cand.expectedSalary}
                                   </span>
                                 )}
                               </div>
 
                               {/* Stage shifter */}
-                              <div className="mt-3 flex gap-1 justify-end">
-                                <select
-                                  value={cand.workflowStatus || 'Requirement'}
-                                  onChange={e => handleUpdateCandidateStatus(cand, e.target.value)}
-                                  className="text-[11px] font-bold bg-slate-100 text-slate-800 rounded-lg px-2 py-1 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                >
-                                  {stages.map(s => (
-                                    <option key={s} value={s}>{s}</option>
-                                  ))}
-                                </select>
+                              <div className="mt-3 pt-2 border-t border-slate-100 flex flex-col gap-1">
+                                <div className="relative w-full">
+                                  <select
+                                    value={cand.workflowStatus || 'Requirement'}
+                                    onChange={e => handleUpdateCandidateStatus(cand, e.target.value)}
+                                    className="w-full text-[10px] font-bold bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg pl-2 pr-6 py-1 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer appearance-none transition-all"
+                                  >
+                                    {stages.map(s => (
+                                      <option key={s} value={s}>{s}</option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown className="w-3 h-3 text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                </div>
                               </div>
                             </div>
                           ))
@@ -592,7 +623,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   placeholder="Search role, subject, department..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 font-medium"
+                  className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50/50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 placeholder:text-slate-400 font-medium transition-all"
                 />
               </div>
 
@@ -602,7 +633,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   <select
                     value={departmentFilter}
                     onChange={e => setDepartmentFilter(e.target.value)}
-                    className="bg-transparent text-sm font-bold text-slate-800 focus:outline-none"
+                    className="bg-transparent text-sm font-bold text-slate-800 focus:outline-none cursor-pointer"
                   >
                     <option value="ALL">All Departments</option>
                     <option value="SCIENCE">Science</option>
@@ -620,7 +651,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-700 text-xs font-bold uppercase tracking-wider">
+                    <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-700 text-xs font-bold uppercase tracking-wider">
                       <th className="p-4">Job Title & Program</th>
                       <th className="p-4">Department</th>
                       <th className="p-4">Experience & Qual</th>
@@ -639,7 +670,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                         return matchSearch && matchDept
                       })
                       .map(req => (
-                        <tr key={req.id || req._id} className="hover:bg-slate-50/80 transition-colors">
+                        <tr key={req.id || req._id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="p-4 font-bold text-slate-900">
                             <div>{req.jobTitle}</div>
                             <div className="text-xs font-medium text-slate-500 mt-0.5">
@@ -647,7 +678,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                             </div>
                           </td>
                           <td className="p-4">
-                            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/50">
                               {req.department || 'SCIENCE'}
                             </span>
                           </td>
@@ -659,10 +690,10 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                             {req.vacancies}
                           </td>
                           <td className="p-4">
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
                               (req.status || '').toLowerCase() === 'open'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-slate-100 text-slate-700'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                                : 'bg-slate-50 text-slate-600 border-slate-200/60'
                             }`}>
                               {req.status || 'Open'}
                             </span>
@@ -689,14 +720,14 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                                   })
                                   setShowReqModal(true)
                                 }}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 hover:text-blue-600 transition-colors"
+                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-indigo-650 transition-colors cursor-pointer"
                                 title="Edit Requirement"
                               >
                                 <Edit className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteRequirement(req.id || req._id)}
-                                className="p-1.5 rounded-lg hover:bg-red-50 text-slate-700 hover:text-red-600 transition-colors"
+                                className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
                                 title="Delete Requirement"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -871,13 +902,16 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                               )}
                             </td>
                             <td className="p-4">
-                              <select
-                                value={cand.workflowStatus || 'Requirement'}
-                                onChange={e => handleUpdateCandidateStatus(cand, e.target.value)}
-                                className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 text-slate-900 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              >
-                                {stages.map(s => <option key={s} value={s}>{s}</option>)}
-                              </select>
+                              <div className="relative inline-block w-40">
+                                <select
+                                  value={cand.workflowStatus || 'Requirement'}
+                                  onChange={e => handleUpdateCandidateStatus(cand, e.target.value)}
+                                  className="w-full text-xs font-bold pl-3 pr-8 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer transition-all"
+                                >
+                                  {stages.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                              </div>
                             </td>
                             <td className="p-4 text-right">
                               <div className="flex items-center justify-end gap-2">
@@ -1303,7 +1337,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
       {/* 1. Job Requirement Modal */}
       <AnimatePresence>
         {showReqModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1314,7 +1348,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 <h3 className="text-lg font-bold text-slate-900">
                   {editingReq ? 'Edit Job Requirement' : 'Add New Job Requirement'}
                 </h3>
-                <button onClick={() => setShowReqModal(false)} className="text-slate-400 hover:text-slate-700">
+                <button onClick={() => setShowReqModal(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1329,7 +1363,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={reqForm.jobTitle}
                       onChange={e => setReqForm({ ...reqForm, jobTitle: e.target.value })}
                       placeholder="e.g. Senior Physics Teacher"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1340,7 +1374,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={reqForm.subjectProgram}
                       onChange={e => setReqForm({ ...reqForm, subjectProgram: e.target.value })}
                       placeholder="e.g. High School Physics"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                 </div>
@@ -1351,7 +1385,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     <select
                       value={reqForm.department}
                       onChange={e => setReqForm({ ...reqForm, department: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all cursor-pointer"
                     >
                       <option value="SCIENCE">Science</option>
                       <option value="MATHEMATICS">Mathematics</option>
@@ -1367,7 +1401,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       min="1"
                       value={reqForm.vacancies}
                       onChange={e => setReqForm({ ...reqForm, vacancies: Number(e.target.value) })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all"
                     />
                   </div>
                   <div>
@@ -1375,7 +1409,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     <select
                       value={reqForm.status}
                       onChange={e => setReqForm({ ...reqForm, status: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all cursor-pointer"
                     >
                       <option value="Open">Open</option>
                       <option value="Closed">Closed</option>
@@ -1392,7 +1426,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={reqForm.experienceRequired}
                       onChange={e => setReqForm({ ...reqForm, experienceRequired: e.target.value })}
                       placeholder="e.g. 3+ Years in CBSE/IB"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1402,7 +1436,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={reqForm.qualificationRequired}
                       onChange={e => setReqForm({ ...reqForm, qualificationRequired: e.target.value })}
                       placeholder="e.g. M.Sc Physics + B.Ed"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                 </div>
@@ -1414,7 +1448,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       type="date"
                       value={reqForm.postingDate}
                       onChange={e => setReqForm({ ...reqForm, postingDate: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1423,7 +1457,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       type="date"
                       value={reqForm.closingDate}
                       onChange={e => setReqForm({ ...reqForm, closingDate: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                 </div>
@@ -1432,13 +1466,13 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   <button
                     type="button"
                     onClick={() => setShowReqModal(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm font-semibold"
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm font-semibold cursor-pointer transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-md"
+                    className="px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold shadow-md cursor-pointer transition-all transform active:scale-95"
                   >
                     Save Requirement
                   </button>
@@ -1452,7 +1486,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
       {/* 2. Candidate Profile Modal */}
       <AnimatePresence>
         {showCandModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1463,7 +1497,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 <h3 className="text-lg font-bold text-slate-900">
                   {editingCand ? 'Edit Candidate Profile' : 'Add New Candidate Profile'}
                 </h3>
-                <button onClick={() => setShowCandModal(false)} className="text-slate-400 hover:text-slate-700">
+                <button onClick={() => setShowCandModal(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1478,7 +1512,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={candForm.name}
                       onChange={e => setCandForm({ ...candForm, name: e.target.value })}
                       placeholder="e.g. Dr. Sarah Jenkins"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1489,7 +1523,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={candForm.roleApplied}
                       onChange={e => setCandForm({ ...candForm, roleApplied: e.target.value })}
                       placeholder="e.g. Physics Faculty"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                 </div>
@@ -1502,7 +1536,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={candForm.contactEmail}
                       onChange={e => setCandForm({ ...candForm, contactEmail: e.target.value })}
                       placeholder="sarah.j@example.com"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1512,7 +1546,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={candForm.contactPhone}
                       onChange={e => setCandForm({ ...candForm, contactPhone: e.target.value })}
                       placeholder="+1 (555) 019-2834"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                 </div>
@@ -1523,7 +1557,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     <select
                       value={candForm.department}
                       onChange={e => setCandForm({ ...candForm, department: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all cursor-pointer"
                     >
                       <option value="SCIENCE">Science</option>
                       <option value="MATHEMATICS">Mathematics</option>
@@ -1539,7 +1573,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={candForm.yearsOfExperience}
                       onChange={e => setCandForm({ ...candForm, yearsOfExperience: e.target.value })}
                       placeholder="5"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1547,7 +1581,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     <select
                       value={candForm.workflowStatus}
                       onChange={e => setCandForm({ ...candForm, workflowStatus: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all cursor-pointer"
                     >
                       {stages.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
@@ -1562,7 +1596,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={candForm.qualification}
                       onChange={e => setCandForm({ ...candForm, qualification: e.target.value })}
                       placeholder="Ph.D in Applied Physics"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1572,7 +1606,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={candForm.currentOrganization}
                       onChange={e => setCandForm({ ...candForm, currentOrganization: e.target.value })}
                       placeholder="St. Jude International School"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                 </div>
@@ -1585,7 +1619,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={candForm.expectedSalary}
                       onChange={e => setCandForm({ ...candForm, expectedSalary: e.target.value })}
                       placeholder="$75,000 / yr"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1595,7 +1629,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={candForm.resumeLink}
                       onChange={e => setCandForm({ ...candForm, resumeLink: e.target.value })}
                       placeholder="https://drive.google.com/..."
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                 </div>
@@ -1604,13 +1638,13 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   <button
                     type="button"
                     onClick={() => setShowCandModal(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm font-semibold"
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm font-semibold cursor-pointer transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-md"
+                    className="px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold shadow-md cursor-pointer transition-all transform active:scale-95"
                   >
                     Save Candidate
                   </button>
@@ -1624,7 +1658,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
       {/* 3. Interview Schedule Modal */}
       <AnimatePresence>
         {showIntModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1635,7 +1669,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 <h3 className="text-lg font-bold text-slate-900">
                   {editingInt ? 'Edit Interview Evaluation' : 'Schedule / Log Interview'}
                 </h3>
-                <button onClick={() => setShowIntModal(false)} className="text-slate-400 hover:text-slate-700">
+                <button onClick={() => setShowIntModal(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1654,7 +1688,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                         candidateName: sel?.name || e.target.value
                       })
                     }}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-bold"
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all cursor-pointer"
                   >
                     <option value="">-- Select Candidate --</option>
                     {candidates.map(c => (
@@ -1672,7 +1706,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={intForm.dateTime}
                       onChange={e => setIntForm({ ...intForm, dateTime: e.target.value })}
                       placeholder="e.g. July 12, 2026 10:00 AM"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1680,7 +1714,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     <select
                       value={intForm.mode}
                       onChange={e => setIntForm({ ...intForm, mode: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all cursor-pointer"
                     >
                       <option value="In-person">In-person</option>
                       <option value="Online">Online (Zoom / Meet)</option>
@@ -1696,7 +1730,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={intForm.locationOrLink}
                       onChange={e => setIntForm({ ...intForm, locationOrLink: e.target.value })}
                       placeholder="Room 4B / Meet Link"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1706,7 +1740,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={intForm.interviewerName}
                       onChange={e => setIntForm({ ...intForm, interviewerName: e.target.value })}
                       placeholder="Dr. Kumar & Prof. Sharma"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                 </div>
@@ -1717,7 +1751,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     <select
                       value={intForm.rating}
                       onChange={e => setIntForm({ ...intForm, rating: Number(e.target.value) })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all cursor-pointer"
                     >
                       <option value={5}>⭐⭐⭐⭐⭐ (5 - Exceptional)</option>
                       <option value={4}>⭐⭐⭐⭐ (4 - Very Good)</option>
@@ -1731,7 +1765,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     <select
                       value={intForm.finalResult}
                       onChange={e => setIntForm({ ...intForm, finalResult: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-extrabold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-extrabold transition-all cursor-pointer"
                     >
                       <option value="Pending">Pending</option>
                       <option value="Pass">Pass / Shortlisted</option>
@@ -1749,7 +1783,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     value={intForm.feedbackText}
                     onChange={e => setIntForm({ ...intForm, feedbackText: e.target.value })}
                     placeholder="Excellent subject mastery, strong classroom communication..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                   />
                 </div>
 
@@ -1757,13 +1791,13 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   <button
                     type="button"
                     onClick={() => setShowIntModal(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm font-semibold"
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm font-semibold cursor-pointer transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-md"
+                    className="px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold shadow-md cursor-pointer transition-all transform active:scale-95"
                   >
                     Save Interview
                   </button>
@@ -1777,7 +1811,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
       {/* 4. Teacher Appraisal Modal */}
       <AnimatePresence>
         {showAppModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1788,7 +1822,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 <h3 className="text-lg font-bold text-slate-900">
                   {editingApp ? 'Edit Teacher Appraisal' : 'Start New Teacher Appraisal'}
                 </h3>
-                <button onClick={() => setShowAppModal(false)} className="text-slate-400 hover:text-slate-700">
+                <button onClick={() => setShowAppModal(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1803,7 +1837,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       value={appForm.teacherName}
                       onChange={e => setAppForm({ ...appForm, teacherName: e.target.value })}
                       placeholder="e.g. Prof. Alan Turing"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1811,7 +1845,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     <select
                       value={appForm.department}
                       onChange={e => setAppForm({ ...appForm, department: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all cursor-pointer"
                     >
                       <option value="Science">Science</option>
                       <option value="Mathematics">Mathematics</option>
@@ -1828,7 +1862,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     <select
                       value={appForm.period}
                       onChange={e => setAppForm({ ...appForm, period: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all cursor-pointer"
                     >
                       <option value="Annual">Annual</option>
                       <option value="Mid-Term">Mid-Term</option>
@@ -1841,7 +1875,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       type="text"
                       value={appForm.academicYear}
                       onChange={e => setAppForm({ ...appForm, academicYear: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
                   <div>
@@ -1849,7 +1883,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     <select
                       value={appForm.reviewStatus}
                       onChange={e => setAppForm({ ...appForm, reviewStatus: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all cursor-pointer"
                     >
                       <option value="Pending">Pending</option>
                       <option value="In Progress">In Progress</option>
@@ -1865,7 +1899,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       type="text"
                       value={appForm.teachingRating}
                       onChange={e => setAppForm({ ...appForm, teachingRating: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-sm font-extrabold text-center text-slate-900"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-sm font-extrabold text-center text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                     />
                   </div>
                   <div>
@@ -1874,7 +1908,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       type="text"
                       value={appForm.punctualityRating}
                       onChange={e => setAppForm({ ...appForm, punctualityRating: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-sm font-extrabold text-center text-slate-900"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-sm font-extrabold text-center text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                     />
                   </div>
                   <div>
@@ -1883,7 +1917,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       type="text"
                       value={appForm.studentFeedbackAverage}
                       onChange={e => setAppForm({ ...appForm, studentFeedbackAverage: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-sm font-extrabold text-center text-blue-600"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-sm font-extrabold text-center text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                     />
                   </div>
                   <div>
@@ -1891,7 +1925,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     <select
                       value={appForm.overallRating}
                       onChange={e => setAppForm({ ...appForm, overallRating: e.target.value })}
-                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-900"
+                      className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
                     >
                       <option value="Excellent">Excellent</option>
                       <option value="Good">Good</option>
@@ -1908,7 +1942,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     value={appForm.remarksGoals}
                     onChange={e => setAppForm({ ...appForm, remarksGoals: e.target.value })}
                     placeholder="Consistently achieves top exam results. Goal: Lead STEM curriculum revision."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                   />
                 </div>
 
@@ -1919,7 +1953,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                     value={appForm.improvementAreas}
                     onChange={e => setAppForm({ ...appForm, improvementAreas: e.target.value })}
                     placeholder="e.g. Integrate more digital labs in coursework"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 font-medium"
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                   />
                 </div>
 
@@ -1927,13 +1961,13 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   <button
                     type="button"
                     onClick={() => setShowAppModal(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm font-semibold"
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm font-semibold cursor-pointer transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold shadow-md"
+                    className="px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold shadow-md cursor-pointer transition-all transform active:scale-95"
                   >
                     Save Appraisal
                   </button>
@@ -1947,7 +1981,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
       {/* 5. Audit Log Diffs Inspector Modal */}
       <AnimatePresence>
         {showDiffModal && selectedAudit && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1957,14 +1991,14 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
               <div className="flex justify-between items-center border-b border-slate-200 pb-3 font-sans">
                 <div>
                   <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-blue-600" />
+                    <Shield className="w-4 h-4 text-indigo-600" />
                     <span>Audit Event Diff Inspector</span>
                   </h3>
                   <p className="text-xs font-medium text-slate-500 mt-0.5">
                     {selectedAudit.userActionType} on {selectedAudit.tableName}
                   </p>
                 </div>
-                <button onClick={() => setShowDiffModal(false)} className="text-slate-400 hover:text-slate-700">
+                <button onClick={() => setShowDiffModal(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1972,14 +2006,14 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
               <div className="space-y-4">
                 <div>
                   <span className="font-sans font-bold text-slate-800">Previous Values (Old):</span>
-                  <pre className="mt-1 p-3 rounded-xl bg-slate-50 overflow-x-auto text-slate-900 border border-slate-200 font-semibold">
+                  <pre className="mt-1 p-3 rounded-xl bg-slate-50 overflow-x-auto text-slate-900 border border-slate-200/60 font-semibold">
                     {selectedAudit.oldValues ? JSON.stringify(JSON.parse(selectedAudit.oldValues || '{}'), null, 2) : 'None (Created)'}
                   </pre>
                 </div>
 
                 <div>
                   <span className="font-sans font-bold text-slate-800">New Values (Modified):</span>
-                  <pre className="mt-1 p-3 rounded-xl bg-emerald-50 overflow-x-auto text-emerald-950 border border-emerald-200 font-semibold">
+                  <pre className="mt-1 p-3 rounded-xl bg-emerald-50 overflow-x-auto text-emerald-950 border border-emerald-200/60 font-semibold">
                     {selectedAudit.newValues ? JSON.stringify(JSON.parse(selectedAudit.newValues || '{}'), null, 2) : 'None (Deleted)'}
                   </pre>
                 </div>
@@ -1988,7 +2022,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
               <div className="flex justify-end pt-3 border-t border-slate-200 font-sans">
                 <button
                   onClick={() => setShowDiffModal(false)}
-                  className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 text-sm font-bold border border-slate-200"
+                  className="px-5 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-bold border border-slate-200/60 cursor-pointer transition-all active:scale-95"
                 >
                   Close Inspector
                 </button>
