@@ -17,19 +17,28 @@ function pickFields(body: any): Partial<NewClassSchedule> {
   return data
 }
 
-// GET — list schedules (?mine=true limits to the signed-in teacher; ?activeOnly=true)
+// GET — list schedules (?mine=true limits to the signed-in teacher; ?activeOnly=true; ?schoolId=)
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const role = (session.user as any).role
     const schoolId = (session.user as any).schoolId as string | null
 
     const { searchParams } = new URL(req.url)
     const mine = searchParams.get('mine') === 'true'
     const activeOnly = searchParams.get('activeOnly') === 'true'
+    const paramSchoolId = searchParams.get('schoolId')
 
     const conditions = []
-    if (schoolId) conditions.push(eq(classSchedules.schoolId, schoolId))
+    if (role === 'management') {
+      const targetSchoolId = paramSchoolId !== null ? paramSchoolId : schoolId
+      if (targetSchoolId && targetSchoolId !== 'ALL' && targetSchoolId !== 'null') {
+        conditions.push(eq(classSchedules.schoolId, targetSchoolId))
+      }
+    } else if (schoolId && schoolId !== 'null') {
+      conditions.push(eq(classSchedules.schoolId, schoolId))
+    }
     if (mine && session.user.email) conditions.push(eq(classSchedules.teacherEmail, session.user.email))
     if (activeOnly) conditions.push(eq(classSchedules.isActive, true))
 
@@ -72,9 +81,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'dayOfWeek must be 0 (Sunday) through 6 (Saturday)' }, { status: 400 })
     }
 
+    let targetSchoolId = (role === 'management' && body.schoolId !== undefined)
+      ? body.schoolId
+      : schoolId
+    if (targetSchoolId === 'ALL' || targetSchoolId === 'null' || !targetSchoolId) {
+      targetSchoolId = null
+    }
+
     const [created] = await db.insert(classSchedules).values({
       ...(data as NewClassSchedule),
-      schoolId,
+      schoolId: targetSchoolId,
     }).returning()
     return NextResponse.json({ _id: created.id, ...created }, { status: 201 })
   } catch (error: any) {
@@ -94,12 +110,19 @@ export async function PATCH(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
     const conditions = [eq(classSchedules.id, id)]
-    if (schoolId) conditions.push(eq(classSchedules.schoolId, schoolId))
-    if (role === 'teacher') conditions.push(eq(classSchedules.teacherEmail, session.user.email ?? ''))
-    else if (role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (role === 'teacher') {
+      if (schoolId && schoolId !== 'null') conditions.push(eq(classSchedules.schoolId, schoolId))
+      conditions.push(eq(classSchedules.teacherEmail, session.user.email ?? ''))
+    } else if (role !== 'management') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const body = await req.json()
-    const data = pickFields(body)
+    const data: Record<string, any> = pickFields(body)
+    if (role === 'management' && 'schoolId' in body) {
+      const s = body.schoolId
+      data.schoolId = (s && s !== 'ALL' && s !== 'null') ? s : null
+    }
     if (Object.keys(data).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
 
     const [updated] = await db.update(classSchedules)
@@ -125,9 +148,12 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
     const conditions = [eq(classSchedules.id, id)]
-    if (schoolId) conditions.push(eq(classSchedules.schoolId, schoolId))
-    if (role === 'teacher') conditions.push(eq(classSchedules.teacherEmail, session.user.email ?? ''))
-    else if (role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (role === 'teacher') {
+      if (schoolId && schoolId !== 'null') conditions.push(eq(classSchedules.schoolId, schoolId))
+      conditions.push(eq(classSchedules.teacherEmail, session.user.email ?? ''))
+    } else if (role !== 'management') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     await db.delete(classSchedules).where(and(...conditions))
     return NextResponse.json({ success: true })

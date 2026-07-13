@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import SchoolDetailsModal from './SchoolDetailsModal'
 import ProtocolsModal from './ProtocolsModal'
 import AnnouncementsView from './AnnouncementsView'
+import ScheduleManagementView from './ScheduleManagementView'
 import { getLocalToday, buildTodaysClasses, type TodayClassEntry } from '@/lib/scheduleUtils'
 
 const fadeUp = (delay = 0) => ({
@@ -37,11 +38,26 @@ export default function InstitutionalDashboard() {
   const [readIds, setReadIds] = useState<string[]>([])
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null)
   const [isManageAnnouncementsOpen, setIsManageAnnouncementsOpen] = useState(false)
+  const [isManageScheduleOpen, setIsManageScheduleOpen] = useState(false)
 
   async function fetchAnnouncements() {
     const res = await fetch('/api/announcements')
     const data = await res.json()
     if (Array.isArray(data)) setAnnouncements(data)
+  }
+
+  async function refreshTodaysSchedule() {
+    const todayIso = getLocalToday()
+    const todayDow = new Date().getDay()
+    const [regular, special] = await Promise.all([
+      fetch('/api/schedule?activeOnly=true').then(r => r.ok ? r.json() : []),
+      fetch(`/api/special-classes?date=${todayIso}`).then(r => r.ok ? r.json() : []),
+    ])
+    setTodaysSchedule(buildTodaysClasses(
+      Array.isArray(regular) ? regular : [],
+      Array.isArray(special) ? special : [],
+      todayIso, todayDow, true
+    ))
   }
 
   useEffect(() => {
@@ -51,19 +67,7 @@ export default function InstitutionalDashboard() {
       .finally(() => setSchoolLoading(false))
     fetchProtocols()
     fetchAnnouncements()
-
-    const todayIso = getLocalToday()
-    const todayDow = new Date().getDay()
-    Promise.all([
-      fetch('/api/schedule?activeOnly=true').then(r => r.ok ? r.json() : []),
-      fetch(`/api/special-classes?date=${todayIso}`).then(r => r.ok ? r.json() : []),
-    ]).then(([regular, special]) => {
-      setTodaysSchedule(buildTodaysClasses(
-        Array.isArray(regular) ? regular : [],
-        Array.isArray(special) ? special : [],
-        todayIso, todayDow, true
-      ))
-    }).catch(() => {})
+    refreshTodaysSchedule()
   }, [])
 
   useEffect(() => {
@@ -295,9 +299,12 @@ export default function InstitutionalDashboard() {
           <div className="flex items-center gap-2 font-bold text-slate-900 text-[15px]">
             <CalendarClock className="w-5 h-5 text-slate-700" /> Today's Class Schedule
           </div>
-          <Link href="/management/academic-planning" className="text-[13px] font-bold text-indigo-600 hover:text-indigo-700">
+          <button
+            onClick={() => setIsManageScheduleOpen(true)}
+            className="text-[13px] font-bold text-indigo-600 hover:text-indigo-700 bg-transparent border-none cursor-pointer"
+          >
             Manage Schedule
-          </Link>
+          </button>
         </div>
         <table className="w-full">
           <thead>
@@ -432,6 +439,44 @@ export default function InstitutionalDashboard() {
               {/* Modal Body - Contains the view */}
               <div className="flex-1 overflow-hidden relative">
                 <AnnouncementsView />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Manage Schedule Modal */}
+      <AnimatePresence>
+        {isManageScheduleOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-6xl h-[88vh] flex flex-col overflow-hidden"
+            >
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
+                    <CalendarClock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Schedule & Timetable Management</h3>
+                    <p className="text-[11px] text-slate-500">Add, edit, and assign schedules across your connected schools</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsManageScheduleOpen(false)
+                    refreshTodaysSchedule()
+                  }}
+                  className="p-1.5 hover:bg-slate-200 rounded-lg text-gray-400 hover:text-gray-600 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+                <ScheduleManagementView onUpdate={refreshTodaysSchedule} />
               </div>
             </motion.div>
           </div>
