@@ -1,13 +1,14 @@
 import crypto from 'crypto'
 
-export function generateToken(): string {
-  return crypto.randomBytes(32).toString('hex')
+export function generateOtp(): string {
+  // crypto.randomInt avoids Math.random()'s modulo bias for a security code
+  return crypto.randomInt(100000, 1000000).toString()
 }
 
-export function isTokenExpired(expiresAt: Date): boolean {
+export function isExpired(expiresAt: Date): boolean {
   return new Date() > expiresAt
 }
 
-export function getTokenExpiry(hours = 24): Date {
-  return new Date(Date.now() + hours * 60 * 60 * 1000)
+export function getExpiry(minutes = 10): Date {
+  return new Date(Date.now() + minutes * 60 * 1000)
 }

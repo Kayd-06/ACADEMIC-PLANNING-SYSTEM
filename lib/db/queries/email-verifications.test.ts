@@ -4,13 +4,14 @@ import { eq } from 'drizzle-orm'
 import { createUser } from './users'
 import {
   createEmailVerification,
-  findVerificationByToken,
-  deleteVerificationByToken,
+  findLatestVerificationForUser,
+  incrementVerificationAttempts,
+  deleteVerificationsForUser,
 } from './email-verifications'
 
 describe('email verification queries', () => {
   const testEmail = `test-verify-queries-${Date.now()}@example.com`
-  const testToken = `test-token-${Date.now()}`
+  const testOtp = '123456'
   let userId: string
 
   beforeAll(async () => {
@@ -32,26 +33,35 @@ describe('email verification queries', () => {
   it('createEmailVerification inserts a row', async () => {
     const verification = await createEmailVerification({
       userId,
-      token: testToken,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      otp: testOtp,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     })
-    expect(verification.token).toBe(testToken)
+    expect(verification.otp).toBe(testOtp)
     expect(verification.userId).toBe(userId)
+    expect(verification.attempts).toBe(0)
   })
 
-  it('findVerificationByToken returns the created row', async () => {
-    const verification = await findVerificationByToken(testToken)
+  it('findLatestVerificationForUser returns the most recently created row', async () => {
+    const verification = await findLatestVerificationForUser(userId)
     expect(verification?.userId).toBe(userId)
+    expect(verification?.otp).toBe(testOtp)
   })
 
-  it('findVerificationByToken returns null for an unknown token', async () => {
-    const verification = await findVerificationByToken('does-not-exist')
+  it('findLatestVerificationForUser returns null for a user with no verification', async () => {
+    const verification = await findLatestVerificationForUser('00000000-0000-0000-0000-000000000000')
     expect(verification).toBeNull()
   })
 
-  it('deleteVerificationByToken removes the row', async () => {
-    await deleteVerificationByToken(testToken)
-    const verification = await findVerificationByToken(testToken)
+  it('incrementVerificationAttempts bumps the attempt count', async () => {
+    const before = await findLatestVerificationForUser(userId)
+    await incrementVerificationAttempts(before!.id)
+    const after = await findLatestVerificationForUser(userId)
+    expect(after?.attempts).toBe((before?.attempts ?? 0) + 1)
+  })
+
+  it('deleteVerificationsForUser removes all rows for the user', async () => {
+    await deleteVerificationsForUser(userId)
+    const verification = await findLatestVerificationForUser(userId)
     expect(verification).toBeNull()
   })
 })

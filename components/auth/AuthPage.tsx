@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -10,14 +10,14 @@ type SignupStep = 'select' | 'teacher' | 'management'
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
-function FieldInput({ icon, ...props }: { icon: React.ReactNode } & React.InputHTMLAttributes<HTMLInputElement>) {
+function FieldInput({ icon, className, ...props }: { icon: React.ReactNode } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className="relative">
       <input
         {...props}
-        className="w-full bg-gray-100 rounded-lg px-4 py-2.5 pr-10 text-sm text-gray-800
+        className={`w-full bg-gray-100 rounded-lg px-4 py-2.5 pr-10 text-sm text-gray-800
                    placeholder-gray-400 focus:outline-none focus:bg-gray-50
-                   focus:ring-2 focus:ring-indigo-400/30 transition-all"
+                   focus:ring-2 focus:ring-indigo-400/30 transition-all ${className ?? ''}`}
       />
       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
         {icon}
@@ -89,6 +89,23 @@ function LoginForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // A teacher who signed up but never finished OTP verification (or closed
+  // the tab before it) has no other way back to that screen — this lets
+  // them resume by re-requesting a code with just their email.
+  const [showResume, setShowResume] = useState(false)
+  const [resumeStage, setResumeStage] = useState<'email' | 'otp' | 'done'>('email')
+  const [resumeEmail, setResumeEmail] = useState('')
+  const [resumeOtp, setResumeOtp] = useState('')
+  const [resumeError, setResumeError] = useState('')
+  const [resumeLoading, setResumeLoading] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const t = setInterval(() => setResendCooldown(s => Math.max(0, s - 1)), 1000)
+    return () => clearInterval(t)
+  }, [resendCooldown])
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -104,6 +121,98 @@ function LoginForm() {
     router.refresh()
   }
 
+  function closeResume() {
+    setShowResume(false)
+    setResumeStage('email')
+    setResumeOtp('')
+    setResumeError('')
+  }
+
+  async function sendResumeCode(e: React.FormEvent) {
+    e.preventDefault(); setResumeError(''); setResumeLoading(true)
+    try {
+      const res = await fetch('/api/auth/resend-otp', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resumeEmail }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setResumeError(data.error || 'Failed to send code.'); return }
+      setResumeStage('otp')
+      setResendCooldown(30)
+    } finally { setResumeLoading(false) }
+  }
+
+  async function verifyResumeCode(e: React.FormEvent) {
+    e.preventDefault(); setResumeError(''); setResumeLoading(true)
+    try {
+      const res = await fetch('/api/auth/verify-email', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resumeEmail, otp: resumeOtp }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setResumeError(data.error || 'Verification failed.'); return }
+      setResumeStage('done')
+    } finally { setResumeLoading(false) }
+  }
+
+  async function resendResumeCode() {
+    if (resendCooldown > 0) return
+    setResumeError(''); setResumeLoading(true)
+    try {
+      const res = await fetch('/api/auth/resend-otp', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resumeEmail }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setResumeError(data.error || 'Failed to resend code.'); return }
+      setResendCooldown(30)
+    } finally { setResumeLoading(false) }
+  }
+
+  if (showResume) {
+    return (
+      <div className="w-full">
+        <button onClick={closeResume} className="text-xs text-gray-400 hover:text-gray-600 mb-3 block transition-colors">← Back to login</button>
+        <h2 className="text-2xl font-bold text-gray-800 text-center mb-6">Verify Email</h2>
+        <ErrorMsg msg={resumeError} />
+        {resumeStage === 'done' ? (
+          <div className="text-center py-3">
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <p className="text-sm font-medium text-gray-800">Email verified</p>
+            <p className="text-xs text-gray-400 mt-1">You can sign in now</p>
+            <button onClick={closeResume} className="mt-3 text-xs text-indigo-500 hover:text-indigo-600 transition-colors">Back to sign in</button>
+          </div>
+        ) : resumeStage === 'otp' ? (
+          <form onSubmit={verifyResumeCode} className="space-y-2.5">
+            <p className="text-xs text-gray-500">
+              Enter the 6-digit code sent to <span className="font-semibold text-gray-700">{resumeEmail}</span>
+            </p>
+            <FieldInput
+              icon={<Hash className="w-4 h-4" />} type="text" inputMode="numeric" maxLength={6}
+              value={resumeOtp} onChange={e => setResumeOtp(e.target.value.replace(/\D/g, ''))}
+              required placeholder="6-digit code"
+              className="text-center tracking-[0.5em] font-semibold"
+            />
+            <div className="pt-1"><PrimaryBtn loading={resumeLoading}>Verify Email</PrimaryBtn></div>
+            <button
+              type="button" onClick={resendResumeCode} disabled={resumeLoading || resendCooldown > 0}
+              className="w-full text-center text-xs text-indigo-500 hover:text-indigo-600 disabled:text-gray-300 transition-colors pt-1"
+            >
+              {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={sendResumeCode} className="space-y-2.5">
+            <FieldInput icon={<Mail className="w-4 h-4" />} type="email" value={resumeEmail} onChange={e => setResumeEmail(e.target.value)} required placeholder="Your account email" />
+            <div className="pt-1"><PrimaryBtn loading={resumeLoading}>Send Verification Code</PrimaryBtn></div>
+          </form>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="w-full">
       <h2 className="text-2xl font-bold text-gray-800 text-center mb-6">Login</h2>
@@ -111,7 +220,10 @@ function LoginForm() {
       <form onSubmit={submit} className="space-y-3">
         <FieldInput icon={<User className="w-4 h-4" />} type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="Email" />
         <PasswordInput value={password} onChange={e => setPassword(e.target.value)} required placeholder="Password" />
-        <div className="text-right">
+        <div className="flex items-center justify-between">
+          <button type="button" onClick={() => { setResumeEmail(email); setShowResume(true) }} className="text-xs text-gray-400 hover:text-indigo-500 transition-colors">
+            Verify email
+          </button>
           <button type="button" className="text-xs text-gray-400 hover:text-indigo-500 transition-colors">
             Forgot Password?
           </button>
@@ -153,19 +265,60 @@ function RoleSelect({ onSelect }: { onSelect: (s: SignupStep) => void }) {
 
 // ─── Teacher signup ───────────────────────────────────────────────────────────
 
+type TeacherStage = 'form' | 'otp' | 'verified'
+
 function TeacherForm({ onBack }: { onBack: () => void }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', department: '', joinCode: '' })
   const [error, setError] = useState('')
-  const [done, setDone] = useState(false)
+  const [stage, setStage] = useState<TeacherStage>('form')
   const [loading, setLoading] = useState(false)
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const [otp, setOtp] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const t = setInterval(() => setResendCooldown(s => Math.max(0, s - 1)), 1000)
+    return () => clearInterval(t)
+  }, [resendCooldown])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setError(''); setLoading(true)
     const res = await fetch('/api/auth/register/teacher', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
     const data = await res.json(); setLoading(false)
     if (!res.ok) { setError(data.error || 'Registration failed.'); return }
-    setDone(true)
+    setStage('otp')
+    setResendCooldown(30)
+  }
+
+  async function verifyOtp(e: React.FormEvent) {
+    e.preventDefault(); setError(''); setVerifying(true)
+    try {
+      const res = await fetch('/api/auth/verify-email', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email, otp }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Verification failed.'); return }
+      setStage('verified')
+    } finally { setVerifying(false) }
+  }
+
+  async function resendOtp() {
+    if (resendCooldown > 0) return
+    setError(''); setResending(true)
+    try {
+      const res = await fetch('/api/auth/resend-otp', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Failed to resend code.'); return }
+      setResendCooldown(30)
+    } finally { setResending(false) }
   }
 
   return (
@@ -173,15 +326,34 @@ function TeacherForm({ onBack }: { onBack: () => void }) {
       <button onClick={onBack} className="text-xs text-gray-400 hover:text-gray-600 mb-3 block transition-colors">← Back</button>
       <h2 className="text-xl font-bold text-gray-800 mb-4">Teacher Sign Up</h2>
       <ErrorMsg msg={error} />
-      {done ? (
+      {stage === 'verified' ? (
         <div className="text-center py-3">
           <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
             <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
           </div>
-          <p className="text-sm font-medium text-gray-800">Verification email sent</p>
-          <p className="text-xs text-gray-400 mt-1">Check your inbox to activate your account</p>
+          <p className="text-sm font-medium text-gray-800">Email verified</p>
+          <p className="text-xs text-gray-400 mt-1">Your account is active — you can sign in now</p>
           <button onClick={onBack} className="mt-3 text-xs text-indigo-500 hover:text-indigo-600 transition-colors">Back to sign in</button>
         </div>
+      ) : stage === 'otp' ? (
+        <form onSubmit={verifyOtp} className="space-y-2.5">
+          <p className="text-xs text-gray-500">
+            Enter the 6-digit code sent to <span className="font-semibold text-gray-700">{form.email}</span>
+          </p>
+          <FieldInput
+            icon={<Hash className="w-4 h-4" />} type="text" inputMode="numeric" maxLength={6}
+            value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
+            required placeholder="6-digit code"
+            className="text-center tracking-[0.5em] font-semibold"
+          />
+          <div className="pt-1"><PrimaryBtn loading={verifying}>Verify Email</PrimaryBtn></div>
+          <button
+            type="button" onClick={resendOtp} disabled={resending || resendCooldown > 0}
+            className="w-full text-center text-xs text-indigo-500 hover:text-indigo-600 disabled:text-gray-300 transition-colors pt-1"
+          >
+            {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : resending ? 'Sending…' : 'Resend code'}
+          </button>
+        </form>
       ) : (
         <form onSubmit={submit} className="space-y-2.5">
           <FieldInput icon={<User className="w-4 h-4" />} type="text" value={form.name} onChange={set('name')} required placeholder="Full name" />

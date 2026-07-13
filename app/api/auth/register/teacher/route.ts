@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs'
 import { findUserByEmail, createUser } from '@/lib/db/queries/users'
 import { createEmailVerification } from '@/lib/db/queries/email-verifications'
 import { ensureFacultyRecord } from '@/lib/db/queries/faculty'
-import { generateToken, getTokenExpiry } from '@/lib/tokens'
+import { generateOtp, getExpiry } from '@/lib/tokens'
 import { sendVerificationEmail } from '@/lib/mail'
 import { db } from '@/lib/db'
 import { schools } from '@/lib/db/schema'
@@ -52,12 +52,12 @@ export async function POST(req: Request) {
       await ensureFacultyRecord({ userId: user.id, schoolId, name, email, department })
     }
 
-    const token = generateToken()
-    await createEmailVerification({ userId: user.id, token, expiresAt: getTokenExpiry(24) })
-    await sendVerificationEmail(email, name, token)
+    const otp = generateOtp()
+    await createEmailVerification({ userId: user.id, otp, expiresAt: getExpiry(10) })
+    await sendVerificationEmail(email, name, otp)
 
     return NextResponse.json(
-      { message: 'Account created. Please check your email to complete verification.' },
+      { message: 'Account created. Please check your email for a verification code.', email },
       { status: 201 }
     )
   } catch (error) {

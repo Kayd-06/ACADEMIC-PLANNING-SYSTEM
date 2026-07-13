@@ -24,13 +24,19 @@ export const users = pgTable('users', {
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 
+// OTP-based email verification — a 6-digit code emailed to the user, rather
+// than a magic link (which requires NEXT_PUBLIC_APP_URL to be correctly set
+// per-environment; a code sidesteps that entirely and doesn't break when a
+// deployment's URL changes).
 export const emailVerifications = pgTable('email_verifications', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
-  token: varchar('token', { length: 255 }).notNull().unique(),
+  otp: varchar('otp', { length: 6 }).notNull(),
+  attempts: integer('attempts').notNull().default(0),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
 export type EmailVerification = typeof emailVerifications.$inferSelect

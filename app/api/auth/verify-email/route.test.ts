@@ -3,9 +3,9 @@ import { users, emailVerifications } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { createUser } from '@/lib/db/queries/users'
 import { createEmailVerification } from '@/lib/db/queries/email-verifications'
-import { GET } from './route'
+import { POST } from './route'
 
-describe('GET /api/auth/verify-email', () => {
+describe('POST /api/auth/verify-email', () => {
   let userId: string
 
   afterEach(async () => {
@@ -13,25 +13,28 @@ describe('GET /api/auth/verify-email', () => {
     await db.delete(users).where(eq(users.id, userId))
   })
 
-  async function makePendingUserWithToken(token: string, expiresAt: Date) {
+  async function makePendingUserWithOtp(otp: string, expiresAt: Date, attempts = 0) {
+    const email = `test-verify-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`
     const user = await createUser({
       name: 'Pending User',
-      email: `test-verify-${token}@example.com`,
+      email,
       password: 'hashed',
       role: 'teacher',
       status: 'pending_verification',
     })
     userId = user.id
-    await createEmailVerification({ userId: user.id, token, expiresAt })
+    await createEmailVerification({ userId: user.id, otp, expiresAt, attempts })
     return user
   }
 
-  it('activates the user and deletes the token on a valid request', async () => {
-    const token = `valid-token-${Date.now()}`
-    await makePendingUserWithToken(token, new Date(Date.now() + 60 * 60 * 1000))
+  it('activates the user and deletes the code on a valid request', async () => {
+    const user = await makePendingUserWithOtp('123456', new Date(Date.now() + 10 * 60 * 1000))
 
-    const req = new Request(`http://localhost/api/auth/verify-email?token=${token}`)
-    const res = await GET(req)
+    const req = new Request('http://localhost/api/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email: user.email, otp: '123456' }),
+    })
+    const res = await POST(req)
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -40,32 +43,56 @@ describe('GET /api/auth/verify-email', () => {
     const updatedUser = (await db.select().from(users).where(eq(users.id, userId)))[0]
     expect(updatedUser.status).toBe('active')
 
-    const remainingTokens = await db
-      .select()
-      .from(emailVerifications)
-      .where(eq(emailVerifications.token, token))
-    expect(remainingTokens).toHaveLength(0)
+    const remaining = await db.select().from(emailVerifications).where(eq(emailVerifications.userId, userId))
+    expect(remaining).toHaveLength(0)
   })
 
-  it('returns 400 for a token that does not exist', async () => {
-    userId = '00000000-0000-0000-0000-000000000000'
-    const req = new Request('http://localhost/api/auth/verify-email?token=does-not-exist')
-    const res = await GET(req)
+  it('returns 400 for an incorrect code', async () => {
+    const user = await makePendingUserWithOtp('123456', new Date(Date.now() + 10 * 60 * 1000))
+
+    const req = new Request('http://localhost/api/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email: user.email, otp: '000000' }),
+    })
+    const res = await POST(req)
     expect(res.status).toBe(400)
+
+    const updatedUser = (await db.select().from(users).where(eq(users.id, userId)))[0]
+    expect(updatedUser.status).toBe('pending_verification')
   })
 
-  it('returns 410 and deletes the token for an expired link', async () => {
-    const token = `expired-token-${Date.now()}`
-    await makePendingUserWithToken(token, new Date(Date.now() - 60 * 60 * 1000))
+  it('returns 404 for an email with no account', async () => {
+    userId = '00000000-0000-0000-0000-000000000000'
+    const req = new Request('http://localhost/api/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'does-not-exist@example.com', otp: '123456' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(404)
+  })
 
-    const req = new Request(`http://localhost/api/auth/verify-email?token=${token}`)
-    const res = await GET(req)
+  it('returns 410 and deletes the code for an expired one', async () => {
+    const user = await makePendingUserWithOtp('123456', new Date(Date.now() - 60 * 1000))
+
+    const req = new Request('http://localhost/api/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email: user.email, otp: '123456' }),
+    })
+    const res = await POST(req)
     expect(res.status).toBe(410)
 
-    const remainingTokens = await db
-      .select()
-      .from(emailVerifications)
-      .where(eq(emailVerifications.token, token))
-    expect(remainingTokens).toHaveLength(0)
+    const remaining = await db.select().from(emailVerifications).where(eq(emailVerifications.userId, userId))
+    expect(remaining).toHaveLength(0)
+  })
+
+  it('returns 429 once attempts are exhausted', async () => {
+    const user = await makePendingUserWithOtp('123456', new Date(Date.now() + 10 * 60 * 1000), 5)
+
+    const req = new Request('http://localhost/api/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email: user.email, otp: '123456' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(429)
   })
 })
