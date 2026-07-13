@@ -18,6 +18,7 @@ import {
   XCircle,
   Clock,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 function formatShortDate(dateStr: string) {
   if (!dateStr) return '—'
@@ -56,6 +57,16 @@ export default function FeedbackManagementView() {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
 
+  // Faculty list for personalised teacher feedback
+  const [teachersList, setTeachersList] = useState<any[]>([])
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>('ALL')
+
+  // Bulk Excel Upload
+  const [showExcelModal, setShowExcelModal] = useState(false)
+  const [previewRows, setPreviewRows] = useState<any[]>([])
+  const [uploadingBulk, setUploadingBulk] = useState(false)
+  const [bulkError, setBulkError] = useState('')
+
   async function fetchFeedback() {
     setLoading(true)
     try {
@@ -69,7 +80,22 @@ export default function FeedbackManagementView() {
     }
   }
 
-  useEffect(() => { fetchFeedback(); setSearchQuery(''); setRatingFilter(null) }, [activeTab, view])
+  async function fetchTeachers() {
+    try {
+      const res = await fetch('/api/teacher-portal/faculty')
+      if (res.ok) {
+        const list = await res.json()
+        if (Array.isArray(list)) setTeachersList(list)
+      }
+    } catch (err) {}
+  }
+
+  useEffect(() => {
+    fetchFeedback()
+    fetchTeachers()
+    setSearchQuery('')
+    setRatingFilter(null)
+  }, [activeTab, view])
 
   async function handleUpdateStatus(id: string, newStatus: 'Submitted' | 'Reviewed' | 'Actioned' | 'Dismissed') {
     try {
@@ -95,11 +121,18 @@ export default function FeedbackManagementView() {
     if (!sendContent.trim()) { setSendError('Feedback content is required.'); return }
     setSending(true)
     setSendError('')
+    const targetTeacher = teachersList.find(t => t.id === selectedTeacherId)
     try {
       const res = await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: sendContent, rating: sendRating, category: sendCategory }),
+        body: JSON.stringify({
+          content: sendContent,
+          rating: sendRating,
+          category: sendCategory,
+          batch: targetTeacher ? targetTeacher.name : 'All Faculty',
+          subject: targetTeacher ? (targetTeacher.subject || targetTeacher.email || 'Personalised Appraisal') : 'General Management Announcement'
+        }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -109,9 +142,109 @@ export default function FeedbackManagementView() {
       setShowSendModal(false)
       setSendContent('')
       setSendRating(5)
+      setSelectedTeacherId('ALL')
       fetchFeedback()
     } finally {
       setSending(false)
+    }
+  }
+
+  function handleDownloadTemplate() {
+    const sampleData = [
+      {
+        Type: 'Student -> Teacher',
+        Sender: 'Aarav Sharma',
+        Rating: 5,
+        Content: 'Sir explains physics problems very clearly with real-life examples.',
+        Subject: 'Physics',
+        Batch: 'JEE Batch A',
+        Category: 'Academics',
+        Date: new Date().toISOString().split('T')[0]
+      },
+      {
+        Type: 'Parent -> School',
+        Sender: 'Parent of Rohan',
+        Rating: 4,
+        Content: 'We appreciate the weekly progress reports and timely PTM notifications.',
+        Subject: 'General',
+        Batch: 'Class 11',
+        Category: 'Communication',
+        Date: new Date().toISOString().split('T')[0]
+      },
+      {
+        Type: 'Teacher -> Management',
+        Sender: 'Mrs. Gupta',
+        Rating: 5,
+        Content: 'New smartboard in Lab 3 is working great, students are highly engaged.',
+        Subject: 'Chemistry Lab',
+        Batch: 'Staff',
+        Category: 'Infrastructure',
+        Date: new Date().toISOString().split('T')[0]
+      }
+    ]
+    const ws = XLSX.utils.json_to_sheet(sampleData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Feedback Template')
+    XLSX.writeFile(wb, 'Feedback_Upload_Template.xlsx')
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setBulkError('')
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result
+        const wb = XLSX.read(bstr, { type: 'binary' })
+        const wsname = wb.SheetNames[0]
+        const ws = wb.Sheets[wsname]
+        const data = XLSX.utils.sheet_to_json(ws)
+        const parsedRows = data.map((row: any) => ({
+          type: row.Type || row.type || 'Student -> Teacher',
+          senderName: row.Sender || row.senderName || row.Name || 'Anonymous',
+          rating: Math.max(1, Math.min(5, Number(row.Rating || row.rating || 5))),
+          content: row.Content || row.content || row.Feedback || row.Comment || '',
+          subject: row.Subject || row.subject || '',
+          batch: row.Batch || row.batch || row.Teacher || '',
+          category: row.Category || row.category || 'General',
+          date: row.Date || row.date || new Date().toISOString().split('T')[0],
+          status: 'Submitted'
+        })).filter((r: any) => r.content.trim() !== '')
+        if (parsedRows.length === 0) {
+          setBulkError('No valid feedback rows found in sheet. Ensure the Content/Feedback column is filled.')
+          return
+        }
+        setPreviewRows(parsedRows)
+      } catch (err: any) {
+        setBulkError('Failed to parse file. Please upload a valid Excel (.xlsx/.xls) or CSV file.')
+      }
+    }
+    reader.readAsBinaryString(file)
+  }
+
+  async function handleConfirmBulkUpload() {
+    if (previewRows.length === 0) return
+    setUploadingBulk(true)
+    setBulkError('')
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'bulk', items: previewRows }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setBulkError(d.error || 'Bulk upload failed')
+        return
+      }
+      setShowExcelModal(false)
+      setPreviewRows([])
+      fetchFeedback()
+    } catch (e) {
+      setBulkError('Network error during upload')
+    } finally {
+      setUploadingBulk(false)
     }
   }
 
@@ -158,10 +291,27 @@ export default function FeedbackManagementView() {
             <p className="text-[13px] text-slate-500 mt-1">Review feedback from students, parents, and staff</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => { setSendError(''); setShowSendModal(true) }} className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-sm transition-all">
+            <button
+              onClick={() => {
+                setPreviewRows([])
+                setBulkError('')
+                setShowExcelModal(true)
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all cursor-pointer"
+            >
+              <Folder className="w-3.5 h-3.5" /> Upload Excel Sheet
+            </button>
+            <button
+              onClick={() => {
+                setSendError('')
+                setSelectedTeacherId('ALL')
+                setShowSendModal(true)
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-sm transition-all cursor-pointer"
+            >
               Send Feedback to Teachers
             </button>
-            <button onClick={fetchFeedback} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-all">
+            <button onClick={fetchFeedback} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-all cursor-pointer">
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
             </button>
           </div>
@@ -287,6 +437,7 @@ export default function FeedbackManagementView() {
                               <td className="px-5 py-3.5 max-w-[240px]">
                                 <p className="text-xs text-slate-600 line-clamp-2 italic">"{item.content}"</p>
                                 {item.subject && <span className="text-[10px] text-slate-400 mt-0.5 block">{item.subject} · {item.batch}</span>}
+                                {!item.subject && item.batch && <span className="text-[10px] font-semibold text-indigo-600 mt-0.5 block">Target: {item.batch}</span>}
                                 {item.category && <span className="text-[10px] text-slate-400 mt-0.5 block">{item.category}</span>}
                               </td>
                               <td className="px-5 py-3.5">
@@ -363,9 +514,16 @@ export default function FeedbackManagementView() {
                           </span>
                         </>
                       ) : (
-                        <span className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-slate-500 font-semibold">
-                          <Folder className="w-3.5 h-3.5 text-slate-400" /> Category: {item.category}
-                        </span>
+                        <>
+                          <span className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-slate-500 font-semibold">
+                            <Folder className="w-3.5 h-3.5 text-slate-400" /> Category: {item.category}
+                          </span>
+                          {item.batch && (
+                            <span className="flex items-center gap-1 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-md text-indigo-700 font-semibold">
+                              <User className="w-3.5 h-3.5 text-indigo-500" /> Target: {item.batch}
+                            </span>
+                          )}
+                        </>
                       )}
                       <span className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-slate-400 font-semibold">
                         <Calendar className="w-3.5 h-3.5 text-slate-400" /> Date: {formatShortDate(item.date)}
@@ -486,30 +644,57 @@ export default function FeedbackManagementView() {
       {/* Send Feedback to Teachers Modal */}
       {showSendModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Send Feedback to Teachers</h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">Management → Teacher · visible to all faculty in this school</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {selectedTeacherId === 'ALL'
+                    ? 'Management → Teacher · visible to all faculty in this school'
+                    : `Management → Teacher · Personalised appraisal for ${teachersList.find(t => t.id === selectedTeacherId)?.name || 'selected faculty'}`}
+                </p>
               </div>
-              <button onClick={() => setShowSendModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg">
+              <button onClick={() => setShowSendModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer">
                 <XCircle className="w-4 h-4" />
               </button>
             </div>
             <form onSubmit={handleSendFeedback} className="p-5 space-y-4">
               {sendError && <p className="text-sm text-rose-600 font-medium bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">{sendError}</p>}
+              
               <div>
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Feedback</label>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Select Faculty Member (Target) *</label>
+                <select
+                  value={selectedTeacherId}
+                  onChange={e => setSelectedTeacherId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:bg-white transition-colors cursor-pointer"
+                >
+                  <option value="ALL">All Faculty (General Announcement / Feedback)</option>
+                  {teachersList.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.subject ? `— (${t.subject})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {selectedTeacherId !== 'ALL' && (
+                  <p className="text-[11px] font-medium text-emerald-600 mt-1.5 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Personalised feedback & rating will be sent directly to {teachersList.find(t => t.id === selectedTeacherId)?.name}.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Feedback Content *</label>
                 <textarea value={sendContent} onChange={e => setSendContent(e.target.value)} rows={4}
-                  placeholder="Share observations, appreciation, or improvement points with your faculty…"
+                  placeholder="Share detailed observations, appreciation, or improvement points with the faculty member…"
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors resize-none" />
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Rating</label>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Appraisal Rating</label>
                   <div className="flex items-center gap-1 py-2">
                     {[1, 2, 3, 4, 5].map(n => (
-                      <button key={n} type="button" onClick={() => setSendRating(n)}>
+                      <button key={n} type="button" onClick={() => setSendRating(n)} className="cursor-pointer">
                         <Star className={`w-6 h-6 transition-colors ${n <= sendRating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 fill-transparent hover:text-amber-200'}`} />
                       </button>
                     ))}
@@ -518,23 +703,195 @@ export default function FeedbackManagementView() {
                 <div>
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Category</label>
                   <select value={sendCategory} onChange={e => setSendCategory(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400">
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 cursor-pointer">
                     {['Academics', 'Discipline', 'Punctuality', 'Teaching Quality', 'Administration', 'General'].map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               </div>
+
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setShowSendModal(false)}
-                  className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors">
+                  className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
                   Cancel
                 </button>
                 <button type="submit" disabled={sending}
-                  className="flex-1 py-2.5 bg-slate-950 hover:bg-slate-800 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                  {sending && <RefreshCw className="w-4 h-4 animate-spin" />} Send Feedback
+                  className="flex-1 py-2.5 bg-slate-950 hover:bg-slate-800 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer">
+                  {sending && <RefreshCw className="w-4 h-4 animate-spin" />} Send Personalised Feedback
                 </button>
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Upload Excel Sheet Modal */}
+      {showExcelModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden my-auto">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 shrink-0">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Folder className="w-5 h-5 text-emerald-600" /> Bulk Upload Feedbacks via Excel / CSV
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">Import student reviews, survey data, and parent feedback directly into the console</p>
+              </div>
+              <button onClick={() => setShowExcelModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg cursor-pointer">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {bulkError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" /> {bulkError}
+                </div>
+              )}
+
+              {/* Format Guide */}
+              <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-5 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Info className="w-4 h-4 text-indigo-600" /> Expected Excel / CSV Sheet Format
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Ensure your columns match the headers below before uploading.</p>
+                  </div>
+                  <button
+                    onClick={handleDownloadTemplate}
+                    type="button"
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Folder className="w-3.5 h-3.5" /> Download Sample Template (.xlsx)
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200/60 rounded-xl bg-white shadow-2xs">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-100/60 border-b border-slate-200/60 font-bold text-slate-600 text-[11px]">
+                        <th className="px-3.5 py-2.5 text-emerald-700">Type *</th>
+                        <th className="px-3.5 py-2.5">Sender</th>
+                        <th className="px-3.5 py-2.5 text-emerald-700">Rating *</th>
+                        <th className="px-3.5 py-2.5 text-emerald-700">Content (Comment) *</th>
+                        <th className="px-3.5 py-2.5">Subject</th>
+                        <th className="px-3.5 py-2.5">Batch / Target</th>
+                        <th className="px-3.5 py-2.5">Category</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-600">
+                      <tr>
+                        <td className="px-3.5 py-2 font-medium">Student -&gt; Teacher</td>
+                        <td className="px-3.5 py-2">Aarav Sharma</td>
+                        <td className="px-3.5 py-2 font-bold text-amber-600">5</td>
+                        <td className="px-3.5 py-2 italic">"Sir explains physics problems clearly."</td>
+                        <td className="px-3.5 py-2">Physics</td>
+                        <td className="px-3.5 py-2">JEE Batch A</td>
+                        <td className="px-3.5 py-2">Academics</td>
+                      </tr>
+                      <tr>
+                        <td className="px-3.5 py-2 font-medium">Parent -&gt; School</td>
+                        <td className="px-3.5 py-2">Anonymous</td>
+                        <td className="px-3.5 py-2 font-bold text-amber-600">4</td>
+                        <td className="px-3.5 py-2 italic">"Appreciate the weekly test reports."</td>
+                        <td className="px-3.5 py-2">—</td>
+                        <td className="px-3.5 py-2">Class 11</td>
+                        <td className="px-3.5 py-2">Communication</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* File Selection Box */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Select Excel / CSV File</label>
+                <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-6 bg-slate-50/50 hover:bg-emerald-50/10 transition-colors text-center cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls, .csv"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="excel-upload-input"
+                  />
+                  <label htmlFor="excel-upload-input" className="cursor-pointer flex flex-col items-center justify-center space-y-2">
+                    <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">
+                      <Folder className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-800">
+                      Click here to select or drag and drop spreadsheet
+                    </p>
+                    <p className="text-xs text-slate-400 font-medium">Supports .XLSX, .XLS, and .CSV formats</p>
+                  </label>
+                </div>
+              </div>
+
+              {/* Preview Table */}
+              {previewRows.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Preview ({previewRows.length} Rows Parsed Successfully)
+                    </h4>
+                    <span className="text-xs text-slate-500 font-semibold">Review below before submitting</span>
+                  </div>
+                  <div className="border border-slate-200 rounded-xl overflow-x-auto max-h-[250px] bg-white shadow-2xs">
+                    <table className="w-full text-left text-xs">
+                      <thead className="sticky top-0 bg-slate-100 font-bold text-slate-600 border-b border-slate-200 text-[11px]">
+                        <tr>
+                          <th className="px-3.5 py-2.5">#</th>
+                          <th className="px-3.5 py-2.5">Type</th>
+                          <th className="px-3.5 py-2.5">Sender</th>
+                          <th className="px-3.5 py-2.5">Rating</th>
+                          <th className="px-3.5 py-2.5">Feedback Content</th>
+                          <th className="px-3.5 py-2.5">Batch / Target</th>
+                          <th className="px-3.5 py-2.5">Category</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-600">
+                        {previewRows.map((r, i) => (
+                          <tr key={i} className="hover:bg-slate-50/60">
+                            <td className="px-3.5 py-2 font-bold text-slate-400">{i + 1}</td>
+                            <td className="px-3.5 py-2"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 border text-slate-700">{r.type}</span></td>
+                            <td className="px-3.5 py-2 font-medium">{r.senderName}</td>
+                            <td className="px-3.5 py-2"><div className="flex items-center gap-0.5">{renderStars(r.rating)}</div></td>
+                            <td className="px-3.5 py-2 italic font-medium max-w-[250px] truncate">"{r.content}"</td>
+                            <td className="px-3.5 py-2 font-semibold text-slate-700">{r.batch || r.subject || '—'}</td>
+                            <td className="px-3.5 py-2">{r.category}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowExcelModal(false)}
+                className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={previewRows.length === 0 || uploadingBulk}
+                onClick={handleConfirmBulkUpload}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+              >
+                {uploadingBulk && <RefreshCw className="w-4 h-4 animate-spin" />}
+                Confirm & Upload {previewRows.length > 0 ? `(${previewRows.length} Feedbacks)` : ''}
+              </button>
+            </div>
+
+          </motion.div>
         </div>
       )}
     </div>

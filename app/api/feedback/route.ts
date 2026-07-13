@@ -27,8 +27,18 @@ export async function GET(req: NextRequest) {
     if (schoolId) conditions.push(eq(feedback.schoolId, schoolId))
     const items = await db.select().from(feedback).where(and(...conditions))
     items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const teacherName = session.user?.name || ''
+    const teacherEmail = session.user?.email || ''
     return NextResponse.json({
-      received: items.filter(i => i.type === 'Management -> Teacher'),
+      received: items.filter(i => 
+        i.type === 'Management -> Teacher' && (
+          !i.batch || 
+          i.batch === 'All Faculty' || 
+          i.batch === teacherName || 
+          i.subject === teacherEmail ||
+          i.batch.includes(teacherName)
+        )
+      ),
       sent: items.filter(i => i.type === 'Teacher -> Management'),
     })
   }
@@ -86,6 +96,28 @@ export async function POST(req: NextRequest) {
 
   const schoolId = (session.user as any).schoolId as string | null
   const body = await req.json()
+
+  // Handle bulk upload via Excel / CSV
+  if (body.action === 'bulk' && Array.isArray(body.items)) {
+    const toInsert = body.items.map((i: any) => ({
+      senderName: i.senderName?.trim() || 'Anonymous',
+      isAnonymous: i.senderName?.toLowerCase() === 'anonymous' || !!i.isAnonymous,
+      rating: typeof i.rating === 'number' && !isNaN(i.rating) && i.rating >= 1 && i.rating <= 5 ? i.rating : 5,
+      content: i.content?.trim() || 'General feedback',
+      type: FLOW_TYPES.includes(i.type) ? i.type : 'Student -> Teacher',
+      status: 'Submitted',
+      subject: i.subject?.trim() || '',
+      batch: i.batch?.trim() || '',
+      category: i.category?.trim() || 'Academics',
+      date: i.date?.trim() || new Date().toISOString().split('T')[0],
+      schoolId,
+    })).filter((i: any) => i.content !== '')
+
+    if (toInsert.length === 0) return NextResponse.json({ error: 'No valid rows to insert' }, { status: 400 })
+    const created = await db.insert(feedback).values(toInsert).returning()
+    return NextResponse.json({ count: created.length, created }, { status: 201 })
+  }
+
   const { content, rating, isAnonymous, subject, batch, category } = body
 
   if (!content?.trim()) return NextResponse.json({ error: 'Feedback content is required' }, { status: 400 })
@@ -112,9 +144,12 @@ export async function POST(req: NextRequest) {
 
   // Notify the receiving side's inbox
   if (type === 'Management -> Teacher') {
+    const titleText = batch && batch !== 'All Faculty' 
+      ? `New personalised feedback from management for ${batch}` 
+      : 'New feedback from management'
     await notifyRoleInSchool(['teacher'], schoolId, {
       category: 'General',
-      title: 'New feedback from management',
+      title: titleText,
       message: created.content.slice(0, 200),
       link: '/teacher/feedback',
     })
