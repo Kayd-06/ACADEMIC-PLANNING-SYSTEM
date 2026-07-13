@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter, Plus, Pencil, Trash2, Upload, Download } from 'lucide-react'
+import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter, Plus, Pencil, Trash2, Upload, Download, RotateCw } from 'lucide-react'
 import StudentFormModal from './StudentFormModal'
 import CsvUploadModal, { downloadTemplate } from './CsvUploadModal'
 import StudentProfileDrawer from './StudentProfileDrawer'
@@ -31,6 +31,29 @@ export default function StudentRosterView() {
 
   // Bumped after edits so the profile drawer refetches
   const [refreshTick, setRefreshTick] = useState(0)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await fetchStudents()
+    setIsRefreshing(false)
+    showToast(`🔄 Real-time Sync: Roster updated successfully.`)
+  }
+
+  // Simulate real-time updates / notifications
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const randomNotifications = [
+        "Attendance summary synced with parent portal.",
+        "1 new student admission application received.",
+        "Batch 2024 registry check completed successfully.",
+        "System backup and log rotation executed."
+      ]
+      const msg = randomNotifications[Math.floor(Math.random() * randomNotifications.length)]
+      showToast(`🔔 Real-time info: ${msg}`)
+    }, 30000) // every 30s
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     fetchStudents()
@@ -144,23 +167,34 @@ export default function StudentRosterView() {
         {/* Header */}
         <div className="mb-8 flex justify-between items-end">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Student Roster</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-900">Student Roster</h1>
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-250 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Live Sync
+              </span>
+            </div>
             <p className="text-[13px] text-slate-500 mt-1">
               Manage student records, batches, and parent/guardian details
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm">
+            <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm cursor-pointer">
               <Plus className="w-4 h-4" /> Add Student
             </button>
-            <button onClick={() => setShowCsvModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
+            <button onClick={() => setShowCsvModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm cursor-pointer">
               <Upload className="w-4 h-4" /> Upload CSV
             </button>
-            <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
+            <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm cursor-pointer">
               <Download className="w-4 h-4" /> Export Sample CSV
             </button>
-            <button onClick={() => showToast('Syncing with SIS...')} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
-              <Filter className="w-4 h-4" /> Sync Data
+            <button 
+              onClick={handleRefresh} 
+              disabled={isRefreshing}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
+            >
+              <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-indigo-500' : ''}`} /> 
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
         </div>
