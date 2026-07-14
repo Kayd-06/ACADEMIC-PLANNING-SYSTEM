@@ -19,6 +19,7 @@ import {
 describe('students queries', () => {
   afterEach(async () => {
     await db.delete(students)
+    await db.delete(schools)
   })
 
   it('createStudent inserts a row with defaults applied', async () => {
