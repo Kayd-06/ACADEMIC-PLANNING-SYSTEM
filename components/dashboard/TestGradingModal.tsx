@@ -37,7 +37,7 @@ export default function TestGradingModal({ test, onClose, onSaved }: TestGrading
     setError('')
     fetch(`/api/tests/${test.id}/grades`)
       .then(async (res) => {
-        const data = await res.json()
+        const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || 'Failed to load roster')
         return data
       })
@@ -68,7 +68,7 @@ export default function TestGradingModal({ test, onClose, onSaved }: TestGrading
           })),
         }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to save grades')
       onSaved()
       onClose()

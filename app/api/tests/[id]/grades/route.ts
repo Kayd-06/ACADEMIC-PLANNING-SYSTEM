@@ -126,11 +126,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const absent = !!entry.absent
       const toIntOrNull = (v: any) => (absent || v === undefined || v === null || v === '') ? null : Number(v)
 
+      let marksObtained = toIntOrNull(entry.marksObtained)
+      if (marksObtained !== null) {
+        marksObtained = Math.max(0, Math.min(marksObtained, test.totalMarks))
+      }
+
       const values = {
         testId: test.id,
         studentId: student.id,
         rollNo: student.rollNo || '',
-        marksObtained: toIntOrNull(entry.marksObtained),
+        marksObtained,
         correct: toIntOrNull(entry.correct),
         incorrect: toIntOrNull(entry.incorrect),
         unattempted: toIntOrNull(entry.unattempted),
