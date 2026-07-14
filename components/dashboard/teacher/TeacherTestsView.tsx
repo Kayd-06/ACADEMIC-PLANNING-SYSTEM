@@ -22,6 +22,7 @@ import {
   Upload
 } from 'lucide-react'
 import UploadPdfModal from '@/components/dashboard/UploadPdfModal'
+import TestGradingModal from '@/components/dashboard/TestGradingModal'
 
 export default function TeacherTestsView() {
   const { showAlert } = useAlert()
@@ -39,6 +40,9 @@ export default function TeacherTestsView() {
   const [chapterFilter, setChapterFilter] = useState('All')
   const [difficultyFilter, setDifficultyFilter] = useState('All')
   const [availableBatches, setAvailableBatches] = useState<string[]>([])
+  const [availablePrograms, setAvailablePrograms] = useState<string[]>([])
+  const [uploadingPaperFor, setUploadingPaperFor] = useState<string | null>(null)
+  const [gradingTest, setGradingTest] = useState<any | null>(null)
 
   // Test Filters
   const [testBatchFilter, setTestBatchFilter] = useState('All')
@@ -76,6 +80,7 @@ export default function TeacherTestsView() {
   const [testForm, setTestForm] = useState({
     title: '',
     batch: '',
+    program: '',
     subject: 'Physics (PHY-101)',
     date: '',
     time: '10:00 AM',
@@ -104,6 +109,12 @@ export default function TeacherTestsView() {
         } else {
           setTestForm(prev => ({ ...prev, batch: '' }))
         }
+      }
+
+      const pRes = await fetch('/api/programs')
+      const pData = await pRes.json()
+      if (Array.isArray(pData)) {
+        setAvailablePrograms(pData.map((p: any) => p.name).filter(Boolean))
       }
     } catch (err) {
       console.error('Error loading tests/questions/batches:', err)
@@ -263,6 +274,7 @@ export default function TeacherTestsView() {
         setTestForm({
           title: '',
           batch: availableBatches[0] || '',
+          program: availablePrograms[0] || '',
           subject: 'Physics (PHY-101)',
           date: '',
           time: '10:00 AM',
@@ -349,6 +361,7 @@ export default function TeacherTestsView() {
     setTestForm({
       title: t.title,
       batch: t.batch,
+      program: t.program || '',
       subject: t.subject,
       date: t.date,
       time: t.time,
@@ -357,6 +370,26 @@ export default function TeacherTestsView() {
       testType: t.testType || 'Unit Test'
     })
     setShowTestModal(true)
+  }
+
+  async function handlePaperUpload(testId: string, file: File) {
+    setUploadingPaperFor(testId)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch(`/api/tests/${testId}/paper`, { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!data.error) {
+        loadData()
+      } else {
+        showAlert({ title: 'Failed to Attach Paper', message: data.error, type: 'warning' })
+      }
+    } catch (err) {
+      console.error(err)
+      showAlert({ title: 'Error', message: 'Network error while attaching the paper.', type: 'warning' })
+    } finally {
+      setUploadingPaperFor(null)
+    }
   }
 
   // Get dynamic unique chapters/topics for filtering
@@ -686,6 +719,7 @@ export default function TeacherTestsView() {
                     setTestForm({
                       title: '',
                       batch: availableBatches[0] || '',
+                      program: availablePrograms[0] || '',
                       subject: 'Physics (PHY-101)',
                       date: '',
                       time: '10:00 AM',
@@ -814,14 +848,41 @@ export default function TeacherTestsView() {
                               </span>
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <div className="flex items-center justify-end gap-2.5">
-                                <button 
+                              <div className="flex items-center justify-end gap-2">
+                                {t.paperUrl ? (
+                                  <a
+                                    href={`/api/tests/${t.id}/paper`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2 py-1 text-[9px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                                  >
+                                    Paper
+                                  </a>
+                                ) : (
+                                  <label className="px-2 py-1 text-[9px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer">
+                                    {uploadingPaperFor === t.id ? '...' : 'Add Paper'}
+                                    <input
+                                      type="file" accept="application/pdf" className="hidden"
+                                      disabled={uploadingPaperFor === t.id}
+                                      onChange={(e) => { if (e.target.files?.[0]) handlePaperUpload(t.id, e.target.files[0]) }}
+                                    />
+                                  </label>
+                                )}
+                                <button
+                                  onClick={() => setGradingTest(t)}
+                                  disabled={t.date > new Date().toISOString().split('T')[0]}
+                                  className="px-2 py-1 text-[9px] font-bold text-white bg-[#0b1320] hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-40"
+                                  title={t.date > new Date().toISOString().split('T')[0] ? 'Upcoming — not gradable yet' : 'Grade this test'}
+                                >
+                                  Grade
+                                </button>
+                                <button
                                   onClick={() => handleTestEditClick(t)}
                                   className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded transition-all"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
-                                <button 
+                                <button
                                   onClick={() => handleTestDelete(t.id)}
                                   className="text-slate-400 hover:text-red-600 p-1 hover:bg-red-50 rounded transition-all"
                                 >
@@ -1130,13 +1191,27 @@ export default function TeacherTestsView() {
 
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Subject *</label>
-                  <input 
+                  <input
                     type="text" required
                     value={testForm.subject}
                     onChange={(e) => setTestForm({...testForm, subject: e.target.value})}
                     placeholder="e.g. Physics (PHY-101)"
                     className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors"
                   />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Program</label>
+                  <select
+                    value={testForm.program}
+                    onChange={(e) => setTestForm({...testForm, program: e.target.value})}
+                    className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer"
+                  >
+                    <option value="">No specific program</option>
+                    {availablePrograms.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -1198,11 +1273,19 @@ export default function TeacherTestsView() {
         )}
       </AnimatePresence>
 
-      <UploadPdfModal 
-        isOpen={showUploadPdfModal} 
-        onClose={() => setShowUploadPdfModal(false)} 
-        onSuccess={loadData} 
+      <UploadPdfModal
+        isOpen={showUploadPdfModal}
+        onClose={() => setShowUploadPdfModal(false)}
+        onSuccess={loadData}
       />
+
+      {gradingTest && (
+        <TestGradingModal
+          test={gradingTest}
+          onClose={() => setGradingTest(null)}
+          onSaved={loadData}
+        />
+      )}
 
     </div>
   )
