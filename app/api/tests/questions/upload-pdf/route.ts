@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, questions } from '@/lib/db'
 import { eq } from 'drizzle-orm'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
     const userId = (session.user as any).id as string
 
     // Read multipart form data

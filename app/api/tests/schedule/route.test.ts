@@ -101,4 +101,39 @@ describe('tests/schedule ownership', () => {
     const stillThere = await db.select().from(tests).where(eq(tests.id, otherTest.id))
     expect(stillThere).toHaveLength(1)
   })
+
+  it('GET includes facultyName and supports the program query filter', async () => {
+    const teacher = await createUser('Teacher H', 'teacher')
+    const manager = await createUser('Manager B', 'management')
+    await db.insert(tests).values([
+      { title: 'JEE Test', batch: 'Batch A', program: 'JEE 2026', subject: 'Physics', date: '2026-08-01', createdByUserId: teacher.id },
+      { title: 'NEET Test', batch: 'Batch A', program: 'NEET 2026', subject: 'Biology', date: '2026-08-01', createdByUserId: teacher.id },
+    ])
+
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: manager.id, role: 'management', schoolId: null } })
+
+    const allRes = await GET(req('http://localhost/api/tests/schedule'))
+    const allBody = await allRes.json()
+    const jeeRow = allBody.find((t: any) => t.title === 'JEE Test')
+    expect(jeeRow.facultyName).toBe('Teacher H')
+
+    const filteredRes = await GET(req('http://localhost/api/tests/schedule?program=NEET%202026'))
+    const filteredBody = await filteredRes.json()
+    expect(filteredBody.map((t: any) => t.title)).toEqual(['NEET Test'])
+  })
+
+  it('GET supports the teacherId query filter for management', async () => {
+    const teacherA = await createUser('Teacher I', 'teacher')
+    const teacherB = await createUser('Teacher J', 'teacher')
+    const manager = await createUser('Manager C', 'management')
+    await db.insert(tests).values([
+      { title: 'A Owned', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', createdByUserId: teacherA.id },
+      { title: 'B Owned', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', createdByUserId: teacherB.id },
+    ])
+
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: manager.id, role: 'management', schoolId: null } })
+    const res = await GET(req(`http://localhost/api/tests/schedule?teacherId=${teacherA.id}`))
+    const body = await res.json()
+    expect(body.map((t: any) => t.title)).toEqual(['A Owned'])
+  })
 })

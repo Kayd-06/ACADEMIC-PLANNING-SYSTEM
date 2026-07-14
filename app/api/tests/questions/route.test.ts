@@ -85,4 +85,25 @@ describe('tests/questions ownership', () => {
     const stillThere = await db.select().from(questions).where(eq(questions.id, otherQuestion.id))
     expect(stillThere).toHaveLength(1)
   })
+
+  it('GET includes facultyName and supports the teacherId query filter for management', async () => {
+    const teacherA = await createUser('Q Teacher F', 'teacher')
+    const teacherB = await createUser('Q Teacher G', 'teacher')
+    const manager = await createUser('Q Manager B', 'management')
+    await db.insert(questions).values([
+      { subject: 'Physics', topic: 'A Owned', text: 'A Owned Question', createdByUserId: teacherA.id },
+      { subject: 'Physics', topic: 'B Owned', text: 'B Owned Question', createdByUserId: teacherB.id },
+    ])
+
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: manager.id, role: 'management', schoolId: null } })
+
+    const allRes = await GET(req('http://localhost/api/tests/questions'))
+    const allBody = await allRes.json()
+    const row = allBody.find((q: any) => q.text === 'A Owned Question')
+    expect(row.facultyName).toBe('Q Teacher F')
+
+    const filteredRes = await GET(req(`http://localhost/api/tests/questions?teacherId=${teacherA.id}`))
+    const filteredBody = await filteredRes.json()
+    expect(filteredBody.map((q: any) => q.text)).toEqual(['A Owned Question'])
+  })
 })
