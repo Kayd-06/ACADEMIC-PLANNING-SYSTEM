@@ -1,5 +1,5 @@
 import { db } from '../index'
-import { students } from '../schema'
+import { students, schools } from '../schema'
 import {
   listStudents,
   findStudentsByClasses,
@@ -13,6 +13,7 @@ import {
   deactivateStudent,
   deleteStudent,
   deleteAllStudents,
+  findStudentsByBatch,
 } from './students'
 
 describe('students queries', () => {
@@ -157,5 +158,27 @@ describe('students queries', () => {
     await deleteAllStudents()
     const result = await listStudents({ activeOnly: false })
     expect(result).toEqual([])
+  })
+
+  it('findStudentsByBatch returns only active students in that batch, sorted by roll number then name', async () => {
+    await createStudent({ name: 'Zoe', rollNo: '002', batch: 'Batch A', isActive: true })
+    await createStudent({ name: 'Amit', rollNo: '001', batch: 'Batch A', isActive: true })
+    await createStudent({ name: 'Different Batch', rollNo: '003', batch: 'Batch B', isActive: true })
+    await createStudent({ name: 'Inactive', rollNo: '004', batch: 'Batch A', isActive: false })
+
+    const results = await findStudentsByBatch('Batch A')
+    expect(results.map(s => s.name)).toEqual(['Amit', 'Zoe'])
+  })
+
+  it('findStudentsByBatch scopes to the given schoolId when provided', async () => {
+    const schoolA = await db.insert(schools).values({ id: '00000000-0000-0000-0000-0000000000a1' as any }).returning()
+    const schoolB = await db.insert(schools).values({ id: '00000000-0000-0000-0000-0000000000b1' as any }).returning()
+
+    await createStudent({ name: 'School A Student', batch: 'Batch A', schoolId: '00000000-0000-0000-0000-0000000000a1' as any })
+    await createStudent({ name: 'School B Student', batch: 'Batch A', schoolId: '00000000-0000-0000-0000-0000000000b1' as any })
+
+    const results = await findStudentsByBatch('Batch A', '00000000-0000-0000-0000-0000000000a1')
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('School A Student')
   })
 })
