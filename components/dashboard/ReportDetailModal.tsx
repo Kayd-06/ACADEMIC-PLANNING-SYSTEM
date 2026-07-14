@@ -12,6 +12,8 @@ interface ReportEntry {
   attendanceDetail: string | null
   assignmentAverage: number | null
   assignmentGradedCount: number
+  testAverage: number | null
+  testCount: number
   remarks: string | null
 }
 
@@ -89,7 +91,7 @@ export default function ReportDetailModal({ reportId, onClose }: ReportDetailMod
               <table className="w-full text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    {['Name', 'Roll No', 'Marks', 'Grade', 'Attendance', 'Assignment Avg', 'Remarks'].map((h) => (
+                    {['Name', 'Roll No', 'Marks', 'Grade', 'Attendance', 'Assignment Avg', 'Test Avg', 'Remarks'].map((h) => (
                       <th key={h} className="px-4 py-2.5 text-left font-bold text-slate-500 uppercase tracking-wider text-[10px]">{h}</th>
                     ))}
                   </tr>
@@ -111,6 +113,12 @@ export default function ReportDetailModal({ reportId, onClose }: ReportDetailMod
                         {e.assignmentAverage !== null ? `${e.assignmentAverage}%` : '—'}
                         {e.assignmentGradedCount > 0 && (
                           <span className="text-slate-400"> ({e.assignmentGradedCount} graded)</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {e.testAverage !== null ? `${e.testAverage}%` : '—'}
+                        {e.testCount > 0 && (
+                          <span className="text-slate-400"> ({e.testCount} test{e.testCount === 1 ? '' : 's'})</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-500">{e.remarks || '—'}</td>
