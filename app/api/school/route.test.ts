@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { schools } from '@/lib/db/schema'
+import { inArray } from 'drizzle-orm'
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
@@ -8,13 +9,19 @@ jest.mock('@/lib/auth', () => ({
 import { auth } from '@/lib/auth'
 import { GET, PATCH } from './route'
 
+const createdSchoolIds: string[] = []
+
 describe('GET /api/school', () => {
   afterEach(async () => {
-    await db.delete(schools)
+    if (createdSchoolIds.length > 0) {
+      await db.delete(schools).where(inArray(schools.id, createdSchoolIds))
+      createdSchoolIds.length = 0
+    }
   })
 
   it('returns school details by session schoolId', async () => {
     const [school] = await db.insert(schools).values({ name: 'Academic Planning System' }).returning()
+    createdSchoolIds.push(school.id)
     ;(auth as jest.Mock).mockResolvedValue({ user: { id: 'test-user', role: 'management', schoolId: school.id } })
     
     const res = await GET()
@@ -26,7 +33,10 @@ describe('GET /api/school', () => {
 
 describe('PATCH /api/school', () => {
   afterEach(async () => {
-    await db.delete(schools)
+    if (createdSchoolIds.length > 0) {
+      await db.delete(schools).where(inArray(schools.id, createdSchoolIds))
+      createdSchoolIds.length = 0
+    }
   })
 
   it('rejects when there is no session', async () => {
@@ -41,6 +51,7 @@ describe('PATCH /api/school', () => {
 
   it('rejects when the session role is not management', async () => {
     const [school] = await db.insert(schools).values({ name: 'School' }).returning()
+    createdSchoolIds.push(school.id)
     ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'teacher', schoolId: school.id } })
     const req = new Request('http://localhost/api/school', {
       method: 'PATCH',
@@ -52,6 +63,7 @@ describe('PATCH /api/school', () => {
 
   it('updates the school when the session role is management', async () => {
     const [school] = await db.insert(schools).values({ name: 'Old School' }).returning()
+    createdSchoolIds.push(school.id)
     ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: school.id } })
     const req = new Request('http://localhost/api/school', {
       method: 'PATCH',

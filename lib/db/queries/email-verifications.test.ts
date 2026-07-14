@@ -12,7 +12,7 @@ import {
 describe('email verification queries', () => {
   const testEmail = `test-verify-queries-${Date.now()}@example.com`
   const testOtp = '123456'
-  let userId: string
+  let userId: string | undefined
 
   beforeAll(async () => {
     const user = await createUser({
@@ -26,8 +26,11 @@ describe('email verification queries', () => {
   })
 
   afterAll(async () => {
-    await db.delete(emailVerifications).where(eq(emailVerifications.userId, userId))
-    await db.delete(users).where(eq(users.id, userId))
+    if (userId) {
+      await db.delete(emailVerifications).where(eq(emailVerifications.userId, userId))
+      await db.delete(users).where(eq(users.id, userId))
+      userId = undefined
+    }
   })
 
   it('createEmailVerification inserts a row', async () => {

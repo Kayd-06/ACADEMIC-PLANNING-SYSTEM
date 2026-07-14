@@ -6,11 +6,14 @@ import { createEmailVerification } from '@/lib/db/queries/email-verifications'
 import { POST } from './route'
 
 describe('POST /api/auth/verify-email', () => {
-  let userId: string
+  let userId: string | undefined
 
   afterEach(async () => {
-    await db.delete(emailVerifications).where(eq(emailVerifications.userId, userId))
-    await db.delete(users).where(eq(users.id, userId))
+    if (userId) {
+      await db.delete(emailVerifications).where(eq(emailVerifications.userId, userId))
+      await db.delete(users).where(eq(users.id, userId))
+      userId = undefined
+    }
   })
 
   async function makePendingUserWithOtp(otp: string, expiresAt: Date, attempts = 0) {

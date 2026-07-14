@@ -1,14 +1,21 @@
+import { eq } from 'drizzle-orm'
 import { db } from '../index'
 import { schools } from '../schema'
 import { getOrCreateSchool, updateSchool } from './school'
 
 describe('school queries', () => {
+  let testSchoolId: string | undefined
+
   afterAll(async () => {
-    await db.delete(schools)
+    if (testSchoolId) {
+      await db.delete(schools).where(eq(schools.id, testSchoolId))
+      testSchoolId = undefined
+    }
   })
 
   it('getOrCreateSchool creates a default row when none exists', async () => {
     const school = await getOrCreateSchool()
+    testSchoolId = school.id
     expect(school.name).toBe('Academic Planning System')
     expect(school.board).toBe('CBSE Affiliated')
   })
