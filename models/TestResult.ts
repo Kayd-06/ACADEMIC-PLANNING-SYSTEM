@@ -14,7 +14,7 @@ export interface IStudentResult {
 }
 
 export interface ITestResult extends Document {
-  testId: mongoose.Types.ObjectId
+  testId: string
   studentResults: IStudentResult[]
   createdAt: Date
   updatedAt: Date
@@ -35,7 +35,7 @@ const StudentResultSchema = new Schema({
 
 const TestResultSchema = new Schema<ITestResult>(
   {
-    testId: { type: Schema.Types.ObjectId, ref: 'Test', required: true, unique: true },
+    testId: { type: String, required: true, unique: true },
     studentResults: [StudentResultSchema]
   },
   { timestamps: true }

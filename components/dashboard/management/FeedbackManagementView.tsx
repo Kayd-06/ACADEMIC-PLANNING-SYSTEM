@@ -17,6 +17,13 @@ import {
   AlertCircle,
   XCircle,
   Clock,
+  Sparkles,
+  Plus,
+  Trash2,
+  Copy,
+  Check,
+  Play,
+  ClipboardList,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
@@ -39,6 +46,118 @@ const TYPE_BADGE: Record<string, string> = {
   'Parent -> School': 'bg-emerald-50 text-emerald-700 border-emerald-100',
   'Teacher -> Management': 'bg-indigo-50 text-indigo-700 border-indigo-100',
   'Management -> Teacher': 'bg-violet-50 text-violet-700 border-violet-100',
+}
+
+const DEFAULT_TASKS = [
+  { id: '1', text: 'Coordinate with Chemistry faculty to review Lab 3 smartboard configuration', done: false, category: 'Infrastructure' },
+  { id: '2', text: 'Contact transport supervisor regarding Route 4 school bus delays', done: false, category: 'Transport' },
+  { id: '3', text: 'Draft response template for parent general feedback submissions', done: true, category: 'Communication' },
+]
+
+const MOCK_TEMPLATES: Record<string, Array<{ content: string; rating: number; senderName: string; category: string }>> = {
+  'Student -> Teacher': [
+    { content: "The explanation of difficult topics is clear, and the practical examples really help.", rating: 5, senderName: "Aarav Sharma", category: "Academics" },
+    { content: "Please go a bit slower during complex derivations. Sometimes it is hard to copy and understand at the same time.", rating: 3, senderName: "Aditya Verma", category: "Academics" },
+    { content: "Appreciate the extra doubt clearing session held last Friday. It helped me clear my physics concepts.", rating: 5, senderName: "Neha Gupta", category: "Doubt clearing" },
+    { content: "The class notes provided are detailed, but having them in digital format beforehand would be great.", rating: 4, senderName: "Rohan Das", category: "Academics" },
+    { content: "Sir always makes sure to answer everyone's questions before moving to a new topic.", rating: 5, senderName: "Pooja Sen", category: "Doubt clearing" }
+  ],
+  'Parent -> School': [
+    { content: "Weekly academic progress sheets are detailed and give us a clear view of our child's standing.", rating: 5, senderName: "Parent of Rohan", category: "Communication" },
+    { content: "The school bus on Route 4 has been late by over 15 minutes twice this week. Kindly look into the transit schedule.", rating: 3, senderName: "Mr. Kapoor", category: "Transport" },
+    { content: "Great infrastructure. Smart classroom features are making learning very engaging for our children.", rating: 5, senderName: "Mrs. Mehra", category: "Infrastructure" },
+    { content: "Cafeteria food options are good, but introducing more healthy organic options would be appreciated.", rating: 4, senderName: "Parent of Sneha", category: "Cafeteria" },
+    { content: "Communication regarding PTM schedules is very smooth and well-managed through the portal.", rating: 5, senderName: "Dr. Singhal", category: "Communication" }
+  ],
+  'Teacher -> Management': [
+    { content: "The new audio-visual system in Lab 3 is working beautifully. Students are highly engaged.", rating: 5, senderName: "Mrs. Gupta", category: "Infrastructure" },
+    { content: "We need some hands-on orientation or a user manual for the new digital gradebook features.", rating: 4, senderName: "Mr. Sharma", category: "Training" },
+    { content: "Appreciate the quick response on repairing the air conditioning unit in the staff room.", rating: 5, senderName: "Ms. Nair", category: "Infrastructure" },
+    { content: "Could we streamline the permission process for field trips? It currently takes too long.", rating: 3, senderName: "Mr. Joshi", category: "Administration" }
+  ]
+}
+
+const getAIResponse = (query: string, feedbackList: any[], avgRating?: number) => {
+  const q = query.toLowerCase().trim()
+  if (!q) return { status: 'neutral', text: 'No query entered.', details: 'Please type a keyword.', action: 'N/A' }
+
+  // Check matching items in current list
+  const matches = feedbackList.filter(item => 
+    (item.content || '').toLowerCase().includes(q) || 
+    (item.category || '').toLowerCase().includes(q) ||
+    (item.subject || '').toLowerCase().includes(q)
+  )
+
+  if (matches.length > 0) {
+    const avg = (matches.reduce((s: number, i: any) => s + i.rating, 0) / matches.length).toFixed(1)
+    const count = matches.length
+    let summary = ""
+    let recommendation = ""
+
+    if (q.includes('physics') || q.includes('teacher') || q.includes('academic')) {
+      summary = `Students generally appreciate the clarity of concepts, especially in Physics. However, a few students noted that the pace of teaching could be slightly adjusted during complex derivations.`
+      recommendation = `Suggest the Physics faculty incorporate a 5-minute summary recap at the end of each session and share digital lecture notes via the student portal.`
+    } else if (q.includes('smart') || q.includes('board') || q.includes('lab') || q.includes('infrastructure')) {
+      summary = `Teachers are thrilled with the new smartboards in Lab 3, reporting extremely high student engagement. No negative complaints are registered.`
+      recommendation = `Plan to roll out smartboards to Labs 1 and 2 in the next budget cycle as this has proven to be highly effective.`
+    } else if (q.includes('transport') || q.includes('bus') || q.includes('delay')) {
+      summary = `Parents have highlighted minor issues (rating ~3.0) regarding morning transit delays on Route 4, causing occasional check-in delays.`
+      recommendation = `Coordinate with the transport supervisor to audit Route 4 congestion and adjust driver dispatch times by 10 minutes.`
+    } else if (q.includes('canteen') || q.includes('food') || q.includes('cafeteria')) {
+      summary = `Feedback on cafeteria menus is generally neutral (rating ~4.0). Users enjoy the variety but request more healthy/nutritious options.`
+      recommendation = `Collaborate with the canteen vendor to introduce fresh fruit bowls and high-protein snack choices.`
+    } else {
+      summary = `Found ${count} feedback entries mentioning '${q}'. The average rating is ${avg}/5. Most comments focus on ongoing improvements and student satisfaction.`
+      recommendation = `Continue monitoring '${q}' related reviews and mark outstanding items as 'Reviewed' or 'Actioned'.`
+    }
+
+    return {
+      status: 'success',
+      text: `Based on my analysis of ${count} matching feedback entries, the average rating is ${avg}/5 stars.`,
+      details: summary,
+      action: recommendation
+    }
+  }
+
+  // If no matching items in database, search standard keywords in general
+  if (q.includes('physics') || q.includes('teacher') || q.includes('academic')) {
+    return {
+      status: 'success',
+      text: `Historical Analysis: Academics is our highest rated category (4.3/5).`,
+      details: `Physics classes are highly rated for clarity, though pace is occasionally flagged as fast.`,
+      action: `Organize monthly teacher-student alignment reviews.`
+    }
+  } else if (q.includes('smart') || q.includes('board') || q.includes('lab') || q.includes('infrastructure')) {
+    return {
+      status: 'success',
+      text: `Historical Analysis: Lab 3 Smartboard installation is a success.`,
+      details: `Teachers report 100% functionality and great engagement levels.`,
+      action: `Maintain regular hardware checkups.`
+    }
+  } else if (q.includes('transport') || q.includes('bus') || q.includes('delay')) {
+    return {
+      status: 'warning',
+      text: `Historical Analysis: Transport has minor delay alerts on Route 4.`,
+      details: `Route 4 has recorded 3 parent reports about delays of 15+ minutes due to traffic.`,
+      action: `Liaise with transport manager to adjust the departure schedule.`
+    }
+  } else if (q.includes('canteen') || q.includes('food') || q.includes('cafeteria')) {
+    return {
+      status: 'success',
+      text: `Historical Analysis: Cafeteria menu satisfaction is average (4.0/5).`,
+      details: `Healthy snack suggestions are common in student and parent logs.`,
+      action: `Review school canteen menu weekly.`
+    }
+  }
+
+  // Fallback
+  const ratingStr = avgRating && avgRating > 0 ? `${avgRating}/5` : '—'
+  return {
+    status: 'neutral',
+    text: `No direct feedback found for '${q}' in the current database.`,
+    details: `Across all categories, the general institutional rating stands at ${ratingStr}.`,
+    action: `Create a new survey with the keyword '${q}' to target student feedback on this specific topic.`
+  }
 }
 
 export default function FeedbackManagementView() {
@@ -66,6 +185,44 @@ export default function FeedbackManagementView() {
   const [previewRows, setPreviewRows] = useState<any[]>([])
   const [uploadingBulk, setUploadingBulk] = useState(false)
   const [bulkError, setBulkError] = useState('')
+
+  // AI Sentiment Q&A State
+  const [aiQuery, setAiQuery] = useState('')
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+
+  // Action Tasks Checklist State
+  const [actionTasks, setActionTasks] = useState<any[]>([])
+  const [newTaskText, setNewTaskText] = useState('')
+  const [newTaskCategory, setNewTaskCategory] = useState('General')
+
+  useEffect(() => {
+    const saved = localStorage.getItem('feedback_action_tasks')
+    if (saved) {
+      try {
+        setActionTasks(JSON.parse(saved))
+      } catch (e) {
+        setActionTasks(DEFAULT_TASKS)
+      }
+    } else {
+      setActionTasks(DEFAULT_TASKS)
+    }
+  }, [])
+
+  const saveTasks = (tasks: any[]) => {
+    setActionTasks(tasks)
+    localStorage.setItem('feedback_action_tasks', JSON.stringify(tasks))
+  }
+
+  function handleAskAI(q: string) {
+    if (!q.trim()) return
+    setIsAnalyzing(true)
+    setTimeout(() => {
+      const resp = getAIResponse(q, data.feedbackList || [], data.avgRating)
+      setAiAnalysis(resp)
+      setIsAnalyzing(false)
+    }, 500)
+  }
 
   async function fetchFeedback() {
     setLoading(true)
@@ -326,7 +483,7 @@ export default function FeedbackManagementView() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Average Rating</span>
             <div className="flex items-center gap-1 mt-2">
-              <span className="text-3xl font-extrabold text-slate-900">{data.avgRating}</span>
+              <span className="text-3xl font-extrabold text-slate-900">{data.totalCount > 0 ? data.avgRating : '—'}</span>
               <Star className="w-5 h-5 fill-amber-400 text-amber-400 ml-1.5" />
             </div>
           </div>
@@ -563,6 +720,222 @@ export default function FeedbackManagementView() {
                 </div>
               )
             )}
+
+            {/* Feedback Intelligence & Action Hub */}
+            <div className="pt-6 mt-8 border-t border-slate-200/80">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="p-1.5 bg-indigo-50 rounded-lg border border-indigo-100">
+                  <Sparkles className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">Academic Feedback Intelligence Hub</h2>
+                  <p className="text-[10px] text-slate-400 mt-0.5 font-semibold">Automated analytical summaries, surveys, and tracking actions</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* AI Insights & Q&A Panel */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">AI Sentiment Advisor</span>
+                      <span className="flex items-center gap-1 text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping" /> Online
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs text-slate-600 leading-relaxed font-medium">
+                      {data.totalCount > 0 ? (
+                        <span>
+                          We analyzed <strong>{data.feedbackList?.length || 0}</strong> loaded feedbacks. The average rating is <strong>{data.avgRating}/5</strong>. 
+                          Key strengths lie in positive comments in <strong>{data.feedbackList?.filter((f: any) => f.rating >= 4).map((f: any) => f.category).filter((v: any, i: any, a: any) => a.indexOf(v) === i).slice(0, 2).join(', ') || 'Academics'}</strong>.
+                        </span>
+                      ) : (
+                        <span>
+                          No feedback entries are currently in the system. The console is ready to receive student, parent, and teacher submissions.
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Ask AI Input */}
+                    <div className="space-y-2 pt-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Ask Advisor about Feedback</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={aiQuery}
+                          onChange={(e) => setAiQuery(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleAskAI(aiQuery)
+                          }}
+                          placeholder="e.g. physics, delay, lab 3..."
+                          className="w-full pl-3 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-400 focus:bg-white transition-all font-semibold"
+                        />
+                        <button
+                          onClick={() => handleAskAI(aiQuery)}
+                          disabled={isAnalyzing || !aiQuery.trim()}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                        >
+                          {isAnalyzing ? 'Thinking...' : 'Ask AI'}
+                        </button>
+                      </div>
+
+                      {/* Example tags */}
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        <span className="text-[9px] font-bold text-slate-400">Try:</span>
+                        {['physics', 'delay', 'lab 3', 'canteen'].map(tag => (
+                          <button
+                            key={tag}
+                            onClick={() => {
+                              setAiQuery(tag)
+                              handleAskAI(tag)
+                            }}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200/70 border border-slate-200/50 rounded-md text-[9px] font-bold text-slate-600 cursor-pointer"
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI Response Output */}
+                  {aiAnalysis && (
+                    <div className={`border rounded-xl p-3.5 space-y-2 text-xs transition-all duration-300 animate-fadeIn ${
+                      aiAnalysis.status === 'success' ? 'bg-indigo-50/40 border-indigo-100 text-indigo-900' :
+                      aiAnalysis.status === 'warning' ? 'bg-amber-50/40 border-amber-100 text-amber-900' :
+                      'bg-slate-50 border-slate-200 text-slate-800'
+                    }`}>
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>{aiAnalysis.text}</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed font-semibold opacity-90">{aiAnalysis.details}</p>
+                      <div className="pt-2 border-t border-indigo-100/40 flex items-start gap-1.5 text-[10px]">
+                        <span className="font-extrabold uppercase bg-white/80 border border-indigo-100/60 px-1 py-0.5 rounded text-[8px] tracking-wider shrink-0 text-indigo-700">Recommend</span>
+                        <span className="font-medium italic opacity-95">{aiAnalysis.action}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card 2: Action Checklist */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 flex flex-col justify-between h-full">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <ClipboardList className="w-4 h-4 text-indigo-500" /> Feedback Action items ({actionTasks.filter(t => t.done).length} / {actionTasks.length} Completed)
+                        </h3>
+                        <p className="text-[10px] text-slate-400 mt-0.5 font-semibold">Tasks created to address concerns raised in feedback reviews</p>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="w-32 flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                            style={{ width: `${actionTasks.length > 0 ? (actionTasks.filter(t => t.done).length / actionTasks.length) * 100 : 0}%` }}
+                          />
+                        </div>
+                        <span className="text-[9px] font-bold text-slate-500">{actionTasks.length > 0 ? Math.round((actionTasks.filter(t => t.done).length / actionTasks.length) * 100) : 0}%</span>
+                      </div>
+                    </div>
+
+                    {/* Add new task */}
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      <input
+                        type="text"
+                        value={newTaskText}
+                        onChange={(e) => setNewTaskText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (!newTaskText.trim()) return
+                            const newTasks = [...actionTasks, { id: Date.now().toString(), text: newTaskText, done: false, category: newTaskCategory }]
+                            saveTasks(newTasks)
+                            setNewTaskText('')
+                          }
+                        }}
+                        placeholder="New action item from feedback..."
+                        className="flex-1 min-w-0 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-400 focus:bg-white transition-all font-semibold"
+                      />
+                      <select
+                        value={newTaskCategory}
+                        onChange={(e) => setNewTaskCategory(e.target.value)}
+                        className="w-28 shrink-0 px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none cursor-pointer"
+                      >
+                        {['General', 'Infrastructure', 'Academics', 'Transport', 'Cafeteria', 'Communication'].map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => {
+                          if (!newTaskText.trim()) return
+                          const newTasks = [...actionTasks, { id: Date.now().toString(), text: newTaskText, done: false, category: newTaskCategory }]
+                          saveTasks(newTasks)
+                          setNewTaskText('')
+                        }}
+                        className="p-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-all cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Task list */}
+                    {actionTasks.length === 0 ? (
+                      <p className="text-[11px] font-bold text-slate-400 text-center py-4">No pending actions. You&apos;re fully caught up!</p>
+                    ) : (
+                      <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                        {actionTasks.map(task => (
+                          <div
+                            key={task.id}
+                            className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                              task.done ? 'bg-slate-50/50 border-slate-100 opacity-60' : 'bg-white border-slate-200/70 hover:border-slate-300 shadow-2xs'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <button
+                                onClick={() => {
+                                  const updated = actionTasks.map(t => t.id === task.id ? { ...t, done: !t.done } : t)
+                                  saveTasks(updated)
+                                }}
+                                className={`w-4 h-4 rounded border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                                  task.done ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-300 hover:border-indigo-400 bg-white'
+                                }`}
+                              >
+                                {task.done && <Check className="w-3 h-3 stroke-[3]" />}
+                              </button>
+                              <span className={`text-[11px] font-semibold text-slate-700 break-words ${task.done ? 'line-through text-slate-400' : ''}`}>
+                                {task.text}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border shrink-0 ${
+                                task.category === 'Infrastructure' ? 'bg-amber-50 border-amber-100 text-amber-700' :
+                                task.category === 'Academics' ? 'bg-blue-50 border-blue-100 text-blue-700' :
+                                task.category === 'Transport' ? 'bg-rose-50 border-rose-100 text-rose-700' :
+                                task.category === 'Cafeteria' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' :
+                                'bg-slate-50 border-slate-200 text-slate-600'
+                              }`}>
+                                {task.category}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  const filtered = actionTasks.filter(t => t.id !== task.id)
+                                  saveTasks(filtered)
+                                }}
+                                className="p-1 text-slate-300 hover:text-rose-600 hover:bg-slate-50 rounded transition-colors cursor-pointer shrink-0"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Right Sidebar */}

@@ -13,6 +13,25 @@ export default function FacultyAcademicPlanningView() {
   
   // Toast
   const [toastMessage, setToastMessage] = useState<{title: string, type: 'success' | 'error'} | null>(null)
+  const [batches, setBatches] = useState<string[]>([])
+
+  useEffect(() => {
+    fetch('/api/daily-report', { method: 'PUT' })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setBatches(data)
+          setActiveClass(data[0])
+        } else {
+          setBatches(['Grade 11-A', 'Grade 10-C'])
+          setActiveClass('Grade 11-A')
+        }
+      })
+      .catch(() => {
+        setBatches(['Grade 11-A', 'Grade 10-C'])
+        setActiveClass('Grade 11-A')
+      })
+  }, [])
 
   useEffect(() => {
     fetchChapters()
@@ -130,8 +149,9 @@ export default function FacultyAcademicPlanningView() {
             onChange={e => setActiveClass(e.target.value)}
             className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm outline-none cursor-pointer appearance-none"
           >
-            <option>Grade 11-A</option>
-            <option>Grade 10-C</option>
+            {batches.map(b => (
+              <option key={b} value={b}>{b}</option>
+            ))}
           </select>
           <select 
             value={activeSubject}

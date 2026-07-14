@@ -73,15 +73,21 @@ export default function AcademicRecordsView() {
         setTests(data)
         
         // Find our seeded mockup test and default to it
-        const mockTest = data.find(t => t.title === 'Unit Test 3' && (t.batch === '11 - A' || t.batch === 'Grade 11-A'))
+        const mockTest = data.find(t => t.title === 'Unit Test 3' && (t.batch === '11 - A' || t.batch === 'Grade 11-A' || t.batch === 'Batch A'))
         if (mockTest) {
-          setSelectedTestId(mockTest._id)
+          setSelectedTestId(mockTest.id)
         } else if (data.length > 0) {
-          setSelectedTestId(data[0]._id)
+          setSelectedTestId(data[0].id)
+        } else {
+          // If no tests are returned, turn off the loading state
+          setLoading(false)
         }
+      } else {
+        setLoading(false)
       }
     } catch (err) {
       console.error('Failed to load tests:', err)
+      setLoading(false)
     } finally {
       setTestsLoading(false)
     }
@@ -253,7 +259,7 @@ export default function AcademicRecordsView() {
         setSelectedTest(data.test)
         setStudentResults(data.studentResults || [])
         // Update in tests list
-        setTests(prev => prev.map(t => t._id === selectedTestId ? data.test : t))
+        setTests(prev => prev.map(t => t.id === selectedTestId ? data.test : t))
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to save results.' })
       }
@@ -294,28 +300,28 @@ export default function AcademicRecordsView() {
 
   // Calculations for Class Performance Card
   const stats = useMemo(() => {
-    const presentRecords = studentResults.filter(r => !r.absent)
+    const presentRecords = studentResults.filter(r => !r.absent && r.marksObtained !== undefined && r.marksObtained !== null && r.marksObtained !== '')
     if (presentRecords.length === 0) {
-      return { average: 0, highest: 0, lowest: 0, pctLess50: 0, pct70to80: 0, pctMore90: 0 }
+      return { average: 0, highest: '—', lowest: '—', pctLess50: 0, pct70to80: 0, pctMore90: 0 }
     }
 
     const totalMarks = selectedTest?.totalMarks || 100
-    const scores = presentRecords.map(r => Number(r.marksObtained || 0))
+    const scores = presentRecords.map(r => Number(r.marksObtained))
     
     const highest = Math.max(...scores)
     const lowest = Math.min(...scores)
     
     // Average score percentage
-    const sumPercentages = presentRecords.reduce((sum, r) => sum + (Number(r.marksObtained || 0) / totalMarks) * 100, 0)
+    const sumPercentages = presentRecords.reduce((sum, r) => sum + (Number(r.marksObtained) / totalMarks) * 100, 0)
     const average = Math.round((sumPercentages / presentRecords.length) * 10) / 10
 
     // Distributions
-    const countLess50 = presentRecords.filter(r => (Number(r.marksObtained || 0) / totalMarks) * 100 < 50).length
+    const countLess50 = presentRecords.filter(r => (Number(r.marksObtained) / totalMarks) * 100 < 50).length
     const count70to80 = presentRecords.filter(r => {
-      const p = (Number(r.marksObtained || 0) / totalMarks) * 100
+      const p = (Number(r.marksObtained) / totalMarks) * 100
       return p >= 70 && p <= 80
     }).length
-    const countMore90 = presentRecords.filter(r => (Number(r.marksObtained || 0) / totalMarks) * 100 > 90).length
+    const countMore90 = presentRecords.filter(r => (Number(r.marksObtained) / totalMarks) * 100 > 90).length
 
     return {
       average,
@@ -402,7 +408,7 @@ export default function AcademicRecordsView() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 appearance-none cursor-pointer"
                 >
                   {tests.map((t) => (
-                    <option key={t._id} value={t._id}>
+                    <option key={t.id} value={t.id}>
                       {t.title} - {t.batch} ({new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
                     </option>
                   ))}

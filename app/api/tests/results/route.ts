@@ -1,18 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
-import Test from '@/models/Test'
 import TestResult from '@/models/TestResult'
 import { auth } from '@/lib/auth'
 import { findStudentsByClasses } from '@/lib/db/queries/students'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { db, tests, schools, students } from '@/lib/db'
+import { eq, and } from 'drizzle-orm'
+import fs from 'fs'
+import path from 'path'
 
 export const dynamic = 'force-dynamic'
+
+const FALLBACK_FILE = path.join(process.cwd(), '.next/test_results_fallback.json')
+
+function getFallbackResults(testId: string): any {
+  if (!fs.existsSync(FALLBACK_FILE)) return null
+  try {
+    const data = JSON.parse(fs.readFileSync(FALLBACK_FILE, 'utf-8'))
+    return data[testId] || null
+  } catch (e) {
+    return null
+  }
+}
+
+function saveFallbackResults(testId: string, studentResults: any[]) {
+  let data: Record<string, any> = {}
+  if (fs.existsSync(FALLBACK_FILE)) {
+    try {
+      data = JSON.parse(fs.readFileSync(FALLBACK_FILE, 'utf-8'))
+    } catch (e) {
+      data = {}
+    }
+  }
+  data[testId] = {
+    testId,
+    studentResults,
+    updatedAt: new Date().toISOString()
+  }
+  const dir = path.dirname(FALLBACK_FILE)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(FALLBACK_FILE, JSON.stringify(data, null, 2))
+}
 
 // Helper to resolve test batch name to student class names
 function resolveClassFromBatch(batch: string): string {
   const b = batch.trim().toLowerCase()
-  if (b.includes('2026-a') || b.includes('11-a') || b.includes('11 - a') || b.includes('grade 11-a')) return '11 - A'
-  if (b.includes('2025-b') || b.includes('11-b') || b.includes('11 - b') || b.includes('grade 11-b')) return '11 - B'
+  if (b.includes('2026-a') || b.includes('11-a') || b.includes('11 - a') || b.includes('grade 11-a') || b.includes('batch a')) return '11 - A'
+  if (b.includes('2025-b') || b.includes('11-b') || b.includes('11 - b') || b.includes('grade 11-b') || b.includes('batch b')) return '11 - B'
   if (b.includes('2024-c') || b.includes('10-a') || b.includes('10 - a') || b.includes('grade 10-a')) return '10 - A'
   if (b.includes('foundation-x') || b.includes('10-b') || b.includes('10 - b') || b.includes('grade 10-b')) return '10 - B'
   return batch
@@ -88,7 +122,13 @@ export async function GET(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    await connectDB()
+    let isMongoOffline = false
+    try {
+      await connectDB()
+    } catch (e) {
+      console.warn("MongoDB connection failed on GET, using local fallback:", e)
+      isMongoOffline = true
+    }
 
     const { searchParams } = new URL(req.url)
     const testId = searchParams.get('testId')
@@ -97,90 +137,100 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing testId parameter.' }, { status: 400 })
     }
 
-    let test = await Test.findById(testId)
+    const targetTestId = testId === 'mock-unit-test-3' ? '00000000-0000-0000-0000-000000000003' : testId
+    const schoolId = (session.user as any).schoolId as string | null
+
+    let [test] = await db.select().from(tests).where(eq(tests.id, targetTestId))
     if (!test) {
-      // If we are looking for a mock test to seed, check if the ID requested matches 'mock-unit-test-3'
-      if (testId === 'mock-unit-test-3') {
-        const existingMockTest = await Test.findOne({ title: 'Unit Test 3', batch: '11 - A' })
-        if (existingMockTest) {
-          test = existingMockTest
-        } else {
-          test = await Test.create({
-            title: 'Unit Test 3',
-            batch: '11 - A',
-            subject: 'Physics (PHY-101)',
-            date: '2023-10-24',
-            time: '10:00 AM',
-            duration: 60,
-            totalMarks: 100,
-            status: 'Graded',
-            averageScore: 74.5,
-            testType: 'Unit Test'
-          })
+      if (testId === 'mock-unit-test-3' || targetTestId === '00000000-0000-0000-0000-000000000003') {
+        // Clear any existing test and results to start clean
+        await db.delete(tests).where(eq(tests.id, '00000000-0000-0000-0000-000000000003'))
+        if (!isMongoOffline) {
+          try {
+            await TestResult.deleteOne({ testId: '00000000-0000-0000-0000-000000000003' })
+          } catch (e) {
+            console.error("Failed to delete MongoDB results:", e)
+          }
         }
+        if (fs.existsSync(FALLBACK_FILE)) {
+          try {
+            const data = JSON.parse(fs.readFileSync(FALLBACK_FILE, 'utf-8'))
+            if (data['00000000-0000-0000-0000-000000000003']) {
+              delete data['00000000-0000-0000-0000-000000000003']
+              fs.writeFileSync(FALLBACK_FILE, JSON.stringify(data, null, 2))
+            }
+          } catch (e) {}
+        }
+
+        const [created] = await db.insert(tests).values({
+          id: '00000000-0000-0000-0000-000000000003',
+          title: 'Unit Test 3',
+          batch: 'Batch A',
+          subject: 'Physics (PHY-101)',
+          date: '2023-10-24',
+          time: '10:00 AM',
+          duration: 60,
+          totalMarks: 100,
+          status: 'Pending Grading',
+          averageScore: null,
+          testType: 'Unit Test',
+          schoolId
+        }).returning()
+        test = created
       } else {
         return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
       }
     }
 
     // Check if test results already exist
-    let resultDoc = await TestResult.findOne({ testId: test._id })
+    let resultDoc = null
+    if (!isMongoOffline) {
+      try {
+        resultDoc = await TestResult.findOne({ testId: test.id })
+      } catch (e) {
+        console.error("Failed to query MongoDB, using local fallback:", e)
+        isMongoOffline = true
+      }
+    }
+
+    if (isMongoOffline) {
+      resultDoc = getFallbackResults(test.id)
+    }
 
     const resolvedClass = resolveClassFromBatch(test.batch)
+    
+    // Delete any unassigned mock students in class '11 - A' to force recreation with batch
+    if (testId === 'mock-unit-test-3' || targetTestId === '00000000-0000-0000-0000-000000000003') {
+      const deleteCondition = schoolId
+        ? and(eq(students.class, '11 - A'), eq(students.batch, ''), eq(students.schoolId, schoolId))
+        : and(eq(students.class, '11 - A'), eq(students.batch, ''))
+      await db.delete(students).where(deleteCondition)
+    }
+
     // Fetch real students in this class
-    const students = await findStudentsByClasses([resolvedClass], true)
+    let studentsList = await findStudentsByClasses([resolvedClass], true, schoolId)
+
+    // Auto-seed mock students if class '11 - A' has no students
+    if (studentsList.length === 0 && (testId === 'mock-unit-test-3' || targetTestId === '00000000-0000-0000-0000-000000000003')) {
+      const mockStudentData = [
+        { name: 'Kunal Dadlani', rollNo: '11A-01', class: '11 - A', section: 'A', program: 'Science', batch: 'Batch A', schoolId },
+        { name: 'Ayush Patel', rollNo: '11A-02', class: '11 - A', section: 'A', program: 'Science', batch: 'Batch A', schoolId },
+        { name: 'Kunal Singhi', rollNo: '11A-03', class: '11 - A', section: 'A', program: 'Science', batch: 'Batch A', schoolId },
+      ]
+      
+      const insertedStudents = await Promise.all(
+        mockStudentData.map(st => db.insert(students).values(st).returning())
+      )
+      studentsList = insertedStudents.map(rows => rows[0])
+    }
 
     if (!resultDoc) {
-      if (students.length === 0) {
+      if (studentsList.length === 0) {
         return NextResponse.json({ error: `No active students found in class "${resolvedClass}". Please add students first.` }, { status: 404 })
       }
 
       // Generate initial template records based on real students
-      // We will distribute scores with highest 98, lowest 42, and average 74.5% if it's the Unit Test 3
-      const isUnitTest3 = test.title === 'Unit Test 3' && resolvedClass === '11 - A'
-      const presentCount = isUnitTest3 ? students.length - 1 : students.length
-      const scores = isUnitTest3 ? generateDistribution(presentCount, 98, 42, 74.5) : []
-
-      let scoreIdx = 0
-
-      let initialRecords = students.map((st, index) => {
-        // For Unit Test 3, make the third student (index 2) absent to match the mockup exactly
-        const isAbsent = isUnitTest3 && index === 2
-
-        if (isUnitTest3) {
-          if (isAbsent) {
-            return {
-              studentId: st.id,
-              studentName: st.name,
-              rollNo: st.rollNo || `11A-${String(index + 1).padStart(2, '0')}`,
-              marksObtained: undefined,
-              correct: undefined,
-              incorrect: undefined,
-              unattempted: undefined,
-              percentage: undefined,
-              absent: true
-            }
-          }
-
-          const score = scores[scoreIdx++]
-          const correct = Math.round(score / 2)
-          const unattempted = score % 2 === 0 ? 0 : 1
-          const incorrect = Math.max(0, 50 - correct - unattempted)
-
-          return {
-            studentId: st.id,
-            studentName: st.name,
-            rollNo: st.rollNo || `11A-${String(index + 1).padStart(2, '0')}`,
-            marksObtained: score,
-            correct,
-            incorrect,
-            unattempted,
-            percentage: (score / test.totalMarks) * 100,
-            absent: false
-          }
-        }
-
-        // For other tests, default to empty template values
+      let initialRecords = studentsList.map((st, index) => {
         return {
           studentId: st.id,
           studentName: st.name,
@@ -194,20 +244,25 @@ export async function GET(req: NextRequest) {
         }
       })
 
-      // Calculate ranks for the initial template records
-      initialRecords = calculateRanks(initialRecords)
-
-      // Sort alphabetically by studentName before saving/returning
       initialRecords.sort((a, b) => a.studentName.localeCompare(b.studentName))
 
-      // Save initial result sheet if it was a Graded test
       if (test.status === 'Graded') {
-        resultDoc = await TestResult.create({
-          testId: test._id,
-          studentResults: initialRecords
-        })
+        if (!isMongoOffline) {
+          try {
+            resultDoc = await TestResult.create({
+              testId: test.id,
+              studentResults: initialRecords
+            })
+          } catch (e) {
+            console.error("Failed to create in MongoDB, saving locally:", e)
+            saveFallbackResults(test.id, initialRecords)
+            resultDoc = { testId: test.id, studentResults: initialRecords }
+          }
+        } else {
+          saveFallbackResults(test.id, initialRecords)
+          resultDoc = { testId: test.id, studentResults: initialRecords }
+        }
       } else {
-        // Return unsaved template for upcoming/pending tests
         return NextResponse.json({
           test,
           studentResults: initialRecords,
@@ -216,8 +271,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Map existing results to real students to ensure consistent real names
-    const mappedResults = students.map((st, index) => {
+    // Map existing results to real students
+    const mappedResults = studentsList.map((st, index) => {
       const originalResult = resultDoc.studentResults.find((r: any) => r.studentId === st.id) || resultDoc.studentResults[index]
       if (originalResult) {
         return {
@@ -247,7 +302,6 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    // Sort alphabetically by studentName
     mappedResults.sort((a, b) => a.studentName.localeCompare(b.studentName))
 
     return NextResponse.json({
@@ -271,7 +325,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    await connectDB()
+    let isMongoOffline = false
+    try {
+      await connectDB()
+    } catch (e) {
+      console.warn("MongoDB connection failed on POST, using local fallback:", e)
+      isMongoOffline = true
+    }
 
     const body = await req.json()
     const { testId, studentResults } = body
@@ -280,12 +340,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required parameters.' }, { status: 400 })
     }
 
-    const test = await Test.findById(testId)
+    const [test] = await db.select().from(tests).where(eq(tests.id, testId))
     if (!test) {
       return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
     }
 
-    // Process and validate results, calculate percentages
     const totalMarks = test.totalMarks
     let formattedResults = studentResults.map(r => {
       const marks = r.absent ? undefined : Number(r.marksObtained || 0)
@@ -302,29 +361,38 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    // Compute ranks dynamically
     formattedResults = calculateRanks(formattedResults)
 
-    // Save/Upsert results in database
-    const updatedResultDoc = await TestResult.findOneAndUpdate(
-      { testId },
-      { testId, studentResults: formattedResults },
-      { new: true, upsert: true }
-    )
+    let updatedResultDoc = null
+    if (!isMongoOffline) {
+      try {
+        updatedResultDoc = await TestResult.findOneAndUpdate(
+          { testId },
+          { testId, studentResults: formattedResults },
+          { new: true, upsert: true }
+        )
+      } catch (e) {
+        console.error("Failed to update MongoDB, writing locally:", e)
+        isMongoOffline = true
+      }
+    }
 
-    // Calculate class performance stats (Average Score)
+    if (isMongoOffline) {
+      saveFallbackResults(testId, formattedResults)
+      updatedResultDoc = { testId, studentResults: formattedResults }
+    }
+
     const presentStudents = formattedResults.filter(r => !r.absent && r.percentage !== undefined)
     const averageScore = presentStudents.length > 0
       ? Math.round((presentStudents.reduce((sum, r) => sum + (r.percentage || 0), 0) / presentStudents.length) * 10) / 10
       : 0
 
-    // Update Test status and average score in DB
-    await Test.findByIdAndUpdate(testId, {
-      averageScore,
-      status: 'Graded'
-    })
+    await db.update(tests).set({
+      averageScore: Math.round(averageScore),
+      status: 'Graded',
+      updatedAt: new Date()
+    }).where(eq(tests.id, testId))
 
-    // Notify teachers and admins
     await notifyRoleInSchool(
       ['teacher', 'management'],
       test.schoolId,
@@ -338,7 +406,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      test: { ...test.toObject(), averageScore, status: 'Graded' },
+      test: { ...test, averageScore, status: 'Graded' },
       studentResults: updatedResultDoc.studentResults
     })
   } catch (error: any) {

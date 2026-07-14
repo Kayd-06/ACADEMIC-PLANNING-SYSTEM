@@ -186,9 +186,21 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
       if (Array.isArray(data)) {
         setStudents(data)
         
-        // Extract unique batches and classes
+        // Fetch real batches from PUT /api/daily-report
+        let uniqueBatches: string[] = []
+        try {
+          const bRes = await fetch('/api/daily-report', { method: 'PUT' })
+          const bData = await bRes.json()
+          if (Array.isArray(bData)) {
+            uniqueBatches = bData
+          }
+        } catch (e) {
+          console.error('Failed to fetch batches from API:', e)
+        }
+
         const rosterBatches = data.map((s: any) => s.batch).filter(Boolean)
-        let uniqueBatches = Array.from(new Set([...rosterBatches, ...assignedBatches])) as string[]
+        uniqueBatches = Array.from(new Set([...uniqueBatches, ...rosterBatches, ...assignedBatches])) as string[]
+        
         if (uniqueBatches.length === 0) {
           uniqueBatches = ['Batch 1']
         }

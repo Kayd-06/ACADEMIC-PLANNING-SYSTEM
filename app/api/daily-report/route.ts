@@ -1,7 +1,7 @@
 // Daily report API route - updated and verified
 import { NextRequest, NextResponse } from 'next/server'
-import { db, dailyReports, students } from '@/lib/db'
-import { eq, and, desc } from 'drizzle-orm'
+import { db, dailyReports, students, batches as batchesTable } from '@/lib/db'
+import { eq, and, desc, isNull, asc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
 
@@ -162,17 +162,14 @@ export async function DELETE(req: NextRequest) {
   return NextResponse.json({ success: true })
 }
 
-// GET distinct batches from students table
+// GET distinct batches from batches table
 export async function PUT() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const schoolId = (session.user as any).schoolId as string | null
 
-  const baseCondition = and(
-    eq(students.isActive, true),
-    ...(schoolId ? [eq(students.schoolId, schoolId)] : [])
-  )
-  const rows = await db.selectDistinct({ class: students.class }).from(students).where(baseCondition)
-  const batches = rows.map(r => r.class).filter(Boolean).sort()
+  const condition = schoolId ? eq(batchesTable.schoolId, schoolId) : isNull(batchesTable.schoolId)
+  const rows = await db.select({ name: batchesTable.name }).from(batchesTable).where(condition).orderBy(asc(batchesTable.name))
+  const batches = rows.map(r => r.name).filter(Boolean)
   return NextResponse.json(batches)
 }

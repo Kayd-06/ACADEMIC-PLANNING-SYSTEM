@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   const totalCount = allItems.length
   const avgRating = totalCount > 0
     ? Number((allItems.reduce((s, i) => s + i.rating, 0) / totalCount).toFixed(1))
-    : 4.1
+    : 0
   const pendingCount = allItems.filter(i => i.status === 'Submitted' || i.status === 'Reviewed').length
   const actionedCount = allItems.filter(i => i.status === 'Actioned' || i.status === 'Dismissed').length
 

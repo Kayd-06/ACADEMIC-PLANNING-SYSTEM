@@ -32,8 +32,14 @@ export default function TeacherStudentRosterView() {
   const [batchFilter, setBatchFilter] = useState('All Batches')
   const [programFilter, setProgramFilter] = useState('All Programs')
 
+  const [dbBatches, setDbBatches] = useState<string[]>([])
+
   useEffect(() => {
     fetchStudents()
+    fetch('/api/daily-report', { method: 'PUT' })
+      .then(res => res.json())
+      .then(data => { if (Array.isArray(data)) setDbBatches(data) })
+      .catch(err => console.error('Failed to load batches:', err))
   }, [])
 
   // Follow the sidebar's teacher-scoped Program/Batch switchers
@@ -94,7 +100,7 @@ export default function TeacherStudentRosterView() {
 
   // Get unique filter options
   const classes = ['All Classes', ...Array.from(new Set(students.map(s => s.rawClass).filter(Boolean)))]
-  const batches = ['All Batches', ...Array.from(new Set(students.map(s => s.batch).filter(Boolean)))]
+  const batches = ['All Batches', ...Array.from(new Set([...dbBatches, ...students.map(s => s.batch).filter(Boolean)])).sort()]
 
   // Filter students. Program filtering matches each student's own `program`
   // field, mirroring the sidebar's Program switcher (management side).
