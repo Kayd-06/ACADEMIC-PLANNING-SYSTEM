@@ -863,6 +863,7 @@ export const tests = pgTable('tests', {
   id: uuid('id').defaultRandom().primaryKey(),
   title: varchar('title', { length: 255 }).notNull(),
   batch: varchar('batch', { length: 255 }).notNull(),
+  program: varchar('program', { length: 255 }).notNull().default(''),
   subject: varchar('subject', { length: 255 }).notNull(),
   date: varchar('date', { length: 10 }).notNull(),
   time: varchar('time', { length: 20 }).notNull().default('10:00 AM'),
@@ -871,6 +872,11 @@ export const tests = pgTable('tests', {
   status: varchar('status', { length: 30 }).notNull().default('Upcoming'), // Upcoming | Pending Grading | Graded
   testType: varchar('test_type', { length: 30 }).notNull().default('Unit Test'), // Unit Test | Mock | DPP
   averageScore: integer('average_score'),
+  // NULL means this row predates faculty ownership (or was created directly
+  // by management) — visible to management only, never to any teacher.
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  paperUrl: text('paper_url'),
+  paperFileName: varchar('paper_file_name', { length: 255 }),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -892,6 +898,9 @@ export const questions = pgTable('questions', {
   marks: integer('marks').notNull().default(4),
   negativeMarks: integer('negative_marks').notNull().default(0),
   source: varchar('source', { length: 100 }).notNull().default('Custom'),
+  // NULL means this row predates faculty ownership — visible to management
+  // only, never to any teacher. Same semantics as tests.createdByUserId.
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -899,6 +908,28 @@ export const questions = pgTable('questions', {
 
 export type Question = typeof questions.$inferSelect
 export type NewQuestion = typeof questions.$inferInsert
+
+export const testGrades = pgTable('test_grades', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  testId: uuid('test_id').notNull().references(() => tests.id, { onDelete: 'cascade' }),
+  studentId: uuid('student_id').notNull().references(() => students.id, { onDelete: 'cascade' }),
+  rollNo: varchar('roll_no', { length: 255 }).notNull().default(''),
+  // NULL = not graded yet, or graded but marked absent.
+  marksObtained: integer('marks_obtained'),
+  correct: integer('correct'),
+  incorrect: integer('incorrect'),
+  unattempted: integer('unattempted'),
+  absent: boolean('absent').notNull().default(false),
+  gradedByUserId: uuid('graded_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  testStudentUnique: uniqueIndex('test_grades_test_id_student_id_unique').on(table.testId, table.studentId),
+}))
+
+export type TestGrade = typeof testGrades.$inferSelect
+export type NewTestGrade = typeof testGrades.$inferInsert
 
 // ── Finance & Fee Management ──────────────────────────────────────────────────
 

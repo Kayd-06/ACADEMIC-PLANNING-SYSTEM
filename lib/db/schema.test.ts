@@ -1,5 +1,5 @@
 import { db } from './index'
-import { users, emailVerifications, schools, students, studentReports, studentReportEntries } from './schema'
+import { users, emailVerifications, schools, students, studentReports, studentReportEntries, tests, questions, testGrades } from './schema'
 
 describe('schema', () => {
   it('can query all tables without error', async () => {
@@ -9,5 +9,8 @@ describe('schema', () => {
     await expect(db.select().from(students)).resolves.toEqual(expect.any(Array))
     await expect(db.select().from(studentReports)).resolves.toEqual(expect.any(Array))
     await expect(db.select().from(studentReportEntries)).resolves.toEqual(expect.any(Array))
+    await expect(db.select().from(tests)).resolves.toEqual(expect.any(Array))
+    await expect(db.select().from(questions)).resolves.toEqual(expect.any(Array))
+    await expect(db.select().from(testGrades)).resolves.toEqual(expect.any(Array))
   })
 })
