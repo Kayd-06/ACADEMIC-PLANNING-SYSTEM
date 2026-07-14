@@ -3430,6 +3430,197 @@ git commit -m "feat: show live test performance in Student Reports UI"
 
 ---
 
+### Task 12: Rewire `AcademicRecordsView.tsx` off the deleted results route
+
+**Discovered during Task 5 execution, not anticipated by the original spec:** `components/dashboard/teacher/AcademicRecordsView.tsx` (mounted at `/teacher/academic-records`, its own faculty sidebar item, separate from Tests & Question Bank) is a full 781-line test-grading page that called the now-deleted `/api/tests/results` route directly. The spec's assumption that the old route was "not linked from any button" was wrong — this page is a real, live grading UI. User decision: rewire it to the new `/api/tests/[id]/grades` route rather than removing the page.
+
+**Files:**
+- Modify: `components/dashboard/teacher/AcademicRecordsView.tsx`
+
+**Interfaces:**
+- Consumes: `GET`/`POST /api/tests/[id]/grades` (Task 5).
+
+One real behavior change is unavoidable and intentional: the old page had an "Add Row" feature that let a teacher grade an ad-hoc student with no real roster record (`isCustom: true`, no `studentId`). The new route only accepts grades for students returned by `findStudentsByBatch` — any entry without a `studentId` matching the real roster is silently skipped (Task 5's POST loop: `if (!student) continue`). This is a deliberate consequence of this whole plan's "always grade the real batch roster" design established across Tasks 1-8, not a regression to preserve — remove the "Add Row" feature as part of this rewiring rather than leaving a button that silently does nothing.
+
+- [ ] **Step 1: Rewire `fetchTests` — drop the mock-seeding call**
+
+Find:
+
+```tsx
+  // 1. Fetch available tests
+  async function fetchTests() {
+    setTestsLoading(true)
+    try {
+      // First, hit the results route with 'mock-unit-test-3' to ensure our mockup test is seeded in the DB
+      await fetch('/api/tests/results?testId=mock-unit-test-3')
+      
+      // Now fetch scheduled tests from the schedule route
+      const res = await fetch('/api/tests/schedule')
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        setTests(data)
+        
+        // Find our seeded mockup test and default to it
+        const mockTest = data.find(t => t.title === 'Unit Test 3' && (t.batch === '11 - A' || t.batch === 'Grade 11-A' || t.batch === 'Batch A'))
+        if (mockTest) {
+          setSelectedTestId(mockTest.id)
+        } else if (data.length > 0) {
+          setSelectedTestId(data[0].id)
+        } else {
+          // If no tests are returned, turn off the loading state
+          setLoading(false)
+        }
+      } else {
+        setLoading(false)
+      }
+    } catch (err) {
+      console.error('Failed to load tests:', err)
+      setLoading(false)
+    } finally {
+      setTestsLoading(false)
+    }
+  }
+```
+
+Replace with:
+
+```tsx
+  // 1. Fetch available tests
+  async function fetchTests() {
+    setTestsLoading(true)
+    try {
+      const res = await fetch('/api/tests/schedule')
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        setTests(data)
+        if (data.length > 0) {
+          setSelectedTestId(data[0].id)
+        } else {
+          // If no tests are returned, turn off the loading state
+          setLoading(false)
+        }
+      } else {
+        setLoading(false)
+      }
+    } catch (err) {
+      console.error('Failed to load tests:', err)
+      setLoading(false)
+    } finally {
+      setTestsLoading(false)
+    }
+  }
+```
+
+- [ ] **Step 2: Rewire `fetchTestResults` to the new path-based route**
+
+Find:
+
+```tsx
+  // 2. Fetch marks/results for the selected test
+  async function fetchTestResults() {
+    if (!selectedTestId) return
+    setLoading(true)
+    setMessage(null)
+    try {
+      const res = await fetch(`/api/tests/results?testId=${selectedTestId}`)
+      const data = await res.json()
+```
+
+Replace with:
+
+```tsx
+  // 2. Fetch marks/results for the selected test
+  async function fetchTestResults() {
+    if (!selectedTestId) return
+    setLoading(true)
+    setMessage(null)
+    try {
+      const res = await fetch(`/api/tests/${selectedTestId}/grades`)
+      const data = await res.json()
+```
+
+- [ ] **Step 3: Rewire `handleSaveResults` to the new POST body shape**
+
+Find:
+
+```tsx
+      const res = await fetch('/api/tests/results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          testId: selectedTestId,
+          studentResults
+        })
+      })
+```
+
+Replace with:
+
+```tsx
+      const res = await fetch(`/api/tests/${selectedTestId}/grades`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grades: studentResults
+            .filter(r => r.studentId)
+            .map(r => ({
+              studentId: r.studentId,
+              marksObtained: r.marksObtained,
+              correct: r.correct,
+              incorrect: r.incorrect,
+              unattempted: r.unattempted,
+              absent: r.absent,
+            })),
+        })
+      })
+```
+
+- [ ] **Step 4: Remove the "Add Row" custom-student feature**
+
+Find the `handleAddNewRow` function:
+
+```tsx
+  // Add custom student row action
+  const handleAddNewRow = () => {
+    setStudentResults(prev => {
+      const prefix = selectedTest ? selectedTest.batch.replace(/\s+/g, '') + '-' : '11A-'
+      const newRow = {
+        studentName: '',
+        rollNo: `${prefix}${String(prev.length + 1).padStart(2, '0')}`,
+        marksObtained: 0,
+        correct: 0,
+        incorrect: 0,
+        unattempted: 50,
+        percentage: 0,
+        absent: false,
+        isCustom: true
+      }
+      return recalculateRanks([...prev, newRow])
+    })
+  }
+
+```
+
+Delete this function entirely.
+
+Find wherever `handleAddNewRow` is referenced in the JSX (an "Add Row"/"Add Student" button using the `Plus` icon) and remove that button. Search the file for `handleAddNewRow` to find the exact call site — it will be a single `onClick={handleAddNewRow}` button; remove the whole `<button>...</button>` element.
+
+- [ ] **Step 5: Typecheck and manual verification**
+
+Run: `npx tsc --noEmit`
+Expected: no errors.
+
+On the dev server, log in as a teacher, navigate to Academic Records. Verify: the test list loads (no more seeded "Unit Test 3" mock), selecting a test loads its real roster with existing grades if any, entering marks and saving persists (reload the page and confirm the saved marks are still there), and there is no "Add Row"/custom-student button.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add components/dashboard/teacher/AcademicRecordsView.tsx
+git commit -m "fix: rewire Academic Records off the deleted Mongo-backed results route"
+```
+
+---
+
 ## Final Verification
 
 - [ ] Run: `npm test` — every suite passes.
