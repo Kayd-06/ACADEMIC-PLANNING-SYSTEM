@@ -2,39 +2,51 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { batches, batchSyllabus, chapters, subjects } from '@/lib/db/schema'
 import { eq, and, asc, desc } from 'drizzle-orm'
+import { auth, getSchoolId } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = getSchoolId(session)
+
     const { searchParams } = new URL(req.url)
     const className = searchParams.get('class') || 'Grade 11-A'
     const subjectName = searchParams.get('subject') || 'Physics'
 
-    // 1. Get or create Batch
-    let batchRow = await db.select().from(batches).where(eq(batches.name, className)).limit(1).then(r => r[0])
+    // 1. Get or create Batch, scoped to this school — batch names are not
+    // globally unique, so matching on name alone would silently merge every
+    // school's same-named batch (e.g. "Grade 11-A") into one shared row.
+    const batchCond = schoolId ? and(eq(batches.name, className), eq(batches.schoolId, schoolId)) : eq(batches.name, className)
+    let batchRow = await db.select().from(batches).where(batchCond).limit(1).then(r => r[0])
     if (!batchRow) {
       const [newBatch] = await db.insert(batches).values({
         name: className,
         capacity: 60,
-        classLevel: '11'
+        classLevel: '11',
+        schoolId,
       }).returning()
       batchRow = newBatch
     }
 
-    // 2. Get or create Subject
-    let subjectRow = await db.select().from(subjects).where(eq(subjects.name, subjectName)).limit(1).then(r => r[0])
+    // 2. Get or create Subject, scoped to this school for the same reason.
+    const subjectCond = schoolId ? and(eq(subjects.name, subjectName), eq(subjects.schoolId, schoolId)) : eq(subjects.name, subjectName)
+    let subjectRow = await db.select().from(subjects).where(subjectCond).limit(1).then(r => r[0])
     if (!subjectRow) {
       const [newSub] = await db.insert(subjects).values({
         name: subjectName,
         code: subjectName.substring(0, 3).toUpperCase(),
-        description: `${subjectName} subject`
+        description: `${subjectName} subject`,
+        schoolId,
       }).returning()
       subjectRow = newSub
     }
 
-    // 3. Get chapters
-    let chapterRows = await db.select().from(chapters).where(eq(chapters.subjectId, subjectRow.id)).orderBy(asc(chapters.orderIndex))
+    // 3. Get chapters, scoped to this school.
+    const chapterCond = schoolId ? and(eq(chapters.subjectId, subjectRow.id), eq(chapters.schoolId, schoolId)) : eq(chapters.subjectId, subjectRow.id)
+    let chapterRows = await db.select().from(chapters).where(chapterCond).orderBy(asc(chapters.orderIndex))
 
     // 4. Get or create batchSyllabus entries for existing chapters
     if (chapterRows.length > 0) {
@@ -54,7 +66,8 @@ export async function GET(req: Request) {
       }
     }
 
-    // 6. Query joined result
+    // 6. Query joined result, scoped to this school's chapters only.
+    const joinChapterCond = schoolId ? and(eq(chapters.subjectId, subjectRow.id), eq(chapters.schoolId, schoolId)) : eq(chapters.subjectId, subjectRow.id)
     const dbResult = await db
       .select({
         syllabusId: batchSyllabus.id,
@@ -69,7 +82,7 @@ export async function GET(req: Request) {
       })
       .from(batchSyllabus)
       .innerJoin(chapters, eq(batchSyllabus.chapterId, chapters.id))
-      .where(and(eq(batchSyllabus.batchId, batchRow.id), eq(chapters.subjectId, subjectRow.id)))
+      .where(and(eq(batchSyllabus.batchId, batchRow.id), joinChapterCond))
       .orderBy(asc(chapters.orderIndex))
 
     // Format for React UI
@@ -92,13 +105,31 @@ export async function GET(req: Request) {
   }
 }
 
+// A batchSyllabus row's own school is reached only through its batch — used
+// by PATCH/DELETE to confirm the caller's school actually owns the row
+// before mutating it.
+async function loadAuthorizedSyllabusRow(id: string, schoolId: string | null) {
+  const [row] = await db
+    .select({ syllabus: batchSyllabus, batchSchoolId: batches.schoolId })
+    .from(batchSyllabus)
+    .innerJoin(batches, eq(batchSyllabus.batchId, batches.id))
+    .where(eq(batchSyllabus.id, id))
+    .limit(1)
+  if (!row) return null
+  if (schoolId && row.batchSchoolId !== schoolId) return null
+  return row.syllabus
+}
+
 export async function PATCH(req: Request) {
   try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = getSchoolId(session)
+
     const { id, status, notes, title, estHours, dates } = await req.json()
     if (!id) return NextResponse.json({ error: 'Missing chapter/syllabus ID' }, { status: 400 })
 
-    // Find the batchSyllabus entry
-    const [sb] = await db.select().from(batchSyllabus).where(eq(batchSyllabus.id, id)).limit(1)
+    const sb = await loadAuthorizedSyllabusRow(id, schoolId)
     if (!sb) return NextResponse.json({ error: 'Syllabus record not found' }, { status: 404 })
 
     // Update batchSyllabus fields
@@ -142,6 +173,10 @@ export async function PATCH(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = getSchoolId(session)
+
     const data = await req.json()
     const { className, subject, title, estHours, dates, status, notes } = data
 
@@ -149,23 +184,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Class, Subject, and Title are required' }, { status: 400 })
     }
 
-    // Get or create Batch & Subject
-    let batchRow = await db.select().from(batches).where(eq(batches.name, className)).limit(1).then(r => r[0])
-    let subjectRow = await db.select().from(subjects).where(eq(subjects.name, subject)).limit(1).then(r => r[0])
+    // Get or create Batch & Subject, scoped to this school.
+    const batchCond = schoolId ? and(eq(batches.name, className), eq(batches.schoolId, schoolId)) : eq(batches.name, className)
+    const subjectCond = schoolId ? and(eq(subjects.name, subject), eq(subjects.schoolId, schoolId)) : eq(subjects.name, subject)
+    let batchRow = await db.select().from(batches).where(batchCond).limit(1).then(r => r[0])
+    let subjectRow = await db.select().from(subjects).where(subjectCond).limit(1).then(r => r[0])
 
     if (!batchRow) {
-      const [nb] = await db.insert(batches).values({ name: className, capacity: 60, classLevel: '11' }).returning()
+      const [nb] = await db.insert(batches).values({ name: className, capacity: 60, classLevel: '11', schoolId }).returning()
       batchRow = nb
     }
     if (!subjectRow) {
-      const [ns] = await db.insert(subjects).values({ name: subject, code: subject.substring(0,3).toUpperCase() }).returning()
+      const [ns] = await db.insert(subjects).values({ name: subject, code: subject.substring(0,3).toUpperCase(), schoolId }).returning()
       subjectRow = ns
     }
 
-    // Get order index
+    // Get order index, scoped to this school's chapters for this subject.
+    const orderCond = schoolId ? and(eq(chapters.subjectId, subjectRow.id), eq(chapters.schoolId, schoolId)) : eq(chapters.subjectId, subjectRow.id)
     const lastChap = await db.select({ orderIndex: chapters.orderIndex })
       .from(chapters)
-      .where(eq(chapters.subjectId, subjectRow.id))
+      .where(orderCond)
       .orderBy(desc(chapters.orderIndex))
       .limit(1)
       .then(r => r[0])
@@ -177,7 +215,8 @@ export async function POST(req: Request) {
       name: title,
       description: notes || '',
       expectedHours: numHours,
-      orderIndex: nextOrder
+      orderIndex: nextOrder,
+      schoolId,
     }).returning()
 
     const normalizedStatus = status === 'NOT STARTED' ? 'Not Started' :
@@ -214,12 +253,16 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = getSchoolId(session)
+
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
 
     if (!id) return NextResponse.json({ error: 'Missing chapter ID' }, { status: 400 })
 
-    const [sb] = await db.select().from(batchSyllabus).where(eq(batchSyllabus.id, id)).limit(1)
+    const sb = await loadAuthorizedSyllabusRow(id, schoolId)
     if (!sb) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
 
     await db.delete(chapters).where(eq(chapters.id, sb.chapterId))
