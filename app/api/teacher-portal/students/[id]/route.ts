@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { counselingSessions, studentReports, studentReportEntries, parentsGuardians, studentBatchEnrollments } from '@/lib/db/schema'
 import { eq, desc, asc } from 'drizzle-orm'
 import { computeStudentAttendance } from '@/lib/db/queries/attendance'
+import { computeTestPerformance } from '@/lib/db/queries/tests'
 import { getLocalToday } from '@/lib/scheduleUtils'
 
 export const dynamic = 'force-dynamic'
@@ -45,11 +46,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .where(eq(studentReportEntries.rollNo, student.rollNo ?? ''))
       .orderBy(desc(studentReports.createdAt))
 
-    const recentTests = entries.map(e => ({
-      test: `${e.term} - ${e.subject}`,
-      date: new Date(e.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      score: `${e.marks}/${e.maxMarks}`,
-      percentage: Math.round((e.marks / e.maxMarks) * 100),
+    // "Recent Tests" is about the real Tests & Question Bank feature, not
+    // the unrelated bulk-uploaded student_report_entries used for
+    // subjectAverages below — those are two different data sources that
+    // happened to share this panel before test grading existed.
+    const testPerformance = await computeTestPerformance(student.id, schoolId)
+    const recentTests = testPerformance.map(t => ({
+      test: `${t.title} (${t.subject})`,
+      date: new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      score: t.absent ? 'Absent' : t.marksObtained !== null ? `${t.marksObtained}/${t.totalMarks}` : 'Pending',
+      percentage: t.percentage,
     }))
 
     const subjectAverages: Record<string, { total: number; count: number }> = {}

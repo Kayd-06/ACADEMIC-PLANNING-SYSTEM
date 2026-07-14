@@ -5,6 +5,7 @@ import { students } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getReportById } from '@/lib/db/queries/student-reports'
 import { computeStudentAttendance, computeAssignmentAverage } from '@/lib/db/queries/attendance'
+import { computeTestPerformance } from '@/lib/db/queries/tests'
 import { getLocalToday } from '@/lib/scheduleUtils'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -33,12 +34,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const todayIso = getLocalToday()
     const entries = await Promise.all(report.entries.map(async (e) => {
       const student = e.rollNo ? studentByRoll.get(e.rollNo) : undefined
-      const [attendanceStats, assignmentStats] = student
+      const [attendanceStats, assignmentStats, testPerformance] = student
         ? await Promise.all([
             computeStudentAttendance(student.id, student.batch, schoolId, todayIso),
             computeAssignmentAverage(student.id),
+            computeTestPerformance(student.id, schoolId),
           ])
-        : [null, null]
+        : [null, null, []]
+
+      const gradedTests = testPerformance.filter(t => !t.absent && t.percentage !== null)
+      const testAverage = gradedTests.length > 0
+        ? Math.round(gradedTests.reduce((sum, t) => sum + (t.percentage as number), 0) / gradedTests.length)
+        : null
 
       return {
         name: e.name,
@@ -50,6 +57,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         attendanceDetail: attendanceStats ? `${attendanceStats.presentCount}/${attendanceStats.totalClasses}` : null,
         assignmentAverage: assignmentStats ? assignmentStats.average : null,
         assignmentGradedCount: assignmentStats ? assignmentStats.gradedCount : 0,
+        testAverage,
+        testCount: gradedTests.length,
         remarks: e.remarks,
       }
     }))
