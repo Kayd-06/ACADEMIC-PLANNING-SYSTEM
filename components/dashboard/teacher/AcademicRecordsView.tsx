@@ -206,10 +206,10 @@ export default function AcademicRecordsView() {
   const handleSaveResults = async () => {
     if (!selectedTestId) return
     
-    // Validate custom rows have names
+    // Guard against roster rows with missing names before saving
     const hasEmptyNames = studentResults.some(r => !r.studentName.trim())
     if (hasEmptyNames) {
-      setMessage({ type: 'error', text: 'Please fill in student names for all added rows.' })
+      setMessage({ type: 'error', text: 'Some students are missing a name. Please refresh and try again.' })
       return
     }
 
@@ -236,7 +236,9 @@ export default function AcademicRecordsView() {
       if (data.success) {
         setMessage({ type: 'success', text: 'Test results saved and graded successfully!' })
         setSelectedTest(data.test)
-        setStudentResults(data.studentResults || [])
+        // Re-fetch the roster+grades from the server rather than reading a
+        // studentResults field from the POST response (the API doesn't return one).
+        await fetchTestResults()
         // Update in tests list
         setTests(prev => prev.map(t => t.id === selectedTestId ? data.test : t))
       } else {
@@ -521,7 +523,7 @@ export default function AcademicRecordsView() {
           ) : studentResults.length === 0 ? (
             <div className="py-24 text-center text-slate-400">
               <AlertCircle className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-              <p className="text-sm font-medium">No students found. Add a row to get started.</p>
+              <p className="text-sm font-medium">No students found in this batch.</p>
             </div>
           ) : (
             <table className="w-full text-left border-collapse">
