@@ -27,6 +27,7 @@ import {
 import UploadPdfModal from '@/components/dashboard/UploadPdfModal'
 import ExportQuestionsModal from '@/components/dashboard/ExportQuestionsModal'
 import TestGradingModal from '@/components/dashboard/TestGradingModal'
+import { getLocalToday } from '@/lib/scheduleUtils'
 
 // Simple helper to get the weekday name index (0 = Monday, 6 = Sunday)
 function getWeekdayIndex(dateStr: string) {
@@ -647,7 +648,7 @@ export default function TestsBankView() {
                   <tbody className="divide-y divide-slate-100">
                     {filteredScheduledTests.length > 0 ? (
                       filteredScheduledTests.map((t: any) => {
-                        const isGradable = t.date <= new Date().toISOString().split('T')[0]
+                        const isGradable = t.date <= getLocalToday()
                         return (
                           <tr key={t.id} className="hover:bg-slate-50/40 transition-colors">
                             <td className="px-6 py-4">

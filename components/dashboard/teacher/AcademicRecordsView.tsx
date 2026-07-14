@@ -555,33 +555,13 @@ export default function AcademicRecordsView() {
                           <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold ${avatarColor} shrink-0`}>
                             {initials}
                           </div>
-                          {record.isCustom ? (
-                            <input
-                              type="text"
-                              value={record.studentName}
-                              onChange={(e) => handleInputChange(originalIndex, 'studentName', e.target.value)}
-                              placeholder="Enter student name"
-                              className="border border-slate-200 rounded-lg px-2 py-1 text-sm font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
-                            />
-                          ) : (
-                            <span className="font-semibold text-slate-700 text-sm">{record.studentName}</span>
-                          )}
+                          <span className="font-semibold text-slate-700 text-sm">{record.studentName}</span>
                         </div>
                       </td>
 
                       {/* Roll No */}
                       <td className="px-6 py-4 text-sm text-slate-500 font-medium font-mono">
-                        {record.isCustom ? (
-                          <input
-                            type="text"
-                            value={record.rollNo}
-                            onChange={(e) => handleInputChange(originalIndex, 'rollNo', e.target.value)}
-                            placeholder="Roll No"
-                            className="border border-slate-200 rounded-lg px-2 py-1 text-sm font-medium text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 w-24 font-mono"
-                          />
-                        ) : (
-                          record.rollNo
-                        )}
+                        {record.rollNo}
                       </td>
 
                       {/* Marks Obtained Input */}

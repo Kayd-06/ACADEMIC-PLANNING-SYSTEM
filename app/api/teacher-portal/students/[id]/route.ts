@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { getStudentById } from '@/lib/db/queries/students'
 import { db } from '@/lib/db'
 import { counselingSessions, studentReports, studentReportEntries, parentsGuardians, studentBatchEnrollments } from '@/lib/db/schema'
@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
 
     const { id } = await params
     const student = await getStudentById(id)
