@@ -5,9 +5,8 @@ import {
   FileCheck, 
   ArrowLeft, 
   Download, 
-  Search, 
-  Plus, 
-  Loader2, 
+  Search,
+  Loader2,
   AlertCircle, 
   CheckCircle2, 
   ChevronLeft, 
@@ -63,20 +62,11 @@ export default function AcademicRecordsView() {
   async function fetchTests() {
     setTestsLoading(true)
     try {
-      // First, hit the results route with 'mock-unit-test-3' to ensure our mockup test is seeded in the DB
-      await fetch('/api/tests/results?testId=mock-unit-test-3')
-      
-      // Now fetch scheduled tests from the schedule route
       const res = await fetch('/api/tests/schedule')
       const data = await res.json()
       if (Array.isArray(data)) {
         setTests(data)
-        
-        // Find our seeded mockup test and default to it
-        const mockTest = data.find(t => t.title === 'Unit Test 3' && (t.batch === '11 - A' || t.batch === 'Grade 11-A' || t.batch === 'Batch A'))
-        if (mockTest) {
-          setSelectedTestId(mockTest.id)
-        } else if (data.length > 0) {
+        if (data.length > 0) {
           setSelectedTestId(data[0].id)
         } else {
           // If no tests are returned, turn off the loading state
@@ -99,7 +89,7 @@ export default function AcademicRecordsView() {
     setLoading(true)
     setMessage(null)
     try {
-      const res = await fetch(`/api/tests/results?testId=${selectedTestId}`)
+      const res = await fetch(`/api/tests/${selectedTestId}/grades`)
       const data = await res.json()
       if (data && !data.error) {
         setSelectedTest(data.test)
@@ -212,25 +202,6 @@ export default function AcademicRecordsView() {
     })
   }
 
-  // Add custom student row action
-  const handleAddNewRow = () => {
-    setStudentResults(prev => {
-      const prefix = selectedTest ? selectedTest.batch.replace(/\s+/g, '') + '-' : '11A-'
-      const newRow = {
-        studentName: '',
-        rollNo: `${prefix}${String(prev.length + 1).padStart(2, '0')}`,
-        marksObtained: 0,
-        correct: 0,
-        incorrect: 0,
-        unattempted: 50,
-        percentage: 0,
-        absent: false,
-        isCustom: true
-      }
-      return recalculateRanks([...prev, newRow])
-    })
-  }
-
   // Save changes
   const handleSaveResults = async () => {
     if (!selectedTestId) return
@@ -245,12 +216,20 @@ export default function AcademicRecordsView() {
     setSaving(true)
     setMessage(null)
     try {
-      const res = await fetch('/api/tests/results', {
+      const res = await fetch(`/api/tests/${selectedTestId}/grades`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          testId: selectedTestId,
-          studentResults
+          grades: studentResults
+            .filter(r => r.studentId)
+            .map(r => ({
+              studentId: r.studentId,
+              marksObtained: r.marksObtained,
+              correct: r.correct,
+              incorrect: r.incorrect,
+              unattempted: r.unattempted,
+              absent: r.absent,
+            })),
         })
       })
       const data = await res.json()
@@ -685,20 +664,6 @@ export default function AcademicRecordsView() {
                     </tr>
                   )
                 })}
-
-                {/* Add New Row Action */}
-                <tr>
-                  <td colSpan={9} className="px-6 py-3.5">
-                    <button
-                      type="button"
-                      onClick={handleAddNewRow}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-slate-400 hover:text-blue-500 transition cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add new row...
-                    </button>
-                  </td>
-                </tr>
               </tbody>
             </table>
           )}
