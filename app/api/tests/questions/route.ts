@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db, questions } from '@/lib/db'
+import { db, questions, users } from '@/lib/db'
 import { eq, and, ilike, or, desc } from 'drizzle-orm'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-// GET — fetch question bank questions (scoped to school)
+// GET — fetch question bank questions. Teachers see only their own;
+// management sees every question in the school plus each row's faculty name.
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const schoolId = (session.user as any).schoolId as string | null
+    const role = (session.user as any).role
+    const userId = (session.user as any).id as string
+    const schoolId = getSchoolId(session)
     const { searchParams } = new URL(req.url)
     const subject = searchParams.get('subject')
     const difficulty = searchParams.get('difficulty')
     const search = searchParams.get('search')
+    const teacherId = searchParams.get('teacherId')
 
     const conditions: any[] = []
     if (schoolId) conditions.push(eq(questions.schoolId, schoolId))
@@ -29,12 +33,37 @@ export async function GET(req: NextRequest) {
         )
       )
     }
+    if (role === 'teacher') {
+      conditions.push(eq(questions.createdByUserId, userId))
+    } else if (teacherId && teacherId !== 'All') {
+      conditions.push(eq(questions.createdByUserId, teacherId))
+    }
+
+    const baseQuery = db
+      .select({
+        id: questions.id,
+        subject: questions.subject,
+        topic: questions.topic,
+        difficulty: questions.difficulty,
+        type: questions.type,
+        text: questions.text,
+        options: questions.options,
+        correctAnswer: questions.correctAnswer,
+        marks: questions.marks,
+        negativeMarks: questions.negativeMarks,
+        source: questions.source,
+        createdByUserId: questions.createdByUserId,
+        schoolId: questions.schoolId,
+        createdAt: questions.createdAt,
+        facultyName: users.name,
+      })
+      .from(questions)
+      .leftJoin(users, eq(questions.createdByUserId, users.id))
 
     const rows = conditions.length > 0
-      ? await db.select().from(questions).where(and(...conditions)).orderBy(desc(questions.createdAt))
-      : await db.select().from(questions).orderBy(desc(questions.createdAt))
+      ? await baseQuery.where(and(...conditions)).orderBy(desc(questions.createdAt))
+      : await baseQuery.orderBy(desc(questions.createdAt))
 
-    // Parse options from JSON string back to array for the client
     const parsed = rows.map(q => ({
       ...q,
       options: (() => { try { return JSON.parse(q.options) } catch { return [] } })()
@@ -46,7 +75,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST — add a new question to the bank
+// POST — add a new question to the bank, owned by the creating user
 export async function POST(req: NextRequest) {
   try {
     const session = await auth()
@@ -64,7 +93,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
     }
 
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
+    const userId = (session.user as any).id as string
 
     const [created] = await db.insert(questions).values({
       subject: subject.trim(),
@@ -72,12 +102,12 @@ export async function POST(req: NextRequest) {
       difficulty,
       type,
       text: text.trim(),
-      // Store options as JSON string
       options: JSON.stringify(Array.isArray(options) ? options.map((o: string) => o.trim()).filter(Boolean) : []),
       correctAnswer: correctAnswer?.trim() || '',
       marks: marks ? Number(marks) : 4,
       negativeMarks: negativeMarks ? Number(negativeMarks) : 0,
       source: source?.trim() || 'Custom',
+      createdByUserId: userId,
       schoolId,
     }).returning()
 
@@ -90,7 +120,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT — edit an existing question
+// PUT — edit an existing question. Teachers may only edit their own.
 export async function PUT(req: NextRequest) {
   try {
     const session = await auth()
@@ -108,8 +138,11 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
     }
 
-    const schoolId = (session.user as any).schoolId as string | null
-    const condition = schoolId ? and(eq(questions.id, id), eq(questions.schoolId, schoolId)) : eq(questions.id, id)
+    const schoolId = getSchoolId(session)
+    const userId = (session.user as any).id as string
+    const conditions: any[] = [eq(questions.id, id)]
+    if (schoolId) conditions.push(eq(questions.schoolId, schoolId))
+    if (role === 'teacher') conditions.push(eq(questions.createdByUserId, userId))
 
     const [updated] = await db.update(questions).set({
       subject: subject.trim(),
@@ -123,7 +156,7 @@ export async function PUT(req: NextRequest) {
       negativeMarks: negativeMarks ? Number(negativeMarks) : 0,
       source: source?.trim() || 'Custom',
       updatedAt: new Date(),
-    }).where(condition).returning()
+    }).where(and(...conditions)).returning()
 
     if (!updated) return NextResponse.json({ error: 'Question not found.' }, { status: 404 })
 
@@ -136,7 +169,7 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// DELETE — remove a question from the bank
+// DELETE — remove a question from the bank. Teachers may only delete their own.
 export async function DELETE(req: NextRequest) {
   try {
     const session = await auth()
@@ -151,10 +184,13 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Missing question ID.' }, { status: 400 })
 
-    const schoolId = (session.user as any).schoolId as string | null
-    const condition = schoolId ? and(eq(questions.id, id), eq(questions.schoolId, schoolId)) : eq(questions.id, id)
+    const schoolId = getSchoolId(session)
+    const userId = (session.user as any).id as string
+    const conditions: any[] = [eq(questions.id, id)]
+    if (schoolId) conditions.push(eq(questions.schoolId, schoolId))
+    if (role === 'teacher') conditions.push(eq(questions.createdByUserId, userId))
 
-    const [deleted] = await db.delete(questions).where(condition).returning()
+    const [deleted] = await db.delete(questions).where(and(...conditions)).returning()
     if (!deleted) return NextResponse.json({ error: 'Question not found.' }, { status: 404 })
     return NextResponse.json({ success: true })
   } catch (error: any) {

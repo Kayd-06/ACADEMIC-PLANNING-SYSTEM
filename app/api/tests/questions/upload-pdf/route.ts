@@ -197,6 +197,7 @@ export async function POST(req: NextRequest) {
     }
 
     const schoolId = (session.user as any).schoolId as string | null
+    const userId = (session.user as any).id as string
 
     // Read multipart form data
     const formData = await req.formData()
@@ -271,6 +272,7 @@ export async function POST(req: NextRequest) {
         marks: q.marks,
         negativeMarks: q.negativeMarks,
         source: q.source,
+        createdByUserId: userId,
         schoolId,
       }))
     ).returning()
