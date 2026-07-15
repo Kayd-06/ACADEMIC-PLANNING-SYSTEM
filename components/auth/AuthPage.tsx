@@ -113,7 +113,12 @@ function LoginForm() {
     const result = await signIn('credentials', { email, password, redirect: false })
     setLoading(false)
     if (result?.error) {
-      setError('Incorrect credentials, or email not verified.')
+      if (result.error.includes('EMAIL_NOT_VERIFIED') || result.error === 'EMAIL_NOT_VERIFIED') {
+        setError('Your email address is not verified yet. Click "Verify email" below to complete verification.')
+        setResumeEmail(email)
+      } else {
+        setError('Invalid email address or password.')
+      }
       return
     }
     const s = await fetch('/api/auth/session').then(r => r.json())

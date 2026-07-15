@@ -5,10 +5,13 @@ import { createUser, findUserByEmail, findUserById, updateUserStatus } from './u
 
 describe('user queries', () => {
   const testEmail = `test-user-queries-${Date.now()}@example.com`
-  let createdId: string
+  let createdId: string | undefined
 
   afterAll(async () => {
-    if (createdId) await db.delete(users).where(eq(users.id, createdId))
+    if (createdId) {
+      await db.delete(users).where(eq(users.id, createdId))
+      createdId = undefined
+    }
   })
 
   it('createUser inserts a row and returns it', async () => {

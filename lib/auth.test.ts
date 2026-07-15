@@ -13,7 +13,7 @@ import { createUser } from './db/queries/users'
 describe('auth — credentials authorize logic (via direct DB queries)', () => {
   const testEmail = `test-auth-${Date.now()}@example.com`
   const plainPassword = 'correct-password-123'
-  let userId: string
+  let userId: string | undefined
 
   beforeAll(async () => {
     const hashed = await bcrypt.hash(plainPassword, 12)
@@ -28,7 +28,10 @@ describe('auth — credentials authorize logic (via direct DB queries)', () => {
   })
 
   afterAll(async () => {
-    await db.delete(users).where(eq(users.id, userId))
+    if (userId) {
+      await db.delete(users).where(eq(users.id, userId))
+      userId = undefined
+    }
   })
 
   it('a matching bcrypt hash validates against the stored password', async () => {
