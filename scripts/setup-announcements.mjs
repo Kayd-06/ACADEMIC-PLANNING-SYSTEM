@@ -23,12 +23,17 @@ async function main() {
       sub text DEFAULT '',
       type varchar(50) NOT NULL DEFAULT 'General',
       scope varchar(255) NOT NULL DEFAULT 'All',
+      scope_value varchar(255) NOT NULL DEFAULT '',
+      target_roles varchar(100) NOT NULL DEFAULT 'All',
       pinned boolean NOT NULL DEFAULT false,
       urgent boolean NOT NULL DEFAULT false,
+      attachment_url varchar(1000) NOT NULL DEFAULT '',
+      attachment_name varchar(255) NOT NULL DEFAULT '',
       author_name varchar(255) NOT NULL DEFAULT 'Admin',
       author_role varchar(255) NOT NULL DEFAULT 'Staff',
       expiry_date varchar(50),
       done boolean NOT NULL DEFAULT false,
+      school_id uuid,
       created_at timestamp with time zone NOT NULL DEFAULT now(),
       updated_at timestamp with time zone NOT NULL DEFAULT now()
     );
@@ -42,7 +47,7 @@ async function main() {
   if (count === 0) {
     console.log('Table is empty. Seeding initial announcements...')
     await sql`
-      INSERT INTO announcements (title, content, label, sub, type, scope, pinned, urgent, author_name, author_role, expiry_date, created_at, updated_at)
+      INSERT INTO announcements (title, content, label, sub, type, scope, scope_value, target_roles, pinned, urgent, attachment_url, attachment_name, author_name, author_role, expiry_date, done, school_id, created_at, updated_at)
       VALUES 
       (
         'Welcome to <school_name>!',
@@ -51,16 +56,22 @@ async function main() {
         'We are thrilled to welcome all our dedicated Admin and Faculty members to a new academic year. Your hard work and commitment make <school_name> a place of excellence.',
         'General',
         'All',
+        '',
+        'All',
         true,
         false,
+        '',
+        '',
         'Admin',
         'Staff',
+        NULL,
+        false,
         NULL,
         now(),
         now()
       );
     `
-    console.log('Seeded 2 announcements.')
+    console.log('Seeded 1 announcement.')
   } else {
     console.log(`Table already has ${count} announcements. Skipping seed.`)
   }
