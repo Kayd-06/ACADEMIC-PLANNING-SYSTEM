@@ -35,13 +35,13 @@ describe('auth — credentials authorize logic (via direct DB queries)', () => {
   })
 
   it('a matching bcrypt hash validates against the stored password', async () => {
-    const stored = await db.select().from(users).where(eq(users.id, userId))
+    const stored = await db.select().from(users).where(eq(users.id, userId!))
     const match = await bcrypt.compare(plainPassword, stored[0].password)
     expect(match).toBe(true)
   })
 
   it('a non-matching password fails bcrypt comparison', async () => {
-    const stored = await db.select().from(users).where(eq(users.id, userId))
+    const stored = await db.select().from(users).where(eq(users.id, userId!))
     const match = await bcrypt.compare('wrong-password', stored[0].password)
     expect(match).toBe(false)
   })

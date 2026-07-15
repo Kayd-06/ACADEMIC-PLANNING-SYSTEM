@@ -38,12 +38,12 @@ describe('user queries', () => {
   })
 
   it('findUserById returns the created user', async () => {
-    const user = await findUserById(createdId)
+    const user = await findUserById(createdId!)
     expect(user?.email).toBe(testEmail)
   })
 
   it('updateUserStatus sets the new status', async () => {
-    const updated = await updateUserStatus(createdId, 'active')
+    const updated = await updateUserStatus(createdId!, 'active')
     expect(updated?.status).toBe('active')
   })
 })

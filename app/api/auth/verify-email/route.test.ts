@@ -10,8 +10,8 @@ describe('POST /api/auth/verify-email', () => {
 
   afterEach(async () => {
     if (userId) {
-      await db.delete(emailVerifications).where(eq(emailVerifications.userId, userId))
-      await db.delete(users).where(eq(users.id, userId))
+      await db.delete(emailVerifications).where(eq(emailVerifications.userId, userId!))
+      await db.delete(users).where(eq(users.id, userId!))
       userId = undefined
     }
   })
@@ -43,10 +43,10 @@ describe('POST /api/auth/verify-email', () => {
     expect(res.status).toBe(200)
     expect(body.message).toMatch(/verified successfully/i)
 
-    const updatedUser = (await db.select().from(users).where(eq(users.id, userId)))[0]
+    const updatedUser = (await db.select().from(users).where(eq(users.id, userId!)))[0]
     expect(updatedUser.status).toBe('active')
 
-    const remaining = await db.select().from(emailVerifications).where(eq(emailVerifications.userId, userId))
+    const remaining = await db.select().from(emailVerifications).where(eq(emailVerifications.userId, userId!))
     expect(remaining).toHaveLength(0)
   })
 
@@ -60,7 +60,7 @@ describe('POST /api/auth/verify-email', () => {
     const res = await POST(req)
     expect(res.status).toBe(400)
 
-    const updatedUser = (await db.select().from(users).where(eq(users.id, userId)))[0]
+    const updatedUser = (await db.select().from(users).where(eq(users.id, userId!)))[0]
     expect(updatedUser.status).toBe('pending_verification')
   })
 
@@ -84,7 +84,7 @@ describe('POST /api/auth/verify-email', () => {
     const res = await POST(req)
     expect(res.status).toBe(410)
 
-    const remaining = await db.select().from(emailVerifications).where(eq(emailVerifications.userId, userId))
+    const remaining = await db.select().from(emailVerifications).where(eq(emailVerifications.userId, userId!))
     expect(remaining).toHaveLength(0)
   })
 

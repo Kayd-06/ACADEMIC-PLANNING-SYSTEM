@@ -35,7 +35,7 @@ describe('email verification queries', () => {
 
   it('createEmailVerification inserts a row', async () => {
     const verification = await createEmailVerification({
-      userId,
+      userId: userId!,
       otp: testOtp,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     })
@@ -45,7 +45,7 @@ describe('email verification queries', () => {
   })
 
   it('findLatestVerificationForUser returns the most recently created row', async () => {
-    const verification = await findLatestVerificationForUser(userId)
+    const verification = await findLatestVerificationForUser(userId!)
     expect(verification?.userId).toBe(userId)
     expect(verification?.otp).toBe(testOtp)
   })
@@ -56,15 +56,15 @@ describe('email verification queries', () => {
   })
 
   it('incrementVerificationAttempts bumps the attempt count', async () => {
-    const before = await findLatestVerificationForUser(userId)
+    const before = await findLatestVerificationForUser(userId!)
     await incrementVerificationAttempts(before!.id)
-    const after = await findLatestVerificationForUser(userId)
+    const after = await findLatestVerificationForUser(userId!)
     expect(after?.attempts).toBe((before?.attempts ?? 0) + 1)
   })
 
   it('deleteVerificationsForUser removes all rows for the user', async () => {
-    await deleteVerificationsForUser(userId)
-    const verification = await findLatestVerificationForUser(userId)
+    await deleteVerificationsForUser(userId!)
+    const verification = await findLatestVerificationForUser(userId!)
     expect(verification).toBeNull()
   })
 })
