@@ -45,34 +45,19 @@ async function main() {
       INSERT INTO announcements (title, content, label, sub, type, scope, pinned, urgent, author_name, author_role, expiry_date, created_at, updated_at)
       VALUES 
       (
-        'Emergency Campus Closure Tomorrow',
-        'Due to severe weather warnings issued by the meteorological department, the campus will remain closed tomorrow, Tuesday. All offline classes are suspended. Online classes will proceed as per schedule. Stay safe.',
-        'Emergency Campus Closure Tomorrow',
-        'Due to severe weather warnings issued by the meteorological department, the campus will remain close',
-        'Urgent',
-        'All Staff & Students',
-        true,
-        true,
-        'Sarah Jenkins',
-        'Principal',
-        NULL,
-        now() - interval '2 days',
-        now() - interval '2 days'
-      ),
-      (
-        'Thanksgiving Break Schedule',
-        'Please note that the school will be closed from Wednesday, Nov 22nd to Friday, Nov 24th for the Thanksgiving holiday. Hostels will remain open for international students. Have a wonderful break!',
-        'Thanksgiving Break Schedule',
-        'Please note that the school will be closed from Wednesday, Nov 22nd to Friday, Nov 24th for the Than',
-        'Holiday',
+        'Welcome to <school_name>!',
+        'We are thrilled to welcome all our dedicated Admin and Faculty members to a new academic year. Your hard work and commitment make <school_name> a place of excellence. Let''s make this year our best one yet!',
+        'Welcome to <school_name>!',
+        'We are thrilled to welcome all our dedicated Admin and Faculty members to a new academic year. Your hard work and commitment make <school_name> a place of excellence.',
+        'General',
         'All',
+        true,
         false,
-        false,
-        'David Chen',
         'Admin',
-        '2026-11-25',
-        now() - interval '10 days',
-        now() - interval '10 days'
+        'Staff',
+        NULL,
+        now(),
+        now()
       );
     `
     console.log('Seeded 2 announcements.')
