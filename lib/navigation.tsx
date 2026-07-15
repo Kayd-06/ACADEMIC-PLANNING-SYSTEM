@@ -28,7 +28,6 @@ export const TEACHER_NAV = [
   { label: 'Courses', href: '/teacher/courses', icon: <BookOpen className="w-4 h-4" /> },
   { label: 'Attendance', href: '/teacher/attendance', icon: <CheckSquare className="w-4 h-4" /> },
   { label: 'Tests & Question Bank', href: '/teacher/tests', icon: <FileQuestion className="w-4 h-4" /> },
-  { label: 'Assignments/DPP', href: '/teacher/assignments', icon: <ListTodo className="w-4 h-4" /> },
   { label: 'Academic Records', href: '/teacher/academic-records', icon: <FileCheck className="w-4 h-4" /> },
   { label: 'Counseling Log', href: '/teacher/counseling-log', icon: <HeartHandshake className="w-4 h-4" /> },
 ]
