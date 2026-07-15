@@ -46,32 +46,42 @@ async function main() {
 
   if (count === 0) {
     console.log('Table is empty. Seeding initial announcements...')
-    await sql`
-      INSERT INTO announcements (title, content, label, sub, type, scope, scope_value, target_roles, pinned, urgent, attachment_url, attachment_name, author_name, author_role, expiry_date, done, school_id, created_at, updated_at)
-      VALUES 
-      (
-        'Welcome to <school_name>!',
-        'We are thrilled to welcome all our dedicated Admin and Faculty members to a new academic year. Your hard work and commitment make <school_name> a place of excellence. Let''s make this year our best one yet!',
-        'Welcome to <school_name>!',
-        'We are thrilled to welcome all our dedicated Admin and Faculty members to a new academic year. Your hard work and commitment make <school_name> a place of excellence.',
-        'General',
-        'All',
-        '',
-        'All',
-        true,
-        false,
-        '',
-        '',
-        'Admin',
-        'Staff',
-        NULL,
-        false,
-        NULL,
-        now(),
-        now()
-      );
-    `
-    console.log('Seeded 1 announcement.')
+    
+    // Fetch all schools to create a personalized welcome message for each
+    const schools = await sql`SELECT id, name FROM schools;`
+    
+    if (schools.length === 0) {
+      console.log('No schools found. Skipping seed.')
+    } else {
+      for (const school of schools) {
+        await sql`
+          INSERT INTO announcements (title, content, label, sub, type, scope, scope_value, target_roles, pinned, urgent, attachment_url, attachment_name, author_name, author_role, expiry_date, done, school_id, created_at, updated_at)
+          VALUES 
+          (
+            ${`Welcome to ${school.name}!`}::varchar,
+            ${`We are thrilled to welcome all our dedicated Admin and Faculty members to a new academic year. Your hard work and commitment make ${school.name} a place of excellence. Let's make this year our best one yet!`}::text,
+            ${`Welcome to ${school.name}!`}::varchar,
+            ${`We are thrilled to welcome all our dedicated Admin and Faculty members to a new academic year. Your hard work and commitment make ${school.name} a place of excellence.`}::text,
+            'General',
+            'All',
+            '',
+            'All',
+            true,
+            false,
+            '',
+            '',
+            'Admin',
+            'Staff',
+            NULL,
+            false,
+            ${school.id}::uuid,
+            now(),
+            now()
+          );
+        `
+      }
+      console.log(`Seeded ${schools.length} announcement(s).`)
+    }
   } else {
     console.log(`Table already has ${count} announcements. Skipping seed.`)
   }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { schools } from '@/lib/db/schema'
+import { schools, announcements } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getAdminSchools, addSchoolToAdmin, setActiveSchool } from '@/lib/db/queries/adminSchools'
 
@@ -59,6 +59,24 @@ export async function POST(req: NextRequest) {
     adminEmail: session.user.email || '',
     isActive: true,
   }).returning()
+
+  // Insert default welcome announcement for the new school
+  await db.insert(announcements).values({
+    title: `Welcome to ${school.name}!`,
+    content: `We are thrilled to welcome all our dedicated Admin and Faculty members to a new academic year. Your hard work and commitment make ${school.name} a place of excellence. Let's make this year our best one yet!`,
+    label: `Welcome to ${school.name}!`,
+    sub: `We are thrilled to welcome all our dedicated Admin and Faculty members to a new academic year. Your hard work and commitment make ${school.name} a place of excellence.`,
+    type: 'General',
+    scope: 'All',
+    scopeValue: '',
+    targetRoles: 'All',
+    pinned: true,
+    urgent: false,
+    authorName: 'Admin',
+    authorRole: 'Staff',
+    done: false,
+    schoolId: school.id,
+  })
 
   await addSchoolToAdmin(session.user.id!, school.id, 'owner')
 
