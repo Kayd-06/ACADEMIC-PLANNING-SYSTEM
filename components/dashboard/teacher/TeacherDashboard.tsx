@@ -18,6 +18,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
   const [schoolLoading, setSchoolLoading] = useState(true)
   const [protocols, setProtocols] = useState<any[]>([])
   const [schedules, setSchedules] = useState<any[]>([])
+  const [stats, setStats] = useState({ pendingDailyReports: 0, assignmentsToGrade: 0, upcomingTests: 0 })
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [readIds, setReadIds] = useState<string[]>([])
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null)
@@ -73,6 +74,12 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
       .then(data => {
         if (Array.isArray(data)) setAnnouncements(data)
       })
+    fetch('/api/teacher-portal/dashboard-stats')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && !data.error) setStats(data)
+      })
+      .catch(() => {})
   }, [])
 
   return (
@@ -199,7 +206,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
               <AlertTriangle className="w-4 h-4 text-amber-500" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-slate-900 leading-none mb-1">2</p>
+          <p className="text-3xl font-bold text-slate-900 leading-none mb-1">{stats.pendingDailyReports}</p>
           <p className="text-[13px] font-bold text-slate-500">Pending Daily Reports</p>
         </motion.div>
 
@@ -209,7 +216,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
               <CheckCircle2 className="w-4 h-4 text-indigo-600" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-slate-900 leading-none mb-1">14</p>
+          <p className="text-3xl font-bold text-slate-900 leading-none mb-1">{stats.assignmentsToGrade}</p>
           <p className="text-[13px] font-bold text-slate-500">Assignments to Grade</p>
         </motion.div>
 
@@ -219,7 +226,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
               <ClipboardList className="w-4 h-4 text-purple-600" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-slate-900 leading-none mb-1">1</p>
+          <p className="text-3xl font-bold text-slate-900 leading-none mb-1">{stats.upcomingTests}</p>
           <p className="text-[13px] font-bold text-slate-500">Upcoming Tests</p>
         </motion.div>
       </div>
