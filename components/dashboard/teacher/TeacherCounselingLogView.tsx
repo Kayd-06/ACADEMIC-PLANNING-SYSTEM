@@ -12,6 +12,8 @@ interface Session {
   studentName: string
   studentInitials: string
   counselor: string
+  counselorId?: string
+  counselorRole?: string
   type: 'Academic' | 'Career' | 'Personal' | 'Disciplinary' | 'Parent Meeting'
   date: string
   time: string
@@ -78,7 +80,7 @@ function formatDate(dateStr: string) {
   return dateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function TeacherCounselingLogView({ counselorName }: { counselorName: string }) {
+export default function TeacherCounselingLogView({ counselorName, counselorId }: { counselorName: string, counselorId?: string }) {
   const [sessions, setSessions] = useState<Session[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
@@ -116,6 +118,8 @@ export default function TeacherCounselingLogView({ counselorName }: { counselorN
       const params = new URLSearchParams()
       if (typeFilter !== 'All') params.set('type', typeFilter)
       if (search.trim()) params.set('search', search.trim())
+      if (counselorId) params.set('counselorId', counselorId)
+      else if (counselorName) params.set('counselor', counselorName)
 
       const res = await fetch(`/api/counseling?${params.toString()}`)
       const data = await res.json()
@@ -190,6 +194,8 @@ export default function TeacherCounselingLogView({ counselorName }: { counselorN
         body: JSON.stringify({
           studentName: selectedStudent.name,
           counselor: counselorName,
+          counselorId: counselorId,
+          counselorRole: 'teacher',
           type: formType,
           date: formDate,
           time: formTime,

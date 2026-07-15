@@ -14,6 +14,8 @@ interface Session {
   studentName: string
   studentInitials: string
   counselor: string
+  counselorId?: string
+  counselorRole?: string
   type: 'Academic' | 'Career' | 'Personal' | 'Disciplinary' | 'Parent Meeting'
   date: string
   time: string
@@ -24,6 +26,13 @@ interface Session {
   nextSessionDate?: string
   flagged: boolean
   createdAt: string
+}
+
+interface CounselorUser {
+  id: string
+  name: string
+  role: 'teacher' | 'management'
+  email?: string
 }
 
 const SESSION_TYPES = ['Academic', 'Career', 'Personal', 'Disciplinary', 'Parent Meeting'] as const
@@ -57,8 +66,6 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
   Cancelled:  <XCircle className="w-3 h-3" />,
 }
 
-const COUNSELORS = ['Dr. Anjali Sharma', 'Mr. David Chen', 'Ms. Rebecca Torres']
-
 const AVATAR_BG = [
   'bg-indigo-100 text-indigo-700',
   'bg-violet-100 text-violet-700',
@@ -84,7 +91,9 @@ function fmtDate(d: string) {
 
 const EMPTY_FORM = {
   studentName: '',
-  counselor: COUNSELORS[0],
+  counselor: '',
+  counselorId: '',
+  counselorRole: '',
   type: 'Academic' as Session['type'],
   date: '',
   time: '10:00 AM',
@@ -97,6 +106,7 @@ const EMPTY_FORM = {
 export default function CounselingView() {
   const { showAlert } = useAlert()
   const [sessions, setSessions]         = useState<Session[]>([])
+  const [counselors, setCounselors]     = useState<CounselorUser[]>([])
   const [stats, setStats]               = useState<Stats>({ sessionsThisWeek: 0, upcomingSessions: 0, noShowsThisMonth: 0, studentsFlagged: 0 })
   const [loading, setLoading]           = useState(true)
   const [search, setSearch]             = useState('')
@@ -135,6 +145,7 @@ export default function CounselingView() {
       if (!data.error) {
         setSessions(data.sessions ?? [])
         setStats(data.stats ?? {})
+        if (data.counselors) setCounselors(data.counselors)
       }
     } catch (err) {
       console.error('Counseling fetch error:', err)
@@ -284,7 +295,16 @@ export default function CounselingView() {
             Refresh
           </button>
           <button
-            onClick={() => setShowCreate(true)}
+            onClick={() => {
+              const defaultCounselor = counselors[0] || { id: '', name: '', role: '' }
+              setForm({
+                ...EMPTY_FORM,
+                counselorId: defaultCounselor.id,
+                counselor: defaultCounselor.name,
+                counselorRole: defaultCounselor.role
+              })
+              setShowCreate(true)
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm"
           >
             <Plus className="w-4 h-4" /> Schedule Session
@@ -367,7 +387,11 @@ export default function CounselingView() {
               <Filter className="w-3 h-3 text-slate-400 shrink-0" />
               <select value={counselorFilter} onChange={e => setCounselorFilter(e.target.value)} className="text-[11px] font-semibold text-slate-700 bg-transparent outline-none cursor-pointer">
                 <option value="All">All Counselors</option>
-                {COUNSELORS.map(c => <option key={c} value={c}>{c}</option>)}
+                {counselors.map(c => (
+                  <option key={c.id} value={c.name}>
+                    {c.name} ({c.role === 'management' ? 'Admin' : 'Faculty'})
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -428,7 +452,20 @@ export default function CounselingView() {
                   </td>
 
                   {/* counselor */}
-                  <td className="px-6 py-3.5 text-[12px] font-medium text-slate-600">{session.counselor}</td>
+                  <td className="px-6 py-3.5 text-[12px] font-medium text-slate-600">
+                    <div className="flex items-center gap-1.5">
+                      <span>{session.counselor}</span>
+                      {session.counselorRole && (
+                        <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                          session.counselorRole === 'management'
+                            ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}>
+                          {session.counselorRole === 'management' ? 'Admin' : 'Faculty'}
+                        </span>
+                      )}
+                    </div>
+                  </td>
 
                   {/* type */}
                   <td className="px-6 py-3.5 text-center">
@@ -521,9 +558,31 @@ export default function CounselingView() {
 
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Counselor *</label>
-                  <select value={form.counselor} onChange={e => setForm({ ...form, counselor: e.target.value })}
-                    className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer">
-                    {COUNSELORS.map(c => <option key={c} value={c}>{c}</option>)}
+                  <select
+                    value={form.counselorId || form.counselor || ''}
+                    onChange={e => {
+                      const val = e.target.value
+                      const selectedUser = counselors.find(c => c.id === val || c.name === val)
+                      if (selectedUser) {
+                        setForm({
+                          ...form,
+                          counselorId: selectedUser.id,
+                          counselor: selectedUser.name,
+                          counselorRole: selectedUser.role
+                        })
+                      } else {
+                        setForm({ ...form, counselorId: '', counselor: val, counselorRole: '' })
+                      }
+                    }}
+                    required
+                    className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer"
+                  >
+                    <option value="">Select a Counselor...</option>
+                    {counselors.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.role === 'management' ? 'Admin' : 'Faculty'})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -611,7 +670,18 @@ export default function CounselingView() {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-slate-900">{selected.studentName}</h3>
-                    <p className="text-[11px] text-slate-400">{selected.counselor}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[11px] text-slate-400">{selected.counselor}</span>
+                      {selected.counselorRole && (
+                        <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                          selected.counselorRole === 'management'
+                            ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}>
+                          {selected.counselorRole === 'management' ? 'Admin' : 'Faculty'}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <button onClick={() => setShowDetail(false)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">

@@ -409,6 +409,8 @@ export const counselingSessions = pgTable('counseling_sessions', {
   studentName: varchar('student_name', { length: 255 }).notNull(),
   studentInitials: varchar('student_initials', { length: 10 }).notNull(),
   counselor: varchar('counselor', { length: 255 }).notNull(),
+  counselorId: uuid('counselor_id').references(() => users.id, { onDelete: 'set null' }),
+  counselorRole: varchar('counselor_role', { length: 50 }),
   type: counselingSessionTypeEnum('type').notNull().default('Academic'),
   date: varchar('date', { length: 255 }).notNull(),
   time: varchar('time', { length: 255 }).notNull(),

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { counselingSessions, type CounselingSession } from '@/lib/db/schema'
-import { eq, and, or, ilike, desc, asc } from 'drizzle-orm'
+import { counselingSessions, users, notifications, type CounselingSession } from '@/lib/db/schema'
+import { eq, and, or, ilike, desc, asc, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
 
@@ -28,6 +28,28 @@ function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): 
   return new Date(eventDate.getTime() - 24 * 60 * 60 * 1000)
 }
 
+async function notifyCounselor(
+  counselorId: string | null | undefined,
+  counselorRole: string | null | undefined,
+  title: string,
+  message: string,
+  schoolId: string | null,
+  createdAt?: Date
+) {
+  if (!counselorId) return
+  const link = counselorRole === 'teacher' ? '/teacher/counseling-log' : '/management/counseling'
+  await db.insert(notifications).values({
+    userId: counselorId,
+    category: 'General',
+    title,
+    message,
+    link,
+    isRead: false,
+    schoolId,
+    ...(createdAt ? { createdAt } : {}),
+  })
+}
+
 export const dynamic = 'force-dynamic'
 
 type SessionType = 'Academic' | 'Career' | 'Personal' | 'Disciplinary' | 'Parent Meeting'
@@ -39,7 +61,7 @@ function toApiShape(session: CounselingSession | null) {
   return { _id: id, ...rest }
 }
 
-// GET - fetch all sessions with optional filters
+// GET - fetch all sessions with optional filters and active real counselors list
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
@@ -50,6 +72,7 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status')
     const type = searchParams.get('type')
     const counselor = searchParams.get('counselor')
+    const counselorId = searchParams.get('counselorId')
     const flagged = searchParams.get('flagged')
     const search = searchParams.get('search')
 
@@ -61,7 +84,13 @@ export async function GET(req: NextRequest) {
     if (type && type !== 'All') {
       conditions.push(eq(counselingSessions.type, type as SessionType))
     }
-    if (counselor && counselor !== 'All') {
+    if (counselorId && counselorId !== 'All') {
+      if (counselor && counselor !== 'All') {
+        conditions.push(or(eq(counselingSessions.counselorId, counselorId), eq(counselingSessions.counselor, counselor)))
+      } else {
+        conditions.push(eq(counselingSessions.counselorId, counselorId))
+      }
+    } else if (counselor && counselor !== 'All') {
       conditions.push(eq(counselingSessions.counselor, counselor))
     }
     if (flagged === 'true') {
@@ -86,6 +115,28 @@ export async function GET(req: NextRequest) {
     const sessionsList = await sessionsQuery.orderBy(desc(counselingSessions.date), asc(counselingSessions.time))
 
     const mappedSessions = sessionsList.map(s => toApiShape(s))
+
+    // Fetch real counselors (both admins & faculty belonging to this school)
+    const schoolUsersQuery = schoolId
+      ? db.select({
+          id: users.id,
+          name: users.name,
+          role: users.role,
+          email: users.email
+        }).from(users).where(
+          and(
+            inArray(users.role, ['teacher', 'management']),
+            or(eq(users.schoolId, schoolId), eq(users.activeSchoolId, schoolId))
+          )
+        )
+      : db.select({
+          id: users.id,
+          name: users.name,
+          role: users.role,
+          email: users.email
+        }).from(users).where(inArray(users.role, ['teacher', 'management']))
+
+    const schoolUsers = await schoolUsersQuery.orderBy(asc(users.name))
 
     // Compute stats (school-scoped)
     const all = schoolId
@@ -121,7 +172,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       sessions: mappedSessions,
-      stats: { sessionsThisWeek, upcomingSessions, noShowsThisMonth, studentsFlagged }
+      stats: { sessionsThisWeek, upcomingSessions, noShowsThisMonth, studentsFlagged },
+      counselors: schoolUsers
     }, {
       headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
     })
@@ -139,10 +191,30 @@ export async function POST(req: NextRequest) {
     const schoolId = (authSession.user as any).schoolId as string | null
 
     const body = await req.json()
-    const { studentName, counselor, type, date, time, notes, duration, durationMinutes, actionItems, nextSessionDate } = body
+    const { studentName, counselor, counselorId, counselorRole, type, date, time, notes, duration, durationMinutes, actionItems, nextSessionDate } = body
 
-    if (!studentName?.trim() || !counselor?.trim() || !type || !date || !time) {
+    if (!studentName?.trim() || (!counselor?.trim() && !counselorId) || !type || !date || !time) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
+    }
+
+    let finalCounselorId = counselorId || null
+    let finalCounselorRole = counselorRole || null
+    let finalCounselorName = counselor?.trim() || ''
+
+    if (finalCounselorId && (!finalCounselorRole || !finalCounselorName)) {
+      const [userRecord] = await db.select().from(users).where(eq(users.id, finalCounselorId)).limit(1)
+      if (userRecord) {
+        finalCounselorName = finalCounselorName || userRecord.name
+        finalCounselorRole = finalCounselorRole || userRecord.role
+      }
+    } else if (!finalCounselorId && finalCounselorName) {
+      const conditionsUser: any[] = [eq(users.name, finalCounselorName)]
+      if (schoolId) conditionsUser.push(or(eq(users.schoolId, schoolId), eq(users.activeSchoolId, schoolId)))
+      const [userRecord] = await db.select().from(users).where(and(...conditionsUser)).limit(1)
+      if (userRecord) {
+        finalCounselorId = userRecord.id
+        finalCounselorRole = userRecord.role
+      }
     }
 
     const initials = studentName.trim().split(' ')
@@ -151,10 +223,12 @@ export async function POST(req: NextRequest) {
       .join('')
 
     const minutes = Number(durationMinutes) || parseInt(String(duration || '').replace(/\D/g, ''), 10) || 30
-    const [session] = await db.insert(counselingSessions).values({
+    const [sessionRecord] = await db.insert(counselingSessions).values({
       studentName: studentName.trim(),
       studentInitials: initials,
-      counselor: counselor.trim(),
+      counselor: finalCounselorName || 'Counselor',
+      counselorId: finalCounselorId,
+      counselorRole: finalCounselorRole,
       type: type as SessionType,
       date,
       time,
@@ -168,21 +242,34 @@ export async function POST(req: NextRequest) {
       schoolId,
     }).returning()
 
-    // Notify teachers and admins 24 hours prior
-    const notifyTime = getScheduleNotificationTime(session.date, session.time)
+    const notifyTime = getScheduleNotificationTime(sessionRecord.date, sessionRecord.time)
+
+    // Notify specifically the assigned counselor
+    if (finalCounselorId && finalCounselorId !== authSession.user.id) {
+      await notifyCounselor(
+        finalCounselorId,
+        finalCounselorRole,
+        `Counseling Scheduled: ${sessionRecord.studentName}`,
+        `You have been scheduled as the counselor for ${sessionRecord.studentName} on ${sessionRecord.date} at ${sessionRecord.time}.`,
+        schoolId,
+        notifyTime
+      )
+    }
+
+    // Also notify management so admins stay informed
     await notifyRoleInSchool(
-      ['teacher', 'management'],
+      ['management'],
       schoolId,
       {
         category: 'General',
-        title: `Counseling Scheduled: ${session.studentName}`,
-        message: `Session for ${session.studentName} with Counselor: ${session.counselor} is scheduled on ${session.date} at ${session.time}.`,
+        title: `Counseling Scheduled: ${sessionRecord.studentName}`,
+        message: `Session for ${sessionRecord.studentName} with Counselor: ${sessionRecord.counselor} is scheduled on ${sessionRecord.date} at ${sessionRecord.time}.`,
         createdAt: notifyTime,
       },
-      (role) => role === 'teacher' ? '/teacher/counseling-log' : '/management/counseling'
+      () => '/management/counseling'
     )
 
-    return NextResponse.json(toApiShape(session), { status: 201 })
+    return NextResponse.json(toApiShape(sessionRecord), { status: 201 })
   } catch (error) {
     const err = error as Error
     return NextResponse.json({ error: err.message }, { status: 500 })
@@ -197,7 +284,7 @@ export async function PATCH(req: NextRequest) {
     const schoolId = (authSession.user as any).schoolId as string | null
 
     const body = await req.json()
-    const { id, status, flagged, notes, duration, type, durationMinutes, actionItems, nextSessionDate } = body
+    const { id, status, flagged, notes, duration, type, durationMinutes, actionItems, nextSessionDate, counselorId, counselorRole, counselor } = body
 
     if (!id) return NextResponse.json({ error: 'Missing session ID.' }, { status: 400 })
 
@@ -208,6 +295,10 @@ export async function PATCH(req: NextRequest) {
     if (notes !== undefined) updates.notes = notes
     if (actionItems !== undefined) updates.actionItems = actionItems
     if (nextSessionDate !== undefined) updates.nextSessionDate = nextSessionDate || null
+    if (counselor !== undefined) updates.counselor = counselor
+    if (counselorId !== undefined) updates.counselorId = counselorId || null
+    if (counselorRole !== undefined) updates.counselorRole = counselorRole || null
+
     if (durationMinutes !== undefined) {
       const minutes = Number(durationMinutes) || 30
       updates.durationMinutes = minutes
@@ -229,10 +320,22 @@ export async function PATCH(req: NextRequest) {
 
     if (!updated) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })
 
-    // Notify teachers and admins 24 hours prior
     const notifyTime = getScheduleNotificationTime(updated.date, updated.time)
+
+    // Notify specifically the assigned counselor if updated by another person
+    if (updated.counselorId && updated.counselorId !== authSession.user.id) {
+      await notifyCounselor(
+        updated.counselorId,
+        updated.counselorRole,
+        `Counseling Updated: ${updated.studentName}`,
+        `Counseling session status updated to ${updated.status}. Scheduled on ${updated.date} at ${updated.time}.`,
+        schoolId,
+        notifyTime
+      )
+    }
+
     await notifyRoleInSchool(
-      ['teacher', 'management'],
+      ['management'],
       schoolId,
       {
         category: 'General',
@@ -240,7 +343,7 @@ export async function PATCH(req: NextRequest) {
         message: `Counseling session status updated to ${updated.status}. Scheduled on ${updated.date} at ${updated.time}.`,
         createdAt: notifyTime,
       },
-      (role) => role === 'teacher' ? '/teacher/counseling-log' : '/management/counseling'
+      () => '/management/counseling'
     )
 
     return NextResponse.json(toApiShape(updated))
@@ -270,16 +373,25 @@ export async function DELETE(req: NextRequest) {
 
     if (!deleted) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })
 
-    // Notify teachers and admins immediately
+    if (deleted.counselorId && deleted.counselorId !== authSession.user.id) {
+      await notifyCounselor(
+        deleted.counselorId,
+        deleted.counselorRole,
+        `Counseling Cancelled: ${deleted.studentName}`,
+        `The counseling session scheduled for ${deleted.studentName} on ${deleted.date} at ${deleted.time} has been cancelled.`,
+        schoolId
+      )
+    }
+
     await notifyRoleInSchool(
-      ['teacher', 'management'],
+      ['management'],
       schoolId,
       {
         category: 'General',
         title: `Counseling Cancelled: ${deleted.studentName}`,
         message: `The counseling session scheduled for ${deleted.studentName} on ${deleted.date} at ${deleted.time} has been cancelled.`,
       },
-      (role) => role === 'teacher' ? '/teacher/counseling-log' : '/management/counseling'
+      () => '/management/counseling'
     )
 
     return NextResponse.json({ success: true })
@@ -288,3 +400,4 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
+

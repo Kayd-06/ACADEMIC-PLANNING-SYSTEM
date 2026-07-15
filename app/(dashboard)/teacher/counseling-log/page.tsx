@@ -25,7 +25,7 @@ export default async function TeacherCounselingLogPage() {
       />
       <div className="flex-1 flex flex-col min-w-0 font-sans">
         <TopHeader initials={initials} />
-        <TeacherCounselingLogView counselorName={session.user.name ?? ''} />
+        <TeacherCounselingLogView counselorName={session.user.name ?? ''} counselorId={session.user.id ?? ''} />
       </div>
     </div>
   )

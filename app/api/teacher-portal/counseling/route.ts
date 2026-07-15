@@ -24,14 +24,16 @@ export async function POST(req: NextRequest) {
   const schoolId = (session.user as any).schoolId as string | null
 
   const body = await req.json()
-  const { studentName, counselor, type, date, time, status, notes, duration, durationMinutes, actionItems, nextSessionDate } = body
+  const { studentName, counselor, counselorId, counselorRole, type, date, time, status, notes, duration, durationMinutes, actionItems, nextSessionDate } = body
   const initials = (studentName || '').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
 
   const minutes = Number(durationMinutes) || parseInt(String(duration || '').replace(/\D/g, ''), 10) || 30
   const [created] = await db.insert(counselingSessions).values({
     studentName,
     studentInitials: initials,
-    counselor,
+    counselor: counselor || session.user.name || 'Counselor',
+    counselorId: counselorId || session.user.id || null,
+    counselorRole: counselorRole || 'teacher',
     type: type || 'Academic',
     date,
     time: time || '10:00 AM',
@@ -53,7 +55,7 @@ export async function PATCH(req: NextRequest) {
   const schoolId = (session.user as any).schoolId as string | null
 
   const body = await req.json()
-  const { id, notes, status, date, time, duration, type, durationMinutes, actionItems, nextSessionDate } = body
+  const { id, notes, status, date, time, duration, type, durationMinutes, actionItems, nextSessionDate, counselorId, counselorRole, counselor } = body
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
   const updateValues: Record<string, any> = { updatedAt: new Date() }
@@ -64,6 +66,10 @@ export async function PATCH(req: NextRequest) {
   if (type !== undefined) updateValues.type = type
   if (actionItems !== undefined) updateValues.actionItems = actionItems
   if (nextSessionDate !== undefined) updateValues.nextSessionDate = nextSessionDate || null
+  if (counselor !== undefined) updateValues.counselor = counselor
+  if (counselorId !== undefined) updateValues.counselorId = counselorId || null
+  if (counselorRole !== undefined) updateValues.counselorRole = counselorRole || null
+
   if (durationMinutes !== undefined) {
     const minutes = Number(durationMinutes) || 30
     updateValues.durationMinutes = minutes
