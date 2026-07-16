@@ -388,7 +388,7 @@ function RoleSelect({ onSelect }: { onSelect: (s: SignupStep) => void }) {
 
 type TeacherStage = 'form' | 'otp' | 'verified'
 
-function TeacherForm({ onBack }: { onBack: () => void }) {
+function TeacherForm({ onBack, onSuccess }: { onBack: () => void, onSuccess: () => void }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', department: '', joinCode: '' })
   const [error, setError] = useState('')
   const [stage, setStage] = useState<TeacherStage>('form')
@@ -454,7 +454,7 @@ function TeacherForm({ onBack }: { onBack: () => void }) {
           </div>
           <p className="text-sm font-medium text-gray-800">Email verified</p>
           <p className="text-xs text-gray-400 mt-1">Your account is active — you can sign in now</p>
-          <button onClick={onBack} className="mt-3 text-xs text-indigo-500 hover:text-indigo-600 transition-colors">Back to sign in</button>
+          <button onClick={onSuccess} className="mt-3 text-xs text-indigo-500 hover:text-indigo-600 transition-colors">Back to sign in</button>
         </div>
       ) : stage === 'otp' ? (
         <form onSubmit={verifyOtp} className="space-y-2.5">
@@ -556,7 +556,7 @@ export default function AuthPage() {
         <div className="w-1/2 flex items-center justify-center px-12 py-10 z-10">
           <AnimatePresence mode="wait">
             {step === 'select'     && <RoleSelect      key="select"  onSelect={s => setStep(s)} />}
-            {step === 'teacher'    && <TeacherForm     key="teacher" onBack={() => setStep('select')} />}
+            {step === 'teacher'    && <TeacherForm     key="teacher" onBack={() => setStep('select')} onSuccess={() => { setMode('login'); setStep('select') }} />}
             {step === 'management' && <ManagementForm  key="mgmt"    onBack={() => setStep('select')} onSuccess={() => { setMode('login'); setStep('select') }} />}
           </AnimatePresence>
         </div>
