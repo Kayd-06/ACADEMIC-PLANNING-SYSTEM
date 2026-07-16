@@ -760,7 +760,14 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                   </div>
                   <p className="text-xs text-slate-600 leading-relaxed">
                     For technical problems, access key malfunctions, or role updates, email:
-                    <span className="font-bold text-slate-700 ml-1 block mt-1">support-it@eduadminpro.ac.in</span>
+                    <a 
+                      href="https://mail.google.com/mail/?view=cm&fs=1&to=academicplanningsystem@gmail.com" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="font-bold text-blue-600 hover:text-blue-700 transition ml-1 block mt-1 hover:underline cursor-pointer"
+                    >
+                      academicplanningsystem@gmail.com
+                    </a>
                   </p>
                 </div>
               </div>

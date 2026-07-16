@@ -14,13 +14,7 @@ import {
   MapPin, 
   Users, 
   Building2, 
-  BookOpen, 
-  RefreshCw,
-  Clock,
-  Briefcase,
-  Download,
-  ExternalLink,
-  X
+  BookOpen
 } from 'lucide-react'
 
 // Legend and Event Type Mapping
@@ -47,13 +41,11 @@ export default function CalendarView() {
   // Database Events States
   const [events, setEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Modal States
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [showSyncModal, setShowSyncModal] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
 
@@ -318,90 +310,6 @@ export default function CalendarView() {
     }
   }
 
-  // REAL ICS Calendar Exporter File Generation
-  const handleExportICS = () => {
-    if (events.length === 0) return
-    
-    let icsContent = 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//EduAdmin Pro//Academic Calendar//EN\nCALSCALE:GREGORIAN\n'
-    
-    events.forEach(evt => {
-      const start = evt.date.replace(/-/g, '')
-      // ICS end dates are exclusive for all-day events, so we add 1 day to the end date if present
-      let end = start
-      if (evt.endDate) {
-        const endDateObj = new Date(evt.endDate)
-        endDateObj.setDate(endDateObj.getDate() + 1)
-        end = endDateObj.toISOString().split('T')[0].replace(/-/g, '')
-      } else {
-        const startDateObj = new Date(evt.date)
-        startDateObj.setDate(startDateObj.getDate() + 1)
-        end = startDateObj.toISOString().split('T')[0].replace(/-/g, '')
-      }
-
-      icsContent += 'BEGIN:VEVENT\n'
-      icsContent += `UID:${evt._id}@eduadminpro.com\n`
-      icsContent += `SUMMARY:${evt.title}\n`
-      icsContent += `DTSTART;VALUE=DATE:${start}\n`
-      icsContent += `DTEND;VALUE=DATE:${end}\n`
-      icsContent += `DESCRIPTION:${evt.description || 'Academic planning event.'}\n`
-      icsContent += `LOCATION:${evt.scope}\n`
-      icsContent += `CATEGORIES:${evt.type}\n`
-      icsContent += 'END:VEVENT\n'
-    })
-    
-    icsContent += 'END:VCALENDAR'
-    
-    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `academic_calendar_${currentYear}.ics`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    
-    setMessage({ type: 'success', text: 'Calendar .ics file downloaded successfully! Import it into Google Calendar.' })
-    setShowSyncModal(false)
-  }
-
-  // REAL Google Calendar Direct Link Redirect for the next event
-  const handleGoogleWebLink = () => {
-    const nextEvent = upcomingEvents[0]
-    if (!nextEvent) return
-
-    const title = encodeURIComponent(nextEvent.title)
-    const start = nextEvent.date.replace(/-/g, '')
-    
-    let end = start
-    if (nextEvent.endDate) {
-      const endObj = new Date(nextEvent.endDate)
-      endObj.setDate(endObj.getDate() + 1)
-      end = endObj.toISOString().split('T')[0].replace(/-/g, '')
-    } else {
-      const startObj = new Date(nextEvent.date)
-      startObj.setDate(startObj.getDate() + 1)
-      end = startObj.toISOString().split('T')[0].replace(/-/g, '')
-    }
-
-    const details = encodeURIComponent(`${nextEvent.description || ''}\nScope: ${nextEvent.scope}`)
-    const location = encodeURIComponent(nextEvent.scope)
-    
-    const gCalUrl = `https://calendar.google.com/calendar/r/eventedit?text=${title}&dates=${start}/${end}&details=${details}&location=${location}`
-    window.open(gCalUrl, '_blank')
-    
-    setMessage({ type: 'success', text: 'Opening Google Calendar edit window...' })
-    setShowSyncModal(false)
-  }
-
-  // Live Simulated Sync Action
-  const handleLiveSync = () => {
-    setSyncing(true)
-    setTimeout(() => {
-      setSyncing(false)
-      setMessage({ type: 'success', text: `Successfully synced ${events.length} academic events directly to Google Calendar!` })
-      setShowSyncModal(false)
-    }, 2200)
-  }
 
   // Date box details helper
   const getEventCardStyle = (type: string) => {
@@ -738,102 +646,9 @@ export default function CalendarView() {
             )}
           </div>
 
-          {/* Sync Button Row */}
-          <button
-            onClick={() => setShowSyncModal(true)}
-            disabled={loading}
-            className="w-full mt-6 py-3 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
-          >
-            <RefreshCw className="w-4 h-4 text-slate-400" />
-            Sync to Google Calendar
-          </button>
         </div>
       </div>
 
-      {/* Sync to Google Calendar Modal */}
-      {showSyncModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-md w-full p-6 space-y-6 relative">
-            <button
-              onClick={() => setShowSyncModal(false)}
-              className="absolute right-4 top-4 p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="text-center space-y-2">
-              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-                <RefreshCw className="w-6 h-6 animate-pulse" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-800">Sync with Google Calendar</h3>
-              <p className="text-sm text-slate-500">
-                Choose how you want to export or sync your academic calendar events.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {/* Option 1: Download ICS */}
-              <button
-                onClick={handleExportICS}
-                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition flex items-start gap-3 cursor-pointer bg-white"
-              >
-                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
-                  <Download className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-800">Download iCalendar File (.ics)</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Export all events to a standard calendar file to import directly into Google, Apple, or Outlook.
-                  </p>
-                </div>
-              </button>
-
-              {/* Option 2: Add via Web Link */}
-              <button
-                onClick={handleGoogleWebLink}
-                disabled={events.length === 0}
-                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition flex items-start gap-3 cursor-pointer bg-white"
-              >
-                <div className="p-2 rounded-lg bg-blue-50 text-blue-600 shrink-0">
-                  <ExternalLink className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-800">Add Next Event to Calendar</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Quickly add the next upcoming event ({upcomingEvents[0]?.title || 'None'}) to your Google Calendar.
-                  </p>
-                </div>
-              </button>
-
-              {/* Option 3: Live Simulated Sync */}
-              <button
-                onClick={handleLiveSync}
-                disabled={syncing}
-                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition flex items-start gap-3 cursor-pointer bg-white"
-              >
-                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 shrink-0">
-                  {syncing ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-800">Simulate Real-time Cloud Sync</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Perform a mock API integration to sync all calendar changes with your connected account.
-                  </p>
-                </div>
-              </button>
-            </div>
-
-            <div className="flex items-center justify-end pt-2">
-              <button
-                onClick={() => setShowSyncModal(false)}
-                className="px-5 py-2.5 border border-slate-200 rounded-xl text-slate-700 font-semibold text-sm hover:bg-slate-50 transition cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add Event Modal */}
       {showAddModal && (
