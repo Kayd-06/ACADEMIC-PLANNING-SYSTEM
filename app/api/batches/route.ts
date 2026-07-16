@@ -19,6 +19,9 @@ function pickFields(body: any): Partial<NewBatch> {
   }
   if (data.capacity !== undefined) data.capacity = Number(data.capacity) || 60
   if (data.name === null) delete data.name
+  // class_level is NOT NULL DEFAULT '' — an unselected "Select…" option must
+  // map back to '', not null, or the update/insert violates that constraint.
+  if (data.classLevel === null) data.classLevel = ''
   return data
 }
 
@@ -124,7 +127,10 @@ export async function GET(req: NextRequest) {
       teacherName: b.teacherId ? (teacherNameById.get(b.teacherId) ?? null) : null,
     })))
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    // Drizzle wraps DB errors in a generic "Failed query: ..." message that
+    // hides the actual Postgres reason (e.g. a constraint violation) — surface
+    // the underlying cause when present so the real error is diagnosable.
+    return NextResponse.json({ error: error.cause?.message ?? error.message }, { status: 500 })
   }
 }
 
@@ -175,7 +181,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ...created, _id: created.id }, { status: 201 })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    // Drizzle wraps DB errors in a generic "Failed query: ..." message that
+    // hides the actual Postgres reason (e.g. a constraint violation) — surface
+    // the underlying cause when present so the real error is diagnosable.
+    return NextResponse.json({ error: error.cause?.message ?? error.message }, { status: 500 })
   }
 }
 
@@ -224,7 +233,10 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ ...updated, _id: updated.id })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    // Drizzle wraps DB errors in a generic "Failed query: ..." message that
+    // hides the actual Postgres reason (e.g. a constraint violation) — surface
+    // the underlying cause when present so the real error is diagnosable.
+    return NextResponse.json({ error: error.cause?.message ?? error.message }, { status: 500 })
   }
 }
 
@@ -251,6 +263,9 @@ export async function DELETE(req: NextRequest) {
     await db.delete(batches).where(eq(batches.id, id))
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    // Drizzle wraps DB errors in a generic "Failed query: ..." message that
+    // hides the actual Postgres reason (e.g. a constraint violation) — surface
+    // the underlying cause when present so the real error is diagnosable.
+    return NextResponse.json({ error: error.cause?.message ?? error.message }, { status: 500 })
   }
 }
