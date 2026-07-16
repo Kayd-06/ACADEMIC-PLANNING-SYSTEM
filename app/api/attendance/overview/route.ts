@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { attendanceSessions, attendanceEntries, students } from '@/lib/db/schema'
-import { eq, and, gte, lte, inArray } from 'drizzle-orm'
+import { attendanceSessions, attendanceEntries, students, programs, batches, batchPrograms } from '@/lib/db/schema'
+import { eq, and, gte, lte, inArray, isNull, asc } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
 
     const { searchParams } = new URL(req.url)
     const rangeDays = Number(searchParams.get('range') || '30')
@@ -144,23 +144,31 @@ export async function GET(req: NextRequest) {
     const trendVal = Number((overallRate - 90.3).toFixed(1))
     const trend = totalRecords > 0 ? (trendVal >= 0 ? `+${trendVal}%` : `${trendVal}%`) : '—'
 
-    const batchConditions = [
-      eq(students.isActive, true)
-    ]
-    if (schoolId) batchConditions.push(eq(students.schoolId, schoolId))
+    // Dropdown options come from the real Programs/Batches entities managed
+    // in Academic Planning — not from whatever program/batch string happens
+    // to appear on a student row. That distinction matters: a freshly
+    // created batch with zero enrolled students would never show up if we
+    // derived options from students, and (before getSchoolId() above) a
+    // malformed session schoolId silently fell through to "no filter",
+    // leaking every school's program/batch names into this list.
+    const programSchoolCondition = schoolId ? eq(programs.schoolId, schoolId) : isNull(programs.schoolId)
+    const programRows = await db.select({ id: programs.id, name: programs.name })
+      .from(programs)
+      .where(programSchoolCondition)
+      .orderBy(asc(programs.name))
+    const distinctPrograms = programRows.map(r => r.name).filter(Boolean)
 
-    // Fetch distinct programs for the dropdown (independent of program filter)
-    const programRows = await db.selectDistinct({ program: students.program })
-      .from(students)
-      .where(and(...batchConditions))
-    const distinctPrograms = programRows.map(r => r.program).filter(Boolean).sort()
+    const batchSchoolCondition = schoolId ? eq(batches.schoolId, schoolId) : isNull(batches.schoolId)
+    const selectedProgramId = program !== 'All' ? programRows.find(r => r.name === program)?.id : undefined
 
-    if (program !== 'All') batchConditions.push(eq(students.program, program))
-
-    const batchRows = await db.selectDistinct({ batch: students.batch })
-      .from(students)
-      .where(and(...batchConditions))
-    const distinctBatches = batchRows.map(r => r.batch).filter(Boolean).sort()
+    const batchRows = selectedProgramId
+      ? await db.select({ name: batches.name })
+          .from(batches)
+          .innerJoin(batchPrograms, eq(batchPrograms.batchId, batches.id))
+          .where(and(batchSchoolCondition, eq(batchPrograms.programId, selectedProgramId)))
+          .orderBy(asc(batches.name))
+      : await db.select({ name: batches.name }).from(batches).where(batchSchoolCondition).orderBy(asc(batches.name))
+    const distinctBatches = batchRows.map(r => r.name).filter(Boolean)
 
     return NextResponse.json({
       overallRate,
