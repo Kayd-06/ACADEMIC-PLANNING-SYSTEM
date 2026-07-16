@@ -1,7 +1,7 @@
 import { db } from '../index'
 import { users } from '../schema'
 import { eq } from 'drizzle-orm'
-import { createUser, findUserByEmail, findUserById, updateUserStatus } from './users'
+import { createUser, findUserByEmail, findUserById, updateUserStatus, updateUserPassword } from './users'
 
 describe('user queries', () => {
   const testEmail = `test-user-queries-${Date.now()}@example.com`
@@ -45,5 +45,10 @@ describe('user queries', () => {
   it('updateUserStatus sets the new status', async () => {
     const updated = await updateUserStatus(createdId!, 'active')
     expect(updated?.status).toBe('active')
+  })
+
+  it('updateUserPassword sets a new password hash', async () => {
+    const updated = await updateUserPassword(createdId!, 'new-hashed-value')
+    expect(updated?.password).toBe('new-hashed-value')
   })
 })

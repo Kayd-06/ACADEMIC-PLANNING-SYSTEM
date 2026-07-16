@@ -42,6 +42,20 @@ export const emailVerifications = pgTable('email_verifications', {
 export type EmailVerification = typeof emailVerifications.$inferSelect
 export type NewEmailVerification = typeof emailVerifications.$inferInsert
 
+export const passwordResets = pgTable('password_resets', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  otp: varchar('otp', { length: 6 }).notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type PasswordReset = typeof passwordResets.$inferSelect
+export type NewPasswordReset = typeof passwordResets.$inferInsert
+
 export const schools = pgTable('schools', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 255 }).notNull().default('Academic Planning System'),

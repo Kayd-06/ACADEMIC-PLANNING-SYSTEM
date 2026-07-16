@@ -31,3 +31,12 @@ export async function updateUserStatus(
     .returning()
   return rows[0] ?? null
 }
+
+export async function updateUserPassword(id: string, hashedPassword: string): Promise<User | null> {
+  const rows = await db
+    .update(users)
+    .set({ password: hashedPassword, updatedAt: new Date() })
+    .where(eq(users.id, id))
+    .returning()
+  return rows[0] ?? null
+}
