@@ -106,6 +106,23 @@ function LoginForm() {
     return () => clearInterval(t)
   }, [resendCooldown])
 
+  // Forgot-password flow — same shape as the "Verify email" resume flow above.
+  const [showForgot, setShowForgot] = useState(false)
+  const [forgotStage, setForgotStage] = useState<'email' | 'otp' | 'done'>('email')
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotOtp, setForgotOtp] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [forgotError, setForgotError] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotResendCooldown, setForgotResendCooldown] = useState(0)
+
+  useEffect(() => {
+    if (forgotResendCooldown <= 0) return
+    const t = setInterval(() => setForgotResendCooldown(s => Math.max(0, s - 1)), 1000)
+    return () => clearInterval(t)
+  }, [forgotResendCooldown])
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -131,6 +148,59 @@ function LoginForm() {
     setResumeStage('email')
     setResumeOtp('')
     setResumeError('')
+  }
+
+  function closeForgot() {
+    setShowForgot(false)
+    setForgotStage('email')
+    setForgotOtp('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setForgotError('')
+  }
+
+  async function sendForgotCode(e: React.FormEvent) {
+    e.preventDefault(); setForgotError(''); setForgotLoading(true)
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setForgotError(data.error || 'Failed to send code.'); return }
+      setForgotStage('otp')
+      setForgotResendCooldown(30)
+    } finally { setForgotLoading(false) }
+  }
+
+  async function resendForgotCode() {
+    if (forgotResendCooldown > 0) return
+    setForgotError(''); setForgotLoading(true)
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setForgotError(data.error || 'Failed to resend code.'); return }
+      setForgotResendCooldown(30)
+    } finally { setForgotLoading(false) }
+  }
+
+  async function submitNewPassword(e: React.FormEvent) {
+    e.preventDefault(); setForgotError('')
+    if (newPassword !== confirmPassword) { setForgotError('Passwords do not match.'); return }
+    if (newPassword.length < 8) { setForgotError('Password must be at least 8 characters.'); return }
+    setForgotLoading(true)
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail, otp: forgotOtp, newPassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setForgotError(data.error || 'Failed to reset password.'); return }
+      setForgotStage('done')
+    } finally { setForgotLoading(false) }
   }
 
   async function sendResumeCode(e: React.FormEvent) {
@@ -172,6 +242,52 @@ function LoginForm() {
       if (!res.ok) { setResumeError(data.error || 'Failed to resend code.'); return }
       setResendCooldown(30)
     } finally { setResumeLoading(false) }
+  }
+
+  if (showForgot) {
+    return (
+      <div className="w-full">
+        <button onClick={closeForgot} className="text-xs text-gray-400 hover:text-gray-600 mb-3 block transition-colors">← Back to login</button>
+        <h2 className="text-2xl font-bold text-gray-800 text-center mb-6">Reset Password</h2>
+        <ErrorMsg msg={forgotError} />
+        {forgotStage === 'done' ? (
+          <div className="text-center py-3">
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <p className="text-sm font-medium text-gray-800">Password reset</p>
+            <p className="text-xs text-gray-400 mt-1">You can sign in with your new password</p>
+            <button onClick={closeForgot} className="mt-3 text-xs text-indigo-500 hover:text-indigo-600 transition-colors">Back to sign in</button>
+          </div>
+        ) : forgotStage === 'otp' ? (
+          <form onSubmit={submitNewPassword} className="space-y-2.5">
+            <p className="text-xs text-gray-500">
+              Enter the 6-digit code sent to <span className="font-semibold text-gray-700">{forgotEmail}</span>, and choose a new password.
+            </p>
+            <FieldInput
+              icon={<Hash className="w-4 h-4" />} type="text" inputMode="numeric" maxLength={6}
+              value={forgotOtp} onChange={e => setForgotOtp(e.target.value.replace(/\D/g, ''))}
+              required placeholder="6-digit code"
+              className="text-center tracking-[0.5em] font-semibold"
+            />
+            <PasswordInput value={newPassword} onChange={e => setNewPassword(e.target.value)} required placeholder="New password" />
+            <PasswordInput value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required placeholder="Confirm new password" />
+            <div className="pt-1"><PrimaryBtn loading={forgotLoading}>Reset Password</PrimaryBtn></div>
+            <button
+              type="button" onClick={resendForgotCode} disabled={forgotLoading || forgotResendCooldown > 0}
+              className="w-full text-center text-xs text-indigo-500 hover:text-indigo-600 disabled:text-gray-300 transition-colors pt-1"
+            >
+              {forgotResendCooldown > 0 ? `Resend code in ${forgotResendCooldown}s` : 'Resend code'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={sendForgotCode} className="space-y-2.5">
+            <FieldInput icon={<Mail className="w-4 h-4" />} type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} required placeholder="Your account email" />
+            <div className="pt-1"><PrimaryBtn loading={forgotLoading}>Send Reset Code</PrimaryBtn></div>
+          </form>
+        )}
+      </div>
+    )
   }
 
   if (showResume) {
@@ -229,7 +345,7 @@ function LoginForm() {
           <button type="button" onClick={() => { setResumeEmail(email); setShowResume(true) }} className="text-xs text-gray-400 hover:text-indigo-500 transition-colors">
             Verify email
           </button>
-          <button type="button" className="text-xs text-gray-400 hover:text-indigo-500 transition-colors">
+          <button type="button" onClick={() => { setForgotEmail(email); setShowForgot(true) }} className="text-xs text-gray-400 hover:text-indigo-500 transition-colors">
             Forgot Password?
           </button>
         </div>
