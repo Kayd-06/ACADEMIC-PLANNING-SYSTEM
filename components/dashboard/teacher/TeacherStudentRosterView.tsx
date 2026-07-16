@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { ChevronDown, Filter, Mail, Phone, MessageSquare, User, Loader2, Search, Briefcase, MapPin } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
+import MessageParentModal from '@/components/dashboard/MessageParentModal'
 
 function InfoField({ label, value }: { label: string; value: any }) {
   return (
@@ -33,6 +34,9 @@ export default function TeacherStudentRosterView() {
   const [programFilter, setProgramFilter] = useState('All Programs')
 
   const [dbBatches, setDbBatches] = useState<string[]>([])
+  const [messageModalOpen, setMessageModalOpen] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
   useEffect(() => {
     fetchStudents()
@@ -262,7 +266,10 @@ export default function TeacherStudentRosterView() {
                     </div>
                   </div>
                 </div>
-                <button className="flex items-center gap-2 px-5 py-2.5 bg-[#0b1320] text-white text-sm font-bold rounded-lg shadow-sm hover:bg-slate-800 transition-colors shrink-0">
+                <button
+                  onClick={() => guardians.length === 0 ? showToast('No guardian contact on file') : setMessageModalOpen(true)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#0b1320] text-white text-sm font-bold rounded-lg shadow-sm hover:bg-slate-800 transition-colors shrink-0"
+                >
                   <MessageSquare className="w-4 h-4" /> Message Parent
                 </button>
               </div>
@@ -454,6 +461,14 @@ export default function TeacherStudentRosterView() {
 
                 </div>
               </div>
+
+              {messageModalOpen && (
+                <MessageParentModal
+                  guardians={guardians}
+                  studentName={activeStudent?.name ?? 'this student'}
+                  onClose={() => setMessageModalOpen(false)}
+                />
+              )}
             </>
             )
           })()}
@@ -461,6 +476,13 @@ export default function TeacherStudentRosterView() {
         </div>
 
       </div>
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-[#0b1320] text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-[300]">
+          <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+          <span className="text-sm font-medium">{toast}</span>
+        </div>
+      )}
 
     </div>
   )

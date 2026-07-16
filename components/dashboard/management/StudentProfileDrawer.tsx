@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { X, User, Phone, Mail, Loader2, Plus, Pencil, Trash2, MapPin, Briefcase, IndianRupee } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
+import MessageParentModal from '@/components/dashboard/MessageParentModal'
 
 const inputClass = 'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors'
 const labelClass = 'block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5'
@@ -199,6 +200,8 @@ export default function StudentProfileDrawer({ studentRow, onClose, onEdit, onDe
   const [enrollmentSaving, setEnrollmentSaving] = useState(false)
   const [enrollmentError, setEnrollmentError] = useState('')
 
+  const [messageModalOpen, setMessageModalOpen] = useState(false)
+
   const studentId = studentRow._id
 
   const fetchDetail = useCallback(async () => {
@@ -281,7 +284,6 @@ export default function StudentProfileDrawer({ studentRow, onClose, onEdit, onDe
   const s = detail?.student
   const guardians = detail?.guardians ?? []
   const enrollments = detail?.enrollments ?? []
-  const primaryGuardian = guardians.find((g: any) => g.isPrimary) ?? guardians[0]
   const sectionHeader = 'text-[13px] font-bold text-slate-900'
 
   return (
@@ -501,12 +503,20 @@ export default function StudentProfileDrawer({ studentRow, onClose, onEdit, onDe
             Remove
           </button>
           <button
-            onClick={() => showToast(primaryGuardian?.phone ? `Drafting message to ${primaryGuardian.phone}` : 'No guardian contact on file')}
+            onClick={() => guardians.length === 0 ? showToast('No guardian contact on file') : setMessageModalOpen(true)}
             className="py-2.5 bg-[#0b1320] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm"
           >
             Message Parent
           </button>
         </div>
+
+        {messageModalOpen && (
+          <MessageParentModal
+            guardians={guardians}
+            studentName={s?.name ?? studentRow.name ?? 'this student'}
+            onClose={() => setMessageModalOpen(false)}
+          />
+        )}
       </motion.div>
 
       {guardianModal && (
