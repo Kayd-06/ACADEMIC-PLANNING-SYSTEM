@@ -145,12 +145,13 @@ export default function AttendanceOverviewView() {
                   setProgram(e.target.value)
                   setBatch('All') // reset batch when changing program
                 }}
-                className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold outline-none focus:border-slate-400 cursor-pointer appearance-none"
+                disabled={!data.distinctPrograms || data.distinctPrograms.length === 0}
+                className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold outline-none focus:border-slate-400 cursor-pointer appearance-none disabled:opacity-50"
               >
                 <option value="All">All Programs</option>
-                <option value="JEE Integrated">JEE Integrated</option>
-                <option value="NEET Crash">NEET Crash</option>
-                <option value="Foundational">Foundational</option>
+                {data.distinctPrograms?.map((p: string) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
               </select>
               <Filter className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>

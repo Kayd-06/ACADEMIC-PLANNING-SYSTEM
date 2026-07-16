@@ -148,6 +148,13 @@ export async function GET(req: NextRequest) {
       eq(students.isActive, true)
     ]
     if (schoolId) batchConditions.push(eq(students.schoolId, schoolId))
+
+    // Fetch distinct programs for the dropdown (independent of program filter)
+    const programRows = await db.selectDistinct({ program: students.program })
+      .from(students)
+      .where(and(...batchConditions))
+    const distinctPrograms = programRows.map(r => r.program).filter(Boolean).sort()
+
     if (program !== 'All') batchConditions.push(eq(students.program, program))
 
     const batchRows = await db.selectDistinct({ batch: students.batch })
@@ -164,6 +171,7 @@ export async function GET(req: NextRequest) {
       batchesAttention: batchesAttention.slice(0, 4),
       studentTable: studentTableData,
       distinctBatches,
+      distinctPrograms,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
