@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { ChevronDown, Filter, Mail, Phone, MessageSquare, User, Loader2, Search, Briefcase, MapPin } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ChevronDown, Filter, Mail, Phone, MessageSquare, User, Loader2, Search, Briefcase, MapPin, Check } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
 import MessageParentModal from '@/components/dashboard/MessageParentModal'
 
@@ -37,6 +37,18 @@ export default function TeacherStudentRosterView() {
   const [messageModalOpen, setMessageModalOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
+
+  const [nameSort, setNameSort] = useState<'asc' | 'desc' | null>(null)
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const sortMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) setSortMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   useEffect(() => {
     fetchStudents()
@@ -118,6 +130,9 @@ export default function TeacherStudentRosterView() {
     }
     return true
   })
+  if (nameSort) {
+    filteredStudents.sort((a, b) => nameSort === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name))
+  }
 
   return (
     <div className="flex-1 p-8 overflow-hidden bg-slate-50 flex flex-col h-screen">
@@ -164,9 +179,39 @@ export default function TeacherStudentRosterView() {
         <div className="w-80 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-shrink-0">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <h2 className="text-sm font-bold text-slate-900">Students ({filteredStudents.length})</h2>
-            <button className="p-1 text-slate-400 hover:text-slate-600 transition-colors">
-              <Filter className="w-4 h-4" />
-            </button>
+            <div className="relative" ref={sortMenuRef}>
+              <button
+                onClick={() => setSortMenuOpen(v => !v)}
+                className={`p-1 transition-colors ${nameSort ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                <Filter className="w-4 h-4" />
+              </button>
+              {sortMenuOpen && (
+                <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden py-1">
+                  {([
+                    { label: 'Name: A → Z', value: 'asc' as const },
+                    { label: 'Name: Z → A', value: 'desc' as const },
+                  ]).map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setNameSort(opt.value); setSortMenuOpen(false) }}
+                      className={`w-full flex items-center justify-between px-3.5 py-2 text-xs font-semibold transition-colors ${nameSort === opt.value ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      <span>{opt.label}</span>
+                      {nameSort === opt.value && <Check className="w-3.5 h-3.5 shrink-0" />}
+                    </button>
+                  ))}
+                  {nameSort && (
+                    <button
+                      onClick={() => { setNameSort(null); setSortMenuOpen(false) }}
+                      className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-400 hover:bg-slate-50 border-t border-slate-100"
+                    >
+                      Clear sort
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="p-3 border-b border-slate-100 bg-white">
