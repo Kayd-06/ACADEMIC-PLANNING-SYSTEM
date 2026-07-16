@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Clock, Megaphone, Bell } from 'lucide-react'
+import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Clock, Megaphone, Bell, Star, MessageSquareText } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { getLocalToday, buildTodaysClasses } from '@/lib/scheduleUtils'
 
@@ -20,6 +20,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
   const [schedules, setSchedules] = useState<any[]>([])
   const [stats, setStats] = useState({ pendingDailyReports: 0, assignmentsToGrade: 0, upcomingTests: 0 })
   const [announcements, setAnnouncements] = useState<any[]>([])
+  const [adminFeedback, setAdminFeedback] = useState<any[]>([])
   const [readIds, setReadIds] = useState<string[]>([])
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null)
 
@@ -78,6 +79,12 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data && !data.error) setStats(data)
+      })
+      .catch(() => {})
+    fetch('/api/feedback')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data.received)) setAdminFeedback(data.received)
       })
       .catch(() => {})
   }, [])
@@ -294,6 +301,40 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
                 </Link>
               ))}
             </div>
+          </motion.div>
+
+          <motion.div {...fadeUp(0.28)} className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
+                <MessageSquareText className="w-4 h-4 text-violet-500" /> Feedback from Admin
+              </h2>
+              <Link href="/teacher/feedback" className="text-[12px] font-bold text-indigo-600 hover:text-indigo-700">
+                View All
+              </Link>
+            </div>
+            {adminFeedback.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">No feedback from management yet.</p>
+            ) : (
+              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                {adminFeedback.slice(0, 5).map((f: any) => (
+                  <div key={f.id} className="bg-violet-50/50 border border-violet-100 rounded-xl p-3.5">
+                    <div className="flex items-center justify-between mb-1.5 gap-2">
+                      <span className="text-xs font-bold text-slate-800">{f.senderName || 'Management'}</span>
+                      <div className="flex items-center gap-0.5">
+                        {Array.from({ length: 5 }, (_, i) => (
+                          <Star key={i} className={`w-3 h-3 ${i < f.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 fill-transparent'}`} />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed italic line-clamp-2">"{f.content}"</p>
+                    <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 font-semibold">
+                      {f.category && <span>{f.category}</span>}
+                      <span>· {f.date ? new Date(f.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </motion.div>
 
         </div>
