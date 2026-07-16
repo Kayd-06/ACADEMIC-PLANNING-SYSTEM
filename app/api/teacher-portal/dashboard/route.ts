@@ -71,6 +71,7 @@ export async function GET() {
       student: sess.studentName,
       teacher: `with ${sess.counselor}`,
       date: new Date(sess.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      rawDate: sess.date,
       notes: sess.notes,
       status: sess.status,
       type: sess.type,

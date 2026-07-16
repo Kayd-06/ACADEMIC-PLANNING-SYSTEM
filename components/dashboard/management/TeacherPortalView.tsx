@@ -8,7 +8,7 @@ import { getBlobUrl } from '@/lib/blob'
 
 type FacultyMember = { _id: string; name: string; sub: string; spec: string; specTheme: string; batches: number; exp: string; status: string; initials: string; color: string; profileImgUrl?: string | null }
 type Material = { _id: string; title: string; type: string; fileUrl: string; spec: string; specTheme: string; author: string; time: string; iconColor: string; iconBg: string }
-type CounselingLog = { _id: string; student: string; teacher: string; date: string; notes?: string; status?: string; type?: string; counselor?: string; time?: string; duration?: string; flagged?: boolean }
+type CounselingLog = { _id: string; student: string; teacher: string; date: string; rawDate?: string; notes?: string; status?: string; type?: string; counselor?: string; time?: string; duration?: string; flagged?: boolean }
 
 const EMPTY_FACULTY_FORM = {
   name: '', subject: '', specialization: '', batches: '0', experience: '', status: 'ACTIVE', email: '', phone: '',
@@ -243,7 +243,7 @@ export default function TeacherPortalView() {
 
   const openEditCounseling = (log: CounselingLog) => {
     setEditCounseling(log)
-    setCounselingForm({ notes: log.notes || '', status: log.status || 'Scheduled', date: log.date || '', time: log.time || '', duration: log.duration || '30 mins' })
+    setCounselingForm({ notes: log.notes || '', status: log.status || 'Scheduled', date: log.rawDate || log.date || '', time: log.time || '', duration: log.duration || '30 mins' })
   }
 
   const handleSaveCounseling = async () => {
