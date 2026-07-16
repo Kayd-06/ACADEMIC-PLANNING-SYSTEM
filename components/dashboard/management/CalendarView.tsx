@@ -412,7 +412,7 @@ export default function CalendarView() {
   }
 
   return (
-    <div className="flex-1 min-w-0 p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-64px)] bg-gray-50 flex flex-col 2xl:flex-row gap-6">
+    <div className="flex-1 min-w-0 p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-64px)] bg-gray-50 flex flex-col 2xl:flex-row 2xl:items-start gap-6">
       
       {/* Calendar Main Section */}
       <div className="flex-1 min-w-0 flex flex-col space-y-6">
@@ -567,7 +567,7 @@ export default function CalendarView() {
             </div>
           ) : activeTab === 'Week' ? (
             /* Week View list of days */
-            <div className="flex-1 space-y-4">
+            <div className="space-y-4">
               {Array.from({ length: 7 }).map((_, i) => {
                 const start = new Date(currentYear, currentMonth - 1, 1)
                 const dayOffset = (start.getDay() + 6) % 7
@@ -613,7 +613,7 @@ export default function CalendarView() {
             </div>
           ) : (
             /* List View */
-            <div className="flex-1 space-y-3">
+            <div className="space-y-3">
               {events
                 .filter(evt => evt.date.startsWith(`${currentYear}-${String(currentMonth).padStart(2, '0')}`))
                 .map((evt) => (
