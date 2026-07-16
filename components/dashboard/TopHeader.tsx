@@ -735,7 +735,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                     <BookOpen className="w-4 h-4 text-[#002045]" /> Academic planning & curriculum
                   </div>
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    View active course structures, required syllabus modules, and program guidelines set by the Academic Administration. Teachers can mark weekly syllabus progress directly on their course cards to verify curriculum alignment.
+                    Track syllabus coverage on the <strong>Academic Planning</strong> board: pick a batch and subject to see its chapters sorted into Not Started, In Progress, and Completed columns. Click a chapter to edit its details or update its status, or use Add Chapter to create a new one — changes sync instantly between faculty and admin.
                   </p>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
