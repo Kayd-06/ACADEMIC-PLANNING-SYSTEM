@@ -65,7 +65,7 @@ function GuardianFormModal({ initial, saving, error, onSubmit, onClose }: {
             </div>
             <div>
               <label className={labelClass}>Phone</label>
-              <input value={form.phone} onChange={set('phone')} className={inputClass} />
+              <input type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile number" value={form.phone} onChange={set('phone')} className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>Alt Phone</label>
@@ -217,6 +217,10 @@ export default function StudentProfileDrawer({ studentRow, onClose, onEdit, onDe
 
   async function saveGuardian(form: typeof EMPTY_GUARDIAN) {
     if (!form.name.trim()) { setGuardianError('Guardian name is required.'); return }
+    if (form.phone.trim() && !/^\d{10}$/.test(form.phone.trim())) {
+      setGuardianError('Phone number must be exactly 10 digits.')
+      return
+    }
     setGuardianSaving(true)
     setGuardianError('')
     try {

@@ -20,6 +20,17 @@ function pickGuardianFields(body: any): Partial<NewParentGuardian> {
   return data
 }
 
+const PHONE_REGEX = /^\d{10}$/
+
+// Any other guardian on this student already using this phone number
+// (excluding the guardian being edited, if any).
+async function findDuplicatePhone(studentId: string, phone: string, excludeGuardianId?: string) {
+  const conditions = [eq(parentsGuardians.studentId, studentId), eq(parentsGuardians.phone, phone)]
+  if (excludeGuardianId) conditions.push(ne(parentsGuardians.id, excludeGuardianId))
+  const [existing] = await db.select({ id: parentsGuardians.id }).from(parentsGuardians).where(and(...conditions))
+  return !!existing
+}
+
 async function verifyStudentAccess(studentId: string, schoolId: string | null) {
   const condition = schoolId
     ? and(eq(students.id, studentId), eq(students.schoolId, schoolId))
@@ -67,6 +78,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const body = await req.json()
     const data = pickGuardianFields(body)
     if (!data.name) return NextResponse.json({ error: 'Guardian name is required' }, { status: 400 })
+    if (data.phone) {
+      if (!PHONE_REGEX.test(data.phone)) {
+        return NextResponse.json({ error: 'Phone number must be exactly 10 digits' }, { status: 400 })
+      }
+      if (await findDuplicatePhone(id, data.phone)) {
+        return NextResponse.json({ error: 'A guardian with this phone number already exists for this student' }, { status: 409 })
+      }
+    }
 
     // Only one primary guardian per student
     if (data.isPrimary) {
@@ -105,6 +124,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const data = pickGuardianFields(body)
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
+    if (data.phone) {
+      if (!PHONE_REGEX.test(data.phone)) {
+        return NextResponse.json({ error: 'Phone number must be exactly 10 digits' }, { status: 400 })
+      }
+      if (await findDuplicatePhone(id, data.phone, guardianId)) {
+        return NextResponse.json({ error: 'A guardian with this phone number already exists for this student' }, { status: 409 })
+      }
     }
 
     if (data.isPrimary) {
