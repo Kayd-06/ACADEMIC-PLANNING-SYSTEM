@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { classSchedules, type NewClassSchedule } from '@/lib/db/schema'
-import { eq, and, asc } from 'drizzle-orm'
+import { classSchedules, batches, batchPrograms, type NewClassSchedule } from '@/lib/db/schema'
+import { eq, and, asc, inArray, isNull } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
 
 function getFirstOccurrence(effectiveFromStr: string | null, targetDayOfWeek: number): Date {
@@ -48,32 +48,53 @@ function pickFields(body: any): Partial<NewClassSchedule> {
   return data
 }
 
-// GET — list schedules (?mine=true limits to the signed-in teacher; ?activeOnly=true; ?schoolId=)
+// GET — list schedules (?mine=true limits to the signed-in teacher; ?activeOnly=true;
+// ?schoolId= (management multi-school override); ?batch= (exact batch name);
+// ?programId= (narrows to that program's linked batches, via batch_programs))
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
 
     const { searchParams } = new URL(req.url)
     const mine = searchParams.get('mine') === 'true'
     const activeOnly = searchParams.get('activeOnly') === 'true'
     const paramSchoolId = searchParams.get('schoolId')
+    const batchFilter = searchParams.get('batch')
+    const programIdFilter = searchParams.get('programId')
 
     const conditions = []
     if (role === 'management') {
-      const targetSchoolId = paramSchoolId !== null ? paramSchoolId : schoolId
-      if (targetSchoolId && targetSchoolId !== 'ALL' && targetSchoolId !== 'null') {
-        conditions.push(eq(classSchedules.schoolId, targetSchoolId))
+      if (paramSchoolId !== 'ALL') {
+        const targetSchoolId = paramSchoolId ?? schoolId
+        // A missing/malformed schoolId must never fall through to "no
+        // filter" (that would leak every school's slots) — it means "no
+        // school", so only school-less (visible-to-all) slots match.
+        conditions.push(
+          targetSchoolId && targetSchoolId !== 'null'
+            ? eq(classSchedules.schoolId, targetSchoolId)
+            : isNull(classSchedules.schoolId)
+        )
       }
-    } else if (schoolId && schoolId !== 'null') {
-      conditions.push(eq(classSchedules.schoolId, schoolId))
+    } else {
+      conditions.push(schoolId ? eq(classSchedules.schoolId, schoolId) : isNull(classSchedules.schoolId))
     }
     if (mine && session.user.email) {
       conditions.push(eq(classSchedules.teacherEmail, session.user.email.toLowerCase().trim()))
     }
     if (activeOnly) conditions.push(eq(classSchedules.isActive, true))
+
+    if (batchFilter) {
+      conditions.push(eq(classSchedules.batch, batchFilter))
+    } else if (programIdFilter) {
+      const linked = await db.select({ name: batches.name }).from(batches)
+        .innerJoin(batchPrograms, eq(batchPrograms.batchId, batches.id))
+        .where(eq(batchPrograms.programId, programIdFilter))
+      const batchNames = linked.map(b => b.name)
+      conditions.push(batchNames.length ? inArray(classSchedules.batch, batchNames) : eq(classSchedules.batch, '\0no-match'))
+    }
 
     const rows = conditions.length
       ? await db.select().from(classSchedules).where(and(...conditions)).orderBy(asc(classSchedules.dayOfWeek), asc(classSchedules.startTime))
@@ -94,7 +115,7 @@ export async function POST(req: NextRequest) {
     if (role !== 'management' && role !== 'teacher') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
 
     const body = await req.json()
     const data = pickFields(body)
@@ -156,14 +177,14 @@ export async function PATCH(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
 
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
     const conditions = [eq(classSchedules.id, id)]
     if (role === 'teacher') {
-      if (schoolId && schoolId !== 'null') conditions.push(eq(classSchedules.schoolId, schoolId))
+      if (schoolId) conditions.push(eq(classSchedules.schoolId, schoolId))
       conditions.push(eq(classSchedules.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
     } else if (role !== 'management') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -212,14 +233,14 @@ export async function DELETE(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
 
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
     const conditions = [eq(classSchedules.id, id)]
     if (role === 'teacher') {
-      if (schoolId && schoolId !== 'null') conditions.push(eq(classSchedules.schoolId, schoolId))
+      if (schoolId) conditions.push(eq(classSchedules.schoolId, schoolId))
       conditions.push(eq(classSchedules.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
     } else if (role !== 'management') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

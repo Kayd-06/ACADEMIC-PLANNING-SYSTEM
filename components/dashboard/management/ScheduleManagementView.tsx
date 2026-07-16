@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { X, Plus, Pencil, Trash2, Loader2, Repeat, Sparkles, ToggleLeft, ToggleRight, Building2 } from 'lucide-react'
+import { X, Plus, Pencil, Trash2, Loader2, Repeat, Sparkles, ToggleLeft, ToggleRight, Building2, Filter, GraduationCap, Users } from 'lucide-react'
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const SPECIAL_TYPES = ['Extra', 'Doubt', 'Revision', 'Makeup', 'Orientation']
@@ -241,11 +241,25 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Program/Batch filter — same narrowing behaviour as the sidebar's
+  // switchers (picking a program narrows the batch list to its linked
+  // batches), scoped to this school only, kept local to this tab so
+  // selecting a batch doesn't navigate away like the sidebar's does.
+  const [programOptions, setProgramOptions] = useState<{ id: string; name: string }[]>([])
+  const [programFilter, setProgramFilter] = useState<{ id: string; name: string } | null>(null)
+  const [batchOptions, setBatchOptions] = useState<{ id: string; name: string }[]>([])
+  const [batchFilter, setBatchFilter] = useState('All Batches')
+
   const fetchAll = async () => {
     try {
+      const qs = new URLSearchParams()
+      if (batchFilter !== 'All Batches') qs.set('batch', batchFilter)
+      else if (programFilter) qs.set('programId', programFilter.id)
+      const query = qs.toString() ? `?${qs}` : ''
+
       const [schedRes, specRes, schoolsRes] = await Promise.all([
-        fetch('/api/schedule'),
-        fetch('/api/special-classes'),
+        fetch(`/api/schedule${query}`),
+        fetch(`/api/special-classes${query}`),
         fetch('/api/admin/schools'),
       ])
       if (schedRes.ok) setSchedules(await schedRes.json())
@@ -256,7 +270,27 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
     }
   }
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => {
+    fetch('/api/programs')
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { if (Array.isArray(d)) setProgramOptions(d.map((p: any) => ({ id: p._id, name: p.name }))) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const url = programFilter ? `/api/batches?programId=${programFilter.id}` : '/api/batches'
+    fetch(url)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { if (Array.isArray(d)) setBatchOptions(d.map((b: any) => ({ id: b._id, name: b.name }))) })
+      .catch(() => {})
+  }, [programFilter])
+
+  useEffect(() => { fetchAll() }, [programFilter, batchFilter])
+
+  function selectProgram(p: { id: string; name: string } | null) {
+    setProgramFilter(p)
+    setBatchFilter('All Batches')
+  }
 
   function getSchoolBadge(schoolId: string | null | undefined) {
     if (!schoolId) return <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-medium">All Schools</span>
@@ -347,6 +381,36 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
 
   return (
     <div className="space-y-8">
+      {/* Program / Batch filter */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-1.5 text-slate-500">
+          <Filter className="w-4 h-4" />
+          <span className="text-[11px] font-bold uppercase tracking-widest">Filter</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <GraduationCap className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+          <select
+            value={programFilter?.id ?? ''}
+            onChange={e => selectProgram(programOptions.find(p => p.id === e.target.value) ?? null)}
+            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="">All Programs</option>
+            {programOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Users className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+          <select
+            value={batchFilter}
+            onChange={e => setBatchFilter(e.target.value)}
+            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="All Batches">All Batches</option>
+            {batchOptions.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+          </select>
+        </div>
+      </div>
+
       {/* Class Schedules */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">

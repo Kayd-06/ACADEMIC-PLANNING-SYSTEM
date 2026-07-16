@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { specialClasses, type NewSpecialClass } from '@/lib/db/schema'
-import { eq, and, asc, gte } from 'drizzle-orm'
+import { specialClasses, batches, batchPrograms, type NewSpecialClass } from '@/lib/db/schema'
+import { eq, and, asc, gte, inArray, isNull } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
 
 function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): Date {
@@ -41,34 +41,51 @@ function pickFields(body: any): Partial<NewSpecialClass> {
   return data
 }
 
-// GET — list special classes (?mine=true, ?upcoming=true, ?date=YYYY-MM-DD, ?schoolId=)
+// GET — list special classes (?mine=true, ?upcoming=true, ?date=YYYY-MM-DD, ?schoolId=,
+// ?batch= (exact batch name), ?programId= (narrows to that program's linked batches))
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
 
     const { searchParams } = new URL(req.url)
     const mine = searchParams.get('mine') === 'true'
     const upcoming = searchParams.get('upcoming') === 'true'
     const date = searchParams.get('date')
     const paramSchoolId = searchParams.get('schoolId')
+    const batchFilter = searchParams.get('batch')
+    const programIdFilter = searchParams.get('programId')
 
     const conditions = []
     if (role === 'management') {
-      const targetSchoolId = paramSchoolId !== null ? paramSchoolId : schoolId
-      if (targetSchoolId && targetSchoolId !== 'ALL' && targetSchoolId !== 'null') {
-        conditions.push(eq(specialClasses.schoolId, targetSchoolId))
+      if (paramSchoolId !== 'ALL') {
+        const targetSchoolId = paramSchoolId ?? schoolId
+        conditions.push(
+          targetSchoolId && targetSchoolId !== 'null'
+            ? eq(specialClasses.schoolId, targetSchoolId)
+            : isNull(specialClasses.schoolId)
+        )
       }
-    } else if (schoolId && schoolId !== 'null') {
-      conditions.push(eq(specialClasses.schoolId, schoolId))
+    } else {
+      conditions.push(schoolId ? eq(specialClasses.schoolId, schoolId) : isNull(specialClasses.schoolId))
     }
     if (mine && session.user.email) {
       conditions.push(eq(specialClasses.teacherEmail, session.user.email.toLowerCase().trim()))
     }
     if (date) conditions.push(eq(specialClasses.date, date))
     if (upcoming) conditions.push(gte(specialClasses.date, new Date().toISOString().split('T')[0]))
+
+    if (batchFilter) {
+      conditions.push(eq(specialClasses.batch, batchFilter))
+    } else if (programIdFilter) {
+      const linked = await db.select({ name: batches.name }).from(batches)
+        .innerJoin(batchPrograms, eq(batchPrograms.batchId, batches.id))
+        .where(eq(batchPrograms.programId, programIdFilter))
+      const batchNames = linked.map(b => b.name)
+      conditions.push(batchNames.length ? inArray(specialClasses.batch, batchNames) : eq(specialClasses.batch, '\0no-match'))
+    }
 
     const rows = conditions.length
       ? await db.select().from(specialClasses).where(and(...conditions)).orderBy(asc(specialClasses.date), asc(specialClasses.startTime))
@@ -89,7 +106,7 @@ export async function POST(req: NextRequest) {
     if (role !== 'management' && role !== 'teacher') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
 
     const body = await req.json()
     const data = pickFields(body)
@@ -148,14 +165,14 @@ export async function PATCH(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
 
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
     const conditions = [eq(specialClasses.id, id)]
     if (role === 'teacher') {
-      if (schoolId && schoolId !== 'null') conditions.push(eq(specialClasses.schoolId, schoolId))
+      if (schoolId) conditions.push(eq(specialClasses.schoolId, schoolId))
       conditions.push(eq(specialClasses.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
     } else if (role !== 'management') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -205,14 +222,14 @@ export async function DELETE(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
 
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
     const conditions = [eq(specialClasses.id, id)]
     if (role === 'teacher') {
-      if (schoolId && schoolId !== 'null') conditions.push(eq(specialClasses.schoolId, schoolId))
+      if (schoolId) conditions.push(eq(specialClasses.schoolId, schoolId))
       conditions.push(eq(specialClasses.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
     } else if (role !== 'management') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
