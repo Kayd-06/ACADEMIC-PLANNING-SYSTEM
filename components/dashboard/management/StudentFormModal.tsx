@@ -133,6 +133,14 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
       setError('Student name is required.')
       return
     }
+    if (form.phone.trim().length > 10) {
+      setError('Phone number cannot exceed 10 characters.')
+      return
+    }
+    if (form.parentContact.trim().length > 10) {
+      setError('Parent contact number cannot exceed 10 characters.')
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -204,11 +212,11 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
               </div>
               <div>
                 <label className={labelClass}>Phone</label>
-                <input value={form.phone} onChange={set('phone')} className={inputClass} />
+                <input type="tel" inputMode="numeric" maxLength={10} value={form.phone} onChange={set('phone')} className={inputClass} />
               </div>
               <div>
                 <label className={labelClass}>Parent Contact</label>
-                <input value={form.parentContact} onChange={set('parentContact')} className={inputClass} />
+                <input type="tel" inputMode="numeric" maxLength={10} value={form.parentContact} onChange={set('parentContact')} className={inputClass} />
               </div>
               <div>
                 <label className={labelClass}>Address Line 1</label>

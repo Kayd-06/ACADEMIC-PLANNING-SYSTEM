@@ -38,6 +38,12 @@ function pickStudentFields(body: any): Partial<NewStudent> {
   return data
 }
 
+function phoneLengthError(data: Partial<NewStudent>): string | null {
+  if (typeof data.phone === 'string' && data.phone.length > 10) return 'Phone number cannot exceed 10 characters.'
+  if (typeof data.parentContact === 'string' && data.parentContact.length > 10) return 'Parent contact number cannot exceed 10 characters.'
+  return null
+}
+
 // GET — fetch students, optionally filtered by class & section
 export async function GET(req: NextRequest) {
   try {
@@ -78,6 +84,8 @@ export async function POST(req: NextRequest) {
     if (!data.name) {
       return NextResponse.json({ error: 'Student name is required.' }, { status: 400 })
     }
+    const phoneError = phoneLengthError(data)
+    if (phoneError) return NextResponse.json({ error: phoneError }, { status: 400 })
 
     const student = await createStudent({
       ...data,
@@ -117,6 +125,8 @@ export async function PATCH(req: NextRequest) {
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
     }
+    const phoneError = phoneLengthError(updateData)
+    if (phoneError) return NextResponse.json({ error: phoneError }, { status: 400 })
 
     const student = await updateStudent(id, updateData, schoolId)
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
