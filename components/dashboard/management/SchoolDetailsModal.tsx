@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Save, Loader2 } from 'lucide-react'
+import { SelectBoard, MultiSelectPrograms } from './SchoolFormHelpers'
 
 interface SchoolData {
   board: string
@@ -50,7 +51,7 @@ export default function SchoolDetailsModal({
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
+            className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl"
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900">School Background Details</h2>
@@ -62,12 +63,7 @@ export default function SchoolDetailsModal({
             <div className="p-6 space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Current Board</label>
-                <input 
-                  type="text" 
-                  value={form.board}
-                  onChange={e => setForm({ ...form, board: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                />
+                <SelectBoard value={form.board} onChange={val => setForm({ ...form, board: val })} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Classes</label>
@@ -80,12 +76,7 @@ export default function SchoolDetailsModal({
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Programs</label>
-                <input 
-                  type="text" 
-                  value={form.programs}
-                  onChange={e => setForm({ ...form, programs: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                />
+                <MultiSelectPrograms value={form.programs} onChange={val => setForm({ ...form, programs: val })} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">MOU Status</label>

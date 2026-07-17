@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { Plus, X, Loader2, Copy, Check, Building2, Pencil, Trash2, LogOut, Hash, CheckCircle2, ArrowRightLeft, AlertTriangle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ClearDataModal from './ClearDataModal'
+import { SelectBoard, MultiSelectPrograms } from './SchoolFormHelpers'
 
 type SchoolEntry = {
   id: string; name: string; board: string; classes: string; programs: string
@@ -174,20 +175,32 @@ export default function SchoolsTab() {
                 <button onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
               </div>
               <div className="space-y-4">
-                {[
-                  { label: 'School Name *', key: 'name', placeholder: 'e.g. Delhi Public School' },
-                  { label: 'Board Affiliation', key: 'board', placeholder: 'e.g. CBSE Affiliated' },
-                  { label: 'Classes Offered', key: 'classes', placeholder: 'e.g. Nursery – XII' },
-                  { label: 'Programs', key: 'programs', placeholder: 'e.g. STEM, Humanities, Arts' },
-                  { label: 'MOU Status', key: 'mouStatus', placeholder: 'e.g. Active (2025)' },
-                ].map(({ label, key, placeholder }) => (
-                  <div key={key}>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
-                    <input value={(createForm as any)[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
-                      placeholder={placeholder}
-                      className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-                  </div>
-                ))}
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">School Name *</label>
+                  <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Delhi Public School"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Board Affiliation</label>
+                  <SelectBoard value={createForm.board} onChange={val => setCreateForm(f => ({ ...f, board: val }))} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Classes Offered</label>
+                  <input value={createForm.classes} onChange={e => setCreateForm(f => ({ ...f, classes: e.target.value }))}
+                    placeholder="e.g. Nursery – XII"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Programs</label>
+                  <MultiSelectPrograms value={createForm.programs} onChange={val => setCreateForm(f => ({ ...f, programs: val }))} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">MOU Status</label>
+                  <input value={createForm.mouStatus} onChange={e => setCreateForm(f => ({ ...f, mouStatus: e.target.value }))}
+                    placeholder="e.g. Active (2025)"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
               </div>
               <p className="text-xs text-slate-400 mt-3">A unique invite code will be auto-generated for this school.</p>
               <div className="flex gap-3 mt-5">
@@ -245,19 +258,29 @@ export default function SchoolsTab() {
                 <button onClick={() => setEditSchool(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
               </div>
               <div className="space-y-4">
-                {[
-                  { label: 'School Name *', key: 'name', placeholder: '' },
-                  { label: 'Board Affiliation', key: 'board', placeholder: '' },
-                  { label: 'Classes Offered', key: 'classes', placeholder: '' },
-                  { label: 'Programs', key: 'programs', placeholder: '' },
-                  { label: 'MOU Status', key: 'mouStatus', placeholder: '' },
-                ].map(({ label, key }) => (
-                  <div key={key}>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
-                    <input value={(editForm as any)[key]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-                  </div>
-                ))}
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">School Name *</label>
+                  <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Board Affiliation</label>
+                  <SelectBoard value={editForm.board} onChange={val => setEditForm(f => ({ ...f, board: val }))} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Classes Offered</label>
+                  <input value={editForm.classes} onChange={e => setEditForm(f => ({ ...f, classes: e.target.value }))}
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Programs</label>
+                  <MultiSelectPrograms value={editForm.programs} onChange={val => setEditForm(f => ({ ...f, programs: val }))} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">MOU Status</label>
+                  <input value={editForm.mouStatus} onChange={e => setEditForm(f => ({ ...f, mouStatus: e.target.value }))}
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
               </div>
               <div className="flex gap-3 mt-5">
                 <button onClick={() => setEditSchool(null)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50">Cancel</button>

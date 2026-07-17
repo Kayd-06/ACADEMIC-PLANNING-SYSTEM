@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Building2, Hash, Plus, ArrowLeft, Loader2, CheckCircle2, LogOut } from 'lucide-react'
+import { SelectBoard, MultiSelectPrograms } from './SchoolFormHelpers'
 
 type Choice = 'select' | 'create' | 'join'
 
@@ -89,15 +90,15 @@ export default function OnboardingChoice({ userName }: { userName: string }) {
             <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-7 h-7 text-emerald-600" />
             </div>
-            <p className="text-lg font-bold text-gray-800">You're all set!</p>
-            <p className="text-sm text-gray-400 mt-1">Taking you to {done.name}'s dashboard…</p>
+            <p className="text-lg font-bold text-gray-800">You&apos;re all set!</p>
+            <p className="text-sm text-gray-400 mt-1">Taking you to {done.name}&apos;s dashboard…</p>
           </div>
         ) : (
           <AnimatePresence mode="wait">
             {choice === 'select' && (
               <motion.div key="select" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
                 <h1 className="text-2xl font-bold text-gray-800 text-center mb-1">Welcome, {userName}!</h1>
-                <p className="text-sm text-gray-400 text-center mb-8">Let's set up your school to get started</p>
+                <p className="text-sm text-gray-400 text-center mb-8">Let&apos;s set up your school to get started</p>
 
                 <div className="space-y-3">
                   <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.99 }}
@@ -142,9 +143,9 @@ export default function OnboardingChoice({ userName }: { userName: string }) {
                     <label className={labelClass}>School Name *</label>
                     <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} className={inputClass} placeholder="e.g. Riverdale Coaching Institute" autoFocus />
                   </div>
-                  <div>
+                   <div>
                     <label className={labelClass}>Board</label>
-                    <input value={createForm.board} onChange={e => setCreateForm(f => ({ ...f, board: e.target.value }))} className={inputClass} />
+                    <SelectBoard value={createForm.board} onChange={val => setCreateForm(f => ({ ...f, board: val }))} />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -158,7 +159,7 @@ export default function OnboardingChoice({ userName }: { userName: string }) {
                   </div>
                   <div>
                     <label className={labelClass}>Programs</label>
-                    <input value={createForm.programs} onChange={e => setCreateForm(f => ({ ...f, programs: e.target.value }))} className={inputClass} />
+                    <MultiSelectPrograms value={createForm.programs} onChange={val => setCreateForm(f => ({ ...f, programs: val }))} />
                   </div>
                   <button type="submit" disabled={loading}
                     className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm mt-2 flex items-center justify-center gap-2">
