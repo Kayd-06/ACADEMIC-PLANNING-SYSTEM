@@ -18,7 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (membership.role !== 'owner') return NextResponse.json({ error: 'Only owners can edit school details' }, { status: 403 })
 
   const body = await req.json()
-  const { name, board, classes, programs, mouStatus, isActive } = body
+  const { name, board, classes, programs, mouStatus, isActive, contactPerson, email, address, gstNo } = body
   const updates: Record<string, any> = { updatedAt: new Date() }
   if (name !== undefined) updates.name = name
   if (board !== undefined) updates.board = board
@@ -26,6 +26,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (programs !== undefined) updates.programs = programs
   if (mouStatus !== undefined) updates.mouStatus = mouStatus
   if (isActive !== undefined) updates.isActive = isActive
+  if (contactPerson !== undefined) updates.contactPerson = contactPerson
+  if (email !== undefined) updates.email = email
+  if (address !== undefined) updates.address = address
+  if (gstNo !== undefined) updates.gstNo = gstNo
 
   const [updated] = await db.update(schools).set(updates).where(eq(schools.id, id)).returning()
   return NextResponse.json({ ...updated, role: membership.role })

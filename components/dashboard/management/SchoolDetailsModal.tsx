@@ -9,6 +9,10 @@ interface SchoolData {
   classes: string
   programs: string
   mouStatus: string
+  contactPerson?: string
+  email?: string
+  address?: string
+  gstNo?: string
 }
 
 export default function SchoolDetailsModal({ 
@@ -60,7 +64,7 @@ export default function SchoolDetailsModal({
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto pr-1">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Current Board</label>
                 <SelectBoard value={form.board} onChange={val => setForm({ ...form, board: val })} />
@@ -79,6 +83,46 @@ export default function SchoolDetailsModal({
                   type="text" 
                   value={form.mouStatus}
                   onChange={e => setForm({ ...form, mouStatus: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact Person</label>
+                <input 
+                  type="text" 
+                  value={form.contactPerson || ''}
+                  onChange={e => setForm({ ...form, contactPerson: e.target.value })}
+                  placeholder="e.g. John Doe"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</label>
+                <input 
+                  type="email" 
+                  value={form.email || ''}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  placeholder="e.g. contact@school.edu"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Address</label>
+                <textarea 
+                  value={form.address || ''}
+                  onChange={e => setForm({ ...form, address: e.target.value })}
+                  placeholder="e.g. 123 Education St, City"
+                  rows={2}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">GST No.</label>
+                <input 
+                  type="text" 
+                  value={form.gstNo || ''}
+                  onChange={e => setForm({ ...form, gstNo: e.target.value })}
+                  placeholder="e.g. 07AAAAA1111A1Z1"
                   className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                 />
               </div>

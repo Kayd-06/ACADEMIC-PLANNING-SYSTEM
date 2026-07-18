@@ -65,6 +65,10 @@ export const schools = pgTable('schools', {
   mouStatus: varchar('mou_status', { length: 255 }).notNull().default('Active (2025)'),
   joinCode: varchar('join_code', { length: 20 }).unique(),
   adminEmail: varchar('admin_email', { length: 255 }).default(''),
+  contactPerson: varchar('contact_person', { length: 255 }).default(''),
+  email: varchar('email', { length: 255 }).default(''),
+  address: text('address').default(''),
+  gstNo: varchar('gst_no', { length: 50 }).default(''),
   isActive: boolean('is_active').notNull().default(true),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })

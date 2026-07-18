@@ -125,7 +125,7 @@ export default function InstitutionalDashboard() {
       <SchoolDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        initialData={schoolData ?? { board: '', classes: '', programs: '', mouStatus: '', joinCode: '' }}
+        initialData={schoolData ?? { board: '', classes: '', programs: '', mouStatus: '', contactPerson: '', email: '', address: '', gstNo: '' }}
         onSave={handleSave}
       />
       <ProtocolsModal

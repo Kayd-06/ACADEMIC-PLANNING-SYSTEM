@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   if ((session.user as any).role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { name, board, classes, programs, mouStatus, adminEmail } = body
+  const { name, board, classes, programs, mouStatus, adminEmail, contactPerson, email, address, gstNo } = body
   if (!name) return NextResponse.json({ error: 'School name is required' }, { status: 400 })
 
   // Generate a unique join code
@@ -58,6 +58,10 @@ export async function POST(req: NextRequest) {
     mouStatus: mouStatus || 'Active (2025)',
     joinCode,
     adminEmail: adminEmail || session.user.email || '',
+    contactPerson: contactPerson || '',
+    email: email || '',
+    address: address || '',
+    gstNo: gstNo || '',
     isActive: true,
   }).returning()
 

@@ -7,7 +7,17 @@ import { SelectBoard, MultiSelectPrograms, MultiSelectClasses } from './SchoolFo
 
 type Choice = 'select' | 'create' | 'join'
 
-const EMPTY_FORM = { name: '', board: 'CBSE Affiliated', classes: '6, 7, 8, 9, 10, 11, 12', programs: 'JEE, NEET, Foundational', mouStatus: 'Active (2025)' }
+const EMPTY_FORM = {
+  name: '',
+  board: 'CBSE Affiliated',
+  classes: '6, 7, 8, 9, 10, 11, 12',
+  programs: 'JEE, NEET, Foundational',
+  mouStatus: 'Active (2025)',
+  contactPerson: '',
+  email: '',
+  address: '',
+  gstNo: ''
+}
 
 const inputClass = 'w-full bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:bg-gray-50 focus:ring-2 focus:ring-indigo-400/30 transition-all'
 const labelClass = 'text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1'
@@ -139,27 +149,45 @@ export default function OnboardingChoice({ userName }: { userName: string }) {
                 </div>
                 {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">{error}</p>}
                 <form onSubmit={handleCreate} className="space-y-3">
-                  <div>
-                    <label className={labelClass}>School Name *</label>
-                    <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} className={inputClass} placeholder="e.g. Riverdale Coaching Institute" autoFocus />
-                  </div>
-                   <div>
-                    <label className={labelClass}>Board</label>
-                    <SelectBoard value={createForm.board} onChange={val => setCreateForm(f => ({ ...f, board: val }))} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
                     <div>
-                      <label className={labelClass}>Classes</label>
-                      <MultiSelectClasses value={createForm.classes} onChange={val => setCreateForm(f => ({ ...f, classes: val }))} />
+                      <label className={labelClass}>School Name *</label>
+                      <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} className={inputClass} placeholder="e.g. Riverdale Coaching Institute" autoFocus />
                     </div>
                     <div>
-                      <label className={labelClass}>MOU Status</label>
-                      <input value={createForm.mouStatus} onChange={e => setCreateForm(f => ({ ...f, mouStatus: e.target.value }))} className={inputClass} />
+                      <label className={labelClass}>Board</label>
+                      <SelectBoard value={createForm.board} onChange={val => setCreateForm(f => ({ ...f, board: val }))} />
                     </div>
-                  </div>
-                  <div>
-                    <label className={labelClass}>Programs</label>
-                    <MultiSelectPrograms value={createForm.programs} onChange={val => setCreateForm(f => ({ ...f, programs: val }))} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelClass}>Classes</label>
+                        <MultiSelectClasses value={createForm.classes} onChange={val => setCreateForm(f => ({ ...f, classes: val }))} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>MOU Status</label>
+                        <input value={createForm.mouStatus} onChange={e => setCreateForm(f => ({ ...f, mouStatus: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Programs</label>
+                      <MultiSelectPrograms value={createForm.programs} onChange={val => setCreateForm(f => ({ ...f, programs: val }))} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Contact Person</label>
+                      <input value={createForm.contactPerson} onChange={e => setCreateForm(f => ({ ...f, contactPerson: e.target.value }))} className={inputClass} placeholder="e.g. John Doe" />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Email</label>
+                      <input type="email" value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} className={inputClass} placeholder="e.g. contact@school.edu" />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Address</label>
+                      <textarea value={createForm.address} onChange={e => setCreateForm(f => ({ ...f, address: e.target.value }))} className={inputClass} placeholder="e.g. 123 Education St, City" rows={2} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>GST No.</label>
+                      <input value={createForm.gstNo} onChange={e => setCreateForm(f => ({ ...f, gstNo: e.target.value }))} className={inputClass} placeholder="e.g. 07AAAAA1111A1Z1" />
+                    </div>
                   </div>
                   <button type="submit" disabled={loading}
                     className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm mt-2 flex items-center justify-center gap-2">

@@ -9,9 +9,20 @@ import { SelectBoard, MultiSelectPrograms, MultiSelectClasses, formatClasses } f
 type SchoolEntry = {
   id: string; name: string; board: string; classes: string; programs: string
   mouStatus: string; joinCode: string | null; isActive: boolean; role: 'owner' | 'member'
+  contactPerson?: string; email?: string; address?: string; gstNo?: string
 }
 
-const EMPTY_FORM = { name: '', board: 'CBSE Affiliated', classes: '6, 7, 8, 9, 10, 11, 12', programs: 'JEE, NEET, Foundational', mouStatus: 'Active (2025)' }
+const EMPTY_FORM = {
+  name: '',
+  board: 'CBSE Affiliated',
+  classes: '6, 7, 8, 9, 10, 11, 12',
+  programs: 'JEE, NEET, Foundational',
+  mouStatus: 'Active (2025)',
+  contactPerson: '',
+  email: '',
+  address: '',
+  gstNo: ''
+}
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
@@ -174,7 +185,7 @@ export default function SchoolsTab() {
                 <h2 className="text-lg font-bold text-slate-900">Create New School</h2>
                 <button onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">School Name *</label>
                   <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
@@ -197,6 +208,31 @@ export default function SchoolsTab() {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">MOU Status</label>
                   <input value={createForm.mouStatus} onChange={e => setCreateForm(f => ({ ...f, mouStatus: e.target.value }))}
                     placeholder="e.g. Active (2025)"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Contact Person</label>
+                  <input value={createForm.contactPerson} onChange={e => setCreateForm(f => ({ ...f, contactPerson: e.target.value }))}
+                    placeholder="e.g. John Doe"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</label>
+                  <input type="email" value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder="e.g. contact@school.edu"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Address</label>
+                  <textarea value={createForm.address} onChange={e => setCreateForm(f => ({ ...f, address: e.target.value }))}
+                    placeholder="e.g. 123 Education St, City"
+                    rows={2}
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">GST No.</label>
+                  <input value={createForm.gstNo} onChange={e => setCreateForm(f => ({ ...f, gstNo: e.target.value }))}
+                    placeholder="e.g. 07AAAAA1111A1Z1"
                     className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                 </div>
               </div>
@@ -255,7 +291,7 @@ export default function SchoolsTab() {
                 <h2 className="text-lg font-bold text-slate-900">Edit School</h2>
                 <button onClick={() => setEditSchool(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">School Name *</label>
                   <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
@@ -276,6 +312,31 @@ export default function SchoolsTab() {
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">MOU Status</label>
                   <input value={editForm.mouStatus} onChange={e => setEditForm(f => ({ ...f, mouStatus: e.target.value }))}
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Contact Person</label>
+                  <input value={editForm.contactPerson} onChange={e => setEditForm(f => ({ ...f, contactPerson: e.target.value }))}
+                    placeholder="e.g. John Doe"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</label>
+                  <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder="e.g. contact@school.edu"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Address</label>
+                  <textarea value={editForm.address} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
+                    placeholder="e.g. 123 Education St, City"
+                    rows={2}
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">GST No.</label>
+                  <input value={editForm.gstNo} onChange={e => setEditForm(f => ({ ...f, gstNo: e.target.value }))}
+                    placeholder="e.g. 07AAAAA1111A1Z1"
                     className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                 </div>
               </div>
@@ -373,7 +434,20 @@ export default function SchoolsTab() {
                       </button>
                     )}
                     {school.role === 'owner' && (
-                      <button onClick={() => { setEditSchool(school); setEditForm({ name: school.name, board: school.board, classes: school.classes, programs: school.programs, mouStatus: school.mouStatus }) }}
+                      <button onClick={() => {
+                        setEditSchool(school);
+                        setEditForm({
+                          name: school.name,
+                          board: school.board,
+                          classes: school.classes,
+                          programs: school.programs,
+                          mouStatus: school.mouStatus,
+                          contactPerson: school.contactPerson || '',
+                          email: school.email || '',
+                          address: school.address || '',
+                          gstNo: school.gstNo || ''
+                        })
+                      }}
                         className="flex items-center justify-center gap-1 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-bold transition-all">
                         <Pencil className="w-3.5 h-3.5" /> Edit
                       </button>
