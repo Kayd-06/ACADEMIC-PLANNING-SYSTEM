@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Save, Loader2 } from 'lucide-react'
-import { SelectBoard, MultiSelectPrograms } from './SchoolFormHelpers'
+import { SelectBoard, MultiSelectPrograms, MultiSelectClasses } from './SchoolFormHelpers'
 
 interface SchoolData {
   board: string
@@ -67,12 +67,7 @@ export default function SchoolDetailsModal({
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Classes</label>
-                <input 
-                  type="text" 
-                  value={form.classes}
-                  onChange={e => setForm({ ...form, classes: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                />
+                <MultiSelectClasses value={form.classes} onChange={val => setForm({ ...form, classes: val })} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Programs</label>

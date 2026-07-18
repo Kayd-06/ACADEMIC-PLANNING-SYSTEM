@@ -97,7 +97,7 @@ function ProgramFormModal({ initial, isEdit, submitting, onSubmit, onClose }: {
 }
 
 export default function AcademicPlanningView() {
-  const [activeTab, setActiveTab] = useState('Programs')
+  const [activeTab, setActiveTab] = useState('Schools')
   const [programs, setPrograms] = useState<ProgramData[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -221,15 +221,17 @@ export default function AcademicPlanningView() {
             Manage programs, batches, subjects, and syllabus coverage across the institution
           </p>
         </div>
-        <button onClick={() => setModal({ mode: 'add' })} className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm active:scale-95">
-          <Plus className="w-4 h-4" /> New Program
-        </button>
+        {activeTab === 'Programs' && (
+          <button onClick={() => setModal({ mode: 'add' })} className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm active:scale-95">
+            <Plus className="w-4 h-4" /> New Program
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
       <div className="border-b border-slate-200 mb-8">
         <div className="flex gap-8">
-          {['Programs', 'Batches', 'Syllabus Tracker', 'Schools'].map((tab) => (
+          {['Schools', 'Programs', 'Batches', 'Syllabus Tracker'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}

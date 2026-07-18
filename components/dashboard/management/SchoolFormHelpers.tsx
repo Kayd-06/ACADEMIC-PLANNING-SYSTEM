@@ -13,12 +13,9 @@ const BOARDS = [
 ]
 
 const STANDARD_PROGRAMS = [
-  'STEM',
-  'Humanities',
-  'Arts',
-  'Commerce',
-  'General',
-  'Vocational'
+  'JEE',
+  'NEET',
+  'Foundational'
 ]
 
 export function SelectBoard({
@@ -330,6 +327,174 @@ export function MultiSelectPrograms({
                 <Plus className="w-3 h-3" /> Add
               </button>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+const CLASS_OPTIONS = ['6', '7', '8', '9', '10', '11', '12', '12 pass']
+
+export function formatClasses(value: string): string {
+  if (!value) return ''
+  const selected = value.split(',').map(s => s.trim()).filter(Boolean)
+  
+  const nums: number[] = []
+  const nonNums: string[] = []
+  
+  selected.forEach(item => {
+    const lower = item.toLowerCase()
+    const n = parseInt(item, 10)
+    if (!isNaN(n) && (item === n.toString() || lower === `${n}th` || lower === `${n}th pass` || lower === `${n} pass`)) {
+      if (lower.includes('pass')) {
+        nonNums.push('12 pass')
+      } else {
+        nums.push(n)
+      }
+    } else {
+      nonNums.push(item)
+    }
+  })
+  
+  const uniqueNums = Array.from(new Set(nums)).sort((a, b) => a - b)
+  const uniqueNonNums = Array.from(new Set(nonNums))
+  
+  const parts: string[] = []
+  
+  let i = 0
+  while (i < uniqueNums.length) {
+    let start = uniqueNums[i]
+    let end = start
+    while (i + 1 < uniqueNums.length && uniqueNums[i + 1] === uniqueNums[i] + 1) {
+      end = uniqueNums[i + 1]
+      i++
+    }
+    
+    if (start === end) {
+      parts.push(`${start}th`)
+    } else {
+      parts.push(`${start}th - ${end}th`)
+    }
+    i++
+  }
+  
+  uniqueNonNums.forEach(item => {
+    if (item.toLowerCase() === '12 pass') {
+      parts.push('12th Pass')
+    } else {
+      parts.push(item)
+    }
+  })
+  
+  return parts.join(', ')
+}
+
+export function MultiSelectClasses({
+  value,
+  onChange,
+  className = ''
+}: {
+  value: string
+  onChange: (val: string) => void
+  className?: string
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [openUpward, setOpenUpward] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom
+      if (spaceBelow < 280 && rect.top > spaceBelow) {
+        setOpenUpward(true)
+      } else {
+        setOpenUpward(false)
+      }
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selected = value ? value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : []
+
+  const handleToggle = (opt: string) => {
+    const optLower = opt.toLowerCase()
+    let next: string[]
+    
+    if (selected.includes(optLower)) {
+      next = selected.filter((p) => p !== optLower)
+    } else {
+      next = [...selected, optLower]
+    }
+    
+    next.sort((a, b) => {
+      return CLASS_OPTIONS.indexOf(a) - CLASS_OPTIONS.indexOf(b)
+    })
+
+    const mapped = next.map(val => {
+      const found = CLASS_OPTIONS.find(o => o.toLowerCase() === val)
+      return found || val
+    })
+
+    onChange(mapped.join(', '))
+  }
+
+  return (
+    <div className={`relative ${className}`} ref={containerRef}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className="mt-1 flex flex-wrap items-center gap-1.5 w-full min-h-[38px] px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white cursor-pointer hover:border-slate-300 transition-all focus-within:ring-2 focus-within:ring-slate-900"
+      >
+        {selected.length === 0 ? (
+          <span className="text-slate-400 my-0.5">Select classes...</span>
+        ) : (
+          <div className="flex-1 text-slate-800 font-medium py-0.5">
+            {formatClasses(value)}
+          </div>
+        )}
+        <div className="ml-auto flex items-center shrink-0 pl-1.5">
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: openUpward ? -4 : 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: openUpward ? -4 : 4 }}
+            className={`absolute z-[60] w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden py-1 max-h-60 overflow-y-auto ${
+              openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+            }`}
+          >
+            <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Classes Offered
+            </div>
+            {CLASS_OPTIONS.map((opt) => {
+              const active = selected.includes(opt.toLowerCase())
+              const displayLabel = opt === '12 pass' ? '12th Pass' : `${opt}th`
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => handleToggle(opt)}
+                  className="flex items-center justify-between w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <span>{displayLabel}</span>
+                  {active && <Check className="w-4 h-4 text-indigo-600" />}
+                </button>
+              )
+            })}
           </motion.div>
         )}
       </AnimatePresence>

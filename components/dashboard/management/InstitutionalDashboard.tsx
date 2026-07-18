@@ -9,6 +9,7 @@ import ProtocolsModal from './ProtocolsModal'
 import AnnouncementsView from './AnnouncementsView'
 import ScheduleManagementView from './ScheduleManagementView'
 import { getLocalToday, buildTodaysClasses, type TodayClassEntry } from '@/lib/scheduleUtils'
+import { formatClasses } from './SchoolFormHelpers'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -171,7 +172,7 @@ export default function InstitutionalDashboard() {
             ) : (
               [
                 { label: 'CURRENT BOARD', value: schoolData?.board || 'Not set' },
-                { label: 'ACTIVE CLASSES', value: schoolData?.classes || 'Not set' },
+                { label: 'ACTIVE CLASSES', value: schoolData?.classes ? formatClasses(schoolData.classes) : 'Not set' },
                 { label: 'PROGRAMS OFFERED', value: schoolData?.programs || 'Not set' },
                 { label: 'MOU STATUS', value: schoolData?.mouStatus || 'Not set', primary: true },
               ].map(item => (

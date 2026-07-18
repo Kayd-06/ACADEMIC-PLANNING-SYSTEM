@@ -52,8 +52,8 @@ export async function POST(req: NextRequest) {
   const [school] = await db.insert(schools).values({
     name: name.trim(),
     board: board || 'CBSE Affiliated',
-    classes: classes || 'Nursery – XII',
-    programs: programs || 'STEM, Humanities, Arts',
+    classes: classes || '6, 7, 8, 9, 10, 11, 12',
+    programs: programs || 'JEE, NEET, Foundational',
     mouStatus: mouStatus || 'Active (2025)',
     joinCode,
     adminEmail: session.user.email || '',

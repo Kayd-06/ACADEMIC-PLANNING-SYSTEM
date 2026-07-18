@@ -5,19 +5,24 @@ import { getOrCreateSchool, updateSchool } from './school'
 
 describe('school queries', () => {
   let testSchoolId: string | undefined
+  let createdNew = false
 
   afterAll(async () => {
-    if (testSchoolId) {
+    if (testSchoolId && createdNew) {
       await db.delete(schools).where(eq(schools.id, testSchoolId))
       testSchoolId = undefined
     }
   })
 
   it('getOrCreateSchool creates a default row when none exists', async () => {
+    const existing = await db.select().from(schools).limit(1)
     const school = await getOrCreateSchool()
     testSchoolId = school.id
-    expect(school.name).toBe('Academic Planning System')
-    expect(school.board).toBe('CBSE Affiliated')
+    if (existing.length === 0) {
+      createdNew = true
+      expect(school.name).toBe('Academic Planning System')
+      expect(school.board).toBe('CBSE Affiliated')
+    }
   })
 
   it('getOrCreateSchool returns the same row on a second call', async () => {

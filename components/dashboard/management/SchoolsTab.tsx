@@ -4,14 +4,14 @@ import { useSession } from 'next-auth/react'
 import { Plus, X, Loader2, Copy, Check, Building2, Pencil, Trash2, LogOut, Hash, CheckCircle2, ArrowRightLeft, AlertTriangle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ClearDataModal from './ClearDataModal'
-import { SelectBoard, MultiSelectPrograms } from './SchoolFormHelpers'
+import { SelectBoard, MultiSelectPrograms, MultiSelectClasses, formatClasses } from './SchoolFormHelpers'
 
 type SchoolEntry = {
   id: string; name: string; board: string; classes: string; programs: string
   mouStatus: string; joinCode: string | null; isActive: boolean; role: 'owner' | 'member'
 }
 
-const EMPTY_FORM = { name: '', board: 'CBSE Affiliated', classes: 'Nursery – XII', programs: 'STEM, Humanities, Arts', mouStatus: 'Active (2025)' }
+const EMPTY_FORM = { name: '', board: 'CBSE Affiliated', classes: '6, 7, 8, 9, 10, 11, 12', programs: 'JEE, NEET, Foundational', mouStatus: 'Active (2025)' }
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
@@ -187,9 +187,7 @@ export default function SchoolsTab() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Classes Offered</label>
-                  <input value={createForm.classes} onChange={e => setCreateForm(f => ({ ...f, classes: e.target.value }))}
-                    placeholder="e.g. Nursery – XII"
-                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  <MultiSelectClasses value={createForm.classes} onChange={val => setCreateForm(f => ({ ...f, classes: val }))} />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Programs</label>
@@ -269,8 +267,7 @@ export default function SchoolsTab() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Classes Offered</label>
-                  <input value={editForm.classes} onChange={e => setEditForm(f => ({ ...f, classes: e.target.value }))}
-                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  <MultiSelectClasses value={editForm.classes} onChange={val => setEditForm(f => ({ ...f, classes: val }))} />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Programs</label>
@@ -345,7 +342,7 @@ export default function SchoolsTab() {
                   <div className="space-y-1.5 mb-4">
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-500">Classes</span>
-                      <span className="font-medium text-slate-700">{school.classes}</span>
+                      <span className="font-medium text-slate-700">{formatClasses(school.classes)}</span>
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-500">Programs</span>
