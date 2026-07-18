@@ -29,7 +29,7 @@ export default function InstitutionalDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isProtocolsModalOpen, setIsProtocolsModalOpen] = useState(false)
   const [schoolData, setSchoolData] = useState<{
-    board: string; classes: string; programs: string; mouStatus: string; joinCode: string
+    name?: string; board: string; classes: string; programs: string; mouStatus: string; joinCode: string
   } | null>(null)
   const [schoolLoading, setSchoolLoading] = useState(true)
   const [codeCopied, setCodeCopied] = useState(false)
@@ -137,7 +137,15 @@ export default function InstitutionalDashboard() {
       {/* Page title */}
       <motion.div {...fadeUp(0)} className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Institutional Dashboard</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            Institutional Dashboard
+            {schoolData?.name && (
+              <>
+                <span className="text-slate-300 font-normal mx-2.5">•</span>
+                <span className="text-indigo-600 font-extrabold">{schoolData.name}</span>
+              </>
+            )}
+          </h1>
           <p className="text-[13px] font-medium text-slate-500 mt-1">Overview of academic background, protocols, and ongoing management tasks</p>
         </div>
         <Link href="/management/recruitment">
