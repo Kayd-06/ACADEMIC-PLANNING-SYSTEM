@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { classSchedules, schools, programs, batches, batchPrograms } from '@/lib/db/schema'
+import { classSchedules, schools, programs, batches } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 
 jest.mock('@/lib/auth', () => ({
@@ -24,7 +24,6 @@ function req(url: string) {
 // Scoped-by-ID cleanup only — never db.delete(table) with no WHERE.
 const createdIds = {
   classSchedules: [] as string[],
-  batchPrograms: [] as string[],
   batches: [] as string[],
   programs: [] as string[],
   schools: [] as string[],
@@ -32,7 +31,6 @@ const createdIds = {
 
 afterEach(async () => {
   for (const id of createdIds.classSchedules) await db.delete(classSchedules).where(eq(classSchedules.id, id))
-  for (const id of createdIds.batchPrograms) await db.delete(batchPrograms).where(eq(batchPrograms.id, id))
   for (const id of createdIds.batches) await db.delete(batches).where(eq(batches.id, id))
   for (const id of createdIds.programs) await db.delete(programs).where(eq(programs.id, id))
   for (const id of createdIds.schools) await db.delete(schools).where(eq(schools.id, id))
@@ -118,12 +116,10 @@ describe('GET /api/schedule', () => {
 
     const [program] = await db.insert(programs).values({ name: 'JEE Integrated', schoolId: school.id }).returning()
     createdIds.programs.push(program.id)
-    const [linkedBatch] = await db.insert(batches).values({ name: 'Linked Batch', capacity: 60, classLevel: '11', schoolId: school.id }).returning()
+    const [linkedBatch] = await db.insert(batches).values({ name: 'Linked Batch', capacity: 60, classLevel: '11', schoolId: school.id, programId: program.id }).returning()
     createdIds.batches.push(linkedBatch.id)
     const [unlinkedBatch] = await db.insert(batches).values({ name: 'Unlinked Batch', capacity: 60, classLevel: '11', schoolId: school.id }).returning()
     createdIds.batches.push(unlinkedBatch.id)
-    const [link] = await db.insert(batchPrograms).values({ batchId: linkedBatch.id, programId: program.id }).returning()
-    createdIds.batchPrograms.push(link.id)
 
     const [slotLinked] = await db.insert(classSchedules).values({
       teacherEmail: 't1@example.com', subject: 'Physics', batch: 'Linked Batch',

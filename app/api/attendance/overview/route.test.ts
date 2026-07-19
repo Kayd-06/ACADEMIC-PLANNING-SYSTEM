@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { students, attendanceSessions, attendanceEntries, programs, batches, batchPrograms, schools } from '@/lib/db/schema'
+import { students, attendanceSessions, attendanceEntries, programs, batches, schools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 
 jest.mock('@/lib/auth', () => ({
@@ -23,7 +23,6 @@ function req(url: string) {
 const createdIds = {
   attendanceEntries: [] as string[],
   attendanceSessions: [] as string[],
-  batchPrograms: [] as string[],
   students: [] as string[],
   batches: [] as string[],
   programs: [] as string[],
@@ -33,7 +32,6 @@ const createdIds = {
 afterEach(async () => {
   for (const id of createdIds.attendanceEntries) await db.delete(attendanceEntries).where(eq(attendanceEntries.id, id))
   for (const id of createdIds.attendanceSessions) await db.delete(attendanceSessions).where(eq(attendanceSessions.id, id))
-  for (const id of createdIds.batchPrograms) await db.delete(batchPrograms).where(eq(batchPrograms.id, id))
   for (const id of createdIds.students) await db.delete(students).where(eq(students.id, id))
   for (const id of createdIds.batches) await db.delete(batches).where(eq(batches.id, id))
   for (const id of createdIds.programs) await db.delete(programs).where(eq(programs.id, id))
@@ -127,12 +125,10 @@ describe('GET /api/attendance/overview', () => {
 
     const [program] = await db.insert(programs).values({ name: 'JEE Integrated', schoolId: null }).returning()
     createdIds.programs.push(program.id)
-    const [linkedBatch] = await db.insert(batches).values({ name: 'Linked Batch', capacity: 60, classLevel: '11', schoolId: null }).returning()
+    const [linkedBatch] = await db.insert(batches).values({ name: 'Linked Batch', capacity: 60, classLevel: '11', schoolId: null, programId: program.id }).returning()
     createdIds.batches.push(linkedBatch.id)
     const [unlinkedBatch] = await db.insert(batches).values({ name: 'Unlinked Batch', capacity: 60, classLevel: '11', schoolId: null }).returning()
     createdIds.batches.push(unlinkedBatch.id)
-    const [link] = await db.insert(batchPrograms).values({ batchId: linkedBatch.id, programId: program.id }).returning()
-    createdIds.batchPrograms.push(link.id)
 
     const res = await GET(req(`http://localhost/api/attendance/overview?range=7&program=${encodeURIComponent('JEE Integrated')}`))
     const body = await res.json()

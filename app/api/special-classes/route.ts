@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { specialClasses, batches, batchPrograms, type NewSpecialClass } from '@/lib/db/schema'
+import { specialClasses, batches, type NewSpecialClass } from '@/lib/db/schema'
 import { eq, and, asc, gte, inArray, isNull } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
 
@@ -81,8 +81,7 @@ export async function GET(req: NextRequest) {
       conditions.push(eq(specialClasses.batch, batchFilter))
     } else if (programIdFilter) {
       const linked = await db.select({ name: batches.name }).from(batches)
-        .innerJoin(batchPrograms, eq(batchPrograms.batchId, batches.id))
-        .where(eq(batchPrograms.programId, programIdFilter))
+        .where(eq(batches.programId, programIdFilter))
       const batchNames = linked.map(b => b.name)
       conditions.push(batchNames.length ? inArray(specialClasses.batch, batchNames) : eq(specialClasses.batch, '\0no-match'))
     }

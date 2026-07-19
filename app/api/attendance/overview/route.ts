@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { attendanceSessions, attendanceEntries, students, programs, batches, batchPrograms } from '@/lib/db/schema'
+import { attendanceSessions, attendanceEntries, students, programs, batches } from '@/lib/db/schema'
 import { eq, and, gte, lte, inArray, isNull, asc } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
@@ -164,8 +164,7 @@ export async function GET(req: NextRequest) {
     const batchRows = selectedProgramId
       ? await db.select({ name: batches.name })
           .from(batches)
-          .innerJoin(batchPrograms, eq(batchPrograms.batchId, batches.id))
-          .where(and(batchSchoolCondition, eq(batchPrograms.programId, selectedProgramId)))
+          .where(and(batchSchoolCondition, eq(batches.programId, selectedProgramId)))
           .orderBy(asc(batches.name))
       : await db.select({ name: batches.name }).from(batches).where(batchSchoolCondition).orderBy(asc(batches.name))
     const distinctBatches = batchRows.map(r => r.name).filter(Boolean)
