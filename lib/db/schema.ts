@@ -329,6 +329,8 @@ export type NewProgram = typeof programs.$inferInsert
 
 // Specific student groups per year. Class levels: 9 | 10 | 11 | 12 | Dropper.
 // Students link to a batch by name (students.batch), so `name` is the join key.
+// One program spans many batches (e.g. JEE has a Morning and an Evening
+// batch); each batch belongs to at most one program.
 export const batches = pgTable('batches', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
@@ -339,8 +341,9 @@ export const batches = pgTable('batches', {
   // Schedule
   startDate: varchar('start_date', { length: 10 }),
   endDate: varchar('end_date', { length: 10 }),
-  // Coordination — program links live in batch_programs (many-to-many)
+  // Coordination
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  programId: uuid('program_id').references(() => programs.id, { onDelete: 'set null' }),
   teacherId: uuid('teacher_id').references(() => faculty.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -348,20 +351,6 @@ export const batches = pgTable('batches', {
 
 export type Batch = typeof batches.$inferSelect
 export type NewBatch = typeof batches.$inferInsert
-
-// One batch can run under several programs at once (e.g. a batch that's
-// both JEE and NEET track), and one program spans many batches.
-export const batchPrograms = pgTable('batch_programs', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  batchId: uuid('batch_id').notNull().references(() => batches.id, { onDelete: 'cascade' }),
-  programId: uuid('program_id').notNull().references(() => programs.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => ({
-  batchProgramUnique: uniqueIndex('batch_programs_unique').on(table.batchId, table.programId),
-}))
-
-export type BatchProgram = typeof batchPrograms.$inferSelect
-export type NewBatchProgram = typeof batchPrograms.$inferInsert
 
 export const subjects = pgTable('subjects', {
   id: uuid('id').defaultRandom().primaryKey(),
