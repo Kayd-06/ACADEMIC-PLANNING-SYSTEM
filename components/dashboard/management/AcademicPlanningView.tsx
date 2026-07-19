@@ -69,8 +69,10 @@ function ProgramFormModal({ initial, isEdit, submitting, onSubmit, onClose }: {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Duration</label>
-              <input value={form.duration} onChange={set('duration')} className={inputClass} placeholder="e.g. 2 Years" />
+              <label className={labelClass}>Duration (Years)</label>
+              <input value={form.duration} inputMode="numeric" pattern="[0-9]*" maxLength={2}
+                onChange={e => setForm(prev => ({ ...prev, duration: e.target.value.replace(/\D/g, '') }))}
+                className={inputClass} placeholder="e.g. 2" />
             </div>
             <div>
               <label className={labelClass}>Theme Color</label>
@@ -202,7 +204,7 @@ export default function AcademicPlanningView() {
             code: modal.program!.code ?? '',
             type: modal.program!.type ?? 'Foundational',
             targetExam: modal.program!.targetExam ?? '',
-            duration: modal.program!.duration ?? '',
+            duration: (modal.program!.duration ?? '').replace(/\D/g, ''),
             colorTheme: modal.program!.colorTheme ?? 'blue',
             isActive: modal.program!.isActive ?? true,
           } : EMPTY_FORM}
@@ -286,7 +288,11 @@ export default function AcademicPlanningView() {
                             </span>
                           )}
                           {prog.duration && (
-                            <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 rounded-md">{prog.duration}</span>
+                            <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 rounded-md">
+                              {/^\d+$/.test(prog.duration)
+                                ? `${prog.duration} ${prog.duration === '1' ? 'Year' : 'Years'}`
+                                : prog.duration}
+                            </span>
                           )}
                         </div>
                       </div>
