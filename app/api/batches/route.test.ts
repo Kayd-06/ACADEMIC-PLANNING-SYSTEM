@@ -34,7 +34,7 @@ describe('PATCH /api/batches — Unassigned coordinator / no class level', () =>
 
     const body = {
       name: 'Batch A', classLevel: '', capacity: '60',
-      startDate: '', endDate: '', programIds: [], teacherId: '',
+      startDate: '', endDate: '', programId: '', teacherId: '',
     }
     const res = await PATCH(jsonReq(`http://localhost/api/batches?id=${batch.id}`, 'PATCH', body))
     const json = await res.json()
@@ -53,7 +53,7 @@ describe('POST /api/batches — same Unassigned / no class level combination', (
 
     const body = {
       name: 'New Batch No Class Level', classLevel: '', capacity: '60',
-      startDate: '', endDate: '', programIds: [], teacherId: '',
+      startDate: '', endDate: '', programId: '', teacherId: '',
     }
     const res = await POST(jsonReq('http://localhost/api/batches', 'POST', body))
     const json = await res.json()

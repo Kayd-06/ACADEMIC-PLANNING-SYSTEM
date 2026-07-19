@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { programs, batchPrograms, programSubjects, students, type NewProgram } from '@/lib/db/schema'
+import { programs, batches, programSubjects, students, type NewProgram } from '@/lib/db/schema'
 import { eq, and, asc, inArray, count } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
@@ -33,32 +33,29 @@ export async function GET() {
       ? and(eq(students.isActive, true), eq(students.schoolId, schoolId))
       : eq(students.isActive, true)
 
-    const [linkRows, subjectRows, studentCountRows] = ids.length
+    const [batchCountRows, subjectRows, studentCountRows] = ids.length
       ? await Promise.all([
-          db.select({ programId: batchPrograms.programId, batchId: batchPrograms.batchId })
-            .from(batchPrograms)
-            .where(inArray(batchPrograms.programId, ids)),
+          db.select({ programId: batches.programId, value: count() })
+            .from(batches).where(inArray(batches.programId, ids)).groupBy(batches.programId),
           db.select({ programId: programSubjects.programId })
             .from(programSubjects).where(inArray(programSubjects.programId, ids)),
-          // Count students by their own `program` field, not batch enrollment —
-          // a batch can be linked to several programs, so summing enrolledCount
-          // would double-count students across every program that batch offers.
+          // Count students by their own `program` field, not batch enrollment.
           db.select({ program: students.program, value: count() })
             .from(students).where(studentCondition).groupBy(students.program),
         ])
       : [[], [], []]
 
+    const batchCountByProgramId = new Map(batchCountRows.map(r => [r.programId, Number(r.value)]))
     const studentCountByName = new Map(studentCountRows.map(r => [r.program, Number(r.value)]))
 
     const result = rows.map(p => {
-      const myLinks = linkRows.filter(b => b.programId === p.id)
       return {
         ...p,
         _id: p.id,
         // Legacy aliases kept for older consumers
         title: p.name,
         target: p.targetExam,
-        batches: myLinks.length,
+        batches: batchCountByProgramId.get(p.id) ?? 0,
         students: studentCountByName.get(p.name) ?? 0,
         subjects: subjectRows.filter(s => s.programId === p.id).length,
       }
