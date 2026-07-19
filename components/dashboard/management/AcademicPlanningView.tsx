@@ -4,6 +4,7 @@ import { Plus, MoreVertical, X, Loader2, CheckCircle, Pencil, Trash2 } from 'luc
 import SchoolsTab from './SchoolsTab'
 import BatchesTab from './BatchesTab'
 import SyllabusKanbanBoard from '../SyllabusKanbanBoard'
+import { SelectTargetExam } from './SchoolFormHelpers'
 
 interface ProgramData {
   _id: string
@@ -65,7 +66,7 @@ function ProgramFormModal({ initial, isEdit, submitting, onSubmit, onClose }: {
           </div>
           <div>
             <label className={labelClass}>Target Exam</label>
-            <input value={form.targetExam} onChange={set('targetExam')} className={inputClass} placeholder="e.g. JEE Main, Advanced, NEET UG, Board" />
+            <SelectTargetExam value={form.targetExam} onChange={val => setForm(prev => ({ ...prev, targetExam: val }))} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

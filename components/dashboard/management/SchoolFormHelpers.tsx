@@ -18,6 +18,19 @@ const STANDARD_PROGRAMS = [
   'Foundational'
 ]
 
+const TARGET_EXAMS = [
+  'JEE Main',
+  'JEE Advanced',
+  'NEET UG',
+  'BITSAT',
+  'NTSE',
+  'CUET',
+  'Science Olympiad',
+  'Maths Olympiad',
+  'CBSE Board',
+  'ICSE Board',
+]
+
 export function SelectBoard({
   value,
   onChange,
@@ -129,6 +142,144 @@ export function SelectBoard({
                     }
                   }}
                   placeholder="Type board name..."
+                  autoFocus
+                  className="flex-1 min-w-0 px-2.5 py-1 border border-slate-200 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-800"
+                />
+                <button
+                  type="button"
+                  onClick={submitCustom}
+                  disabled={!customVal.trim()}
+                  className="px-2.5 py-1 bg-indigo-600 text-white text-xs font-bold rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomInput(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+export function SelectTargetExam({
+  value,
+  onChange,
+  className = ''
+}: {
+  value: string
+  onChange: (val: string) => void
+  className?: string
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [customVal, setCustomVal] = useState('')
+  const [showCustomInput, setShowCustomInput] = useState(!TARGET_EXAMS.includes(value) && value !== '')
+  const [openUpward, setOpenUpward] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom
+      if (spaceBelow < 280 && rect.top > spaceBelow) {
+        setOpenUpward(true)
+      } else {
+        setOpenUpward(false)
+      }
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleSelect = (exam: string) => {
+    setShowCustomInput(false)
+    onChange(exam)
+    setIsOpen(false)
+  }
+
+  const submitCustom = () => {
+    if (customVal.trim()) {
+      onChange(customVal.trim())
+      setIsOpen(false)
+    }
+  }
+
+  return (
+    <div className={`relative ${className}`} ref={containerRef}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className="mt-1 flex items-center justify-between w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-sm cursor-pointer hover:border-slate-300 transition-all focus:outline-none focus:ring-2 focus:ring-slate-900"
+      >
+        <span className={value ? 'text-slate-800' : 'text-slate-400'}>
+          {value || 'Select Target Exam'}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: openUpward ? -4 : 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: openUpward ? -4 : 4 }}
+            className={`absolute z-[60] w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden py-1 max-h-60 overflow-y-auto ${
+              openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+            }`}
+          >
+            {TARGET_EXAMS.map((exam) => (
+              <button
+                key={exam}
+                type="button"
+                onClick={() => handleSelect(exam)}
+                className="flex items-center justify-between w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <span>{exam}</span>
+                {value === exam && <Check className="w-4 h-4 text-indigo-600" />}
+              </button>
+            ))}
+
+            <div className="border-t border-slate-100 my-1" />
+
+            {!showCustomInput ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCustomInput(true)
+                  setCustomVal(TARGET_EXAMS.includes(value) ? '' : value)
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-indigo-600 font-medium hover:bg-indigo-50/50 transition-colors"
+              >
+                + Custom Exam...
+              </button>
+            ) : (
+              <div className="px-3 py-2 flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={customVal}
+                  onChange={(e) => setCustomVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      submitCustom()
+                    }
+                  }}
+                  placeholder="Type exam name..."
                   autoFocus
                   className="flex-1 min-w-0 px-2.5 py-1 border border-slate-200 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-800"
                 />
