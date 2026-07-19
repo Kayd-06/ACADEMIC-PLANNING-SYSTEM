@@ -7,19 +7,11 @@ const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Dropper']
 
 const EMPTY_FORM = {
   name: '', classLevel: '', capacity: '60',
-  startDate: '', endDate: '', programIds: [] as string[], teacherId: '',
+  startDate: '', endDate: '', programId: '', teacherId: '',
 }
 
 const inputClass = 'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors'
 const labelClass = 'text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5'
-
-const PROGRAM_BADGE_COLORS = [
-  'bg-indigo-50 text-indigo-700 border-indigo-100',
-  'bg-emerald-50 text-emerald-700 border-emerald-100',
-  'bg-amber-50 text-amber-700 border-amber-100',
-  'bg-purple-50 text-purple-700 border-purple-100',
-  'bg-rose-50 text-rose-700 border-rose-100',
-]
 
 function BatchFormModal({ initial, isEdit, programs, teachers, saving, error, onSubmit, onClose }: {
   initial: typeof EMPTY_FORM
@@ -32,16 +24,9 @@ function BatchFormModal({ initial, isEdit, programs, teachers, saving, error, on
   onClose: () => void
 }) {
   const [form, setForm] = useState(initial)
-  const set = (f: 'name' | 'classLevel' | 'capacity' | 'startDate' | 'endDate' | 'teacherId') =>
+  const set = (f: 'name' | 'classLevel' | 'capacity' | 'startDate' | 'endDate' | 'teacherId' | 'programId') =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm(prev => ({ ...prev, [f]: e.target.value }))
-
-  function toggleProgram(id: string) {
-    setForm(prev => ({
-      ...prev,
-      programIds: prev.programIds.includes(id) ? prev.programIds.filter(p => p !== id) : [...prev.programIds, id],
-    }))
-  }
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
@@ -78,23 +63,14 @@ function BatchFormModal({ initial, isEdit, programs, teachers, saving, error, on
           </div>
 
           <div>
-            <label className={labelClass}>Programs</label>
-            {programs.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No programs yet — create one in the Programs tab first.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {programs.map(p => {
-                  const active = form.programIds.includes(p._id)
-                  return (
-                    <button key={p._id} type="button" onClick={() => toggleProgram(p._id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${active ? 'bg-[#0b1320] text-white border-[#0b1320]' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
-                      {p.name}
-                    </button>
-                  )
-                })}
-              </div>
+            <label className={labelClass}>Program</label>
+            <select value={form.programId} onChange={set('programId')} className={inputClass}>
+              <option value="">Unassigned</option>
+              {programs.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+            </select>
+            {programs.length === 0 && (
+              <p className="text-[10px] text-slate-400 mt-1.5">No programs yet — create one in the Programs tab first.</p>
             )}
-            <p className="text-[10px] text-slate-400 mt-1.5">A batch can run under multiple programs at once — select all that apply.</p>
           </div>
 
           <div>
@@ -225,7 +201,6 @@ export default function BatchesTab({ programFilter, onClearProgramFilter }: {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {batches.map(b => {
             const pct = b.capacity > 0 ? Math.min(100, Math.round((b.enrolledCount / b.capacity) * 100)) : 0
-            const batchPrograms: any[] = b.programs ?? []
             return (
               <div key={b._id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                 <div className={`h-1.5 w-full ${pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-400' : 'bg-indigo-600'}`} />
@@ -243,13 +218,13 @@ export default function BatchesTab({ programFilter, onClearProgramFilter }: {
                     </div>
                   </div>
 
-                  {/* Programs */}
+                  {/* Program */}
                   <div className="flex flex-wrap gap-1.5 mt-3">
-                    {batchPrograms.length === 0 ? (
-                      <span className="text-[11px] text-slate-300 italic">No programs linked</span>
-                    ) : batchPrograms.map((p, i) => (
-                      <span key={p.id} className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${PROGRAM_BADGE_COLORS[i % PROGRAM_BADGE_COLORS.length]}`}>{p.name}</span>
-                    ))}
+                    {b.programName ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-indigo-50 text-indigo-700 border-indigo-100">{b.programName}</span>
+                    ) : (
+                      <span className="text-[11px] text-slate-300 italic">No program assigned</span>
+                    )}
                   </div>
 
                   {/* Enrollment meter */}
@@ -293,9 +268,9 @@ export default function BatchesTab({ programFilter, onClearProgramFilter }: {
             capacity: String(modal.batch.capacity ?? 60),
             startDate: modal.batch.startDate ?? '',
             endDate: modal.batch.endDate ?? '',
-            programIds: (modal.batch.programs ?? []).map((p: any) => p.id),
+            programId: modal.batch.programId ?? '',
             teacherId: modal.batch.teacherId ?? '',
-          } : { ...EMPTY_FORM, programIds: programFilter ? [programFilter.id] : [] }}
+          } : { ...EMPTY_FORM, programId: programFilter?.id ?? '' }}
           isEdit={modal.mode === 'edit'}
           programs={programs}
           teachers={teachers}
