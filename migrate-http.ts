@@ -1,6 +1,9 @@
 import { config } from 'dotenv'
 config({ path: '.env' })
-config({ path: '.env.local' })
+// override: true — dotenv doesn't overwrite vars already set by the .env
+// load above, so without it .env's placeholder DATABASE_URL wins over the
+// real one in .env.local. See jest.setup.ts for the same fix.
+config({ path: '.env.local', override: true })
 import { neon } from '@neondatabase/serverless'
 import { drizzle } from 'drizzle-orm/neon-http'
 import { migrate } from 'drizzle-orm/neon-http/migrator'
