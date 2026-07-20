@@ -144,10 +144,6 @@ export async function updateStudent(id: string, data: Partial<NewStudent>, schoo
   return rows[0] ?? null
 }
 
-export async function deactivateStudent(id: string, schoolId?: string | null): Promise<Student | null> {
-  return updateStudent(id, { isActive: false }, schoolId)
-}
-
 export async function deleteStudent(id: string, schoolId?: string | null): Promise<void> {
   const condition = schoolId ? and(eq(students.id, id), eq(students.schoolId, schoolId)) : eq(students.id, id)
   await db.delete(students).where(condition)

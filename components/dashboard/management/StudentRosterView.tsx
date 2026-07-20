@@ -106,7 +106,7 @@ export default function StudentRosterView() {
   }
 
   const handleDelete = async (student: any) => {
-    if (!confirm(`Remove ${student.name} from the active roster?`)) return
+    if (!confirm(`Permanently delete ${student.name} and all their guardian and enrollment records? This cannot be undone.`)) return
     try {
       const res = await fetch(`/api/students?id=${student._id}`, { method: 'DELETE' })
       if (res.ok) {
@@ -114,12 +114,12 @@ export default function StudentRosterView() {
         if (selectedStudent?._id === student._id) {
           setSelectedStudent(null)
         }
-        showToast(`${student.name} removed from roster`)
+        showToast(`${student.name} permanently deleted`)
       } else {
-        showToast('Failed to remove student')
+        showToast('Failed to delete student')
       }
     } catch {
-      showToast('Failed to remove student')
+      showToast('Failed to delete student')
     }
   }
 

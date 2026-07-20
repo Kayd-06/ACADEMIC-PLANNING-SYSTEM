@@ -4,7 +4,6 @@ import {
   listStudents,
   createStudent,
   updateStudent,
-  deactivateStudent,
   deleteStudent,
   type ListStudentsFilters,
 } from '@/lib/db/queries/students'
@@ -137,7 +136,7 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// DELETE — soft-delete a student (management only)
+// DELETE — permanently delete a student and their guardian/enrollment records (management only)
 export async function DELETE(req: NextRequest) {
   try {
     const session = await auth()
@@ -149,15 +148,10 @@ export async function DELETE(req: NextRequest) {
     const schoolId = (session.user as any).schoolId as string | null
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
-    const permanent = searchParams.get('permanent') === 'true'
 
     if (!id) return NextResponse.json({ error: 'Student ID is required' }, { status: 400 })
 
-    if (permanent) {
-      await deleteStudent(id, schoolId)
-    } else {
-      await deactivateStudent(id, schoolId)
-    }
+    await deleteStudent(id, schoolId)
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

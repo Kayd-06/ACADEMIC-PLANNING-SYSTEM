@@ -10,7 +10,6 @@ import {
   bulkInsertStudents,
   upsertStudentByRollClassSection,
   updateStudent,
-  deactivateStudent,
   deleteStudent,
   deleteAllStudents,
   findStudentsByBatch,
@@ -138,12 +137,6 @@ describe('students queries', () => {
   it('updateStudent returns null for an unknown id', async () => {
     const result = await updateStudent('00000000-0000-0000-0000-000000000000', { name: 'X' })
     expect(result).toBeNull()
-  })
-
-  it('deactivateStudent sets isActive to false', async () => {
-    const created = await createStudent({ name: 'To Deactivate' })
-    const result = await deactivateStudent(created.id)
-    expect(result?.isActive).toBe(false)
   })
 
   it('deleteStudent removes the row', async () => {

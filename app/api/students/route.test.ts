@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { students } from '@/lib/db/schema'
+import { students, parentsGuardians } from '@/lib/db/schema'
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
@@ -207,7 +207,7 @@ describe('PATCH /api/students', () => {
 })
 
 describe('DELETE /api/students', () => {
-  it('soft-deletes by default', async () => {
+  it('permanently deletes the student, even without a permanent param', async () => {
     ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
     const [created] = await db.insert(students).values({ name: 'To Remove' }).returning()
     createdIds.push(created.id)
@@ -215,20 +215,19 @@ describe('DELETE /api/students', () => {
     const res = await DELETE(req(`http://localhost/api/students?id=${created.id}`, { method: 'DELETE' }))
     expect(res.status).toBe(200)
 
-    const [row] = await db.select().from(students).where(eq(students.id, created.id))
-    expect(row.isActive).toBe(false)
+    const rows = await db.select().from(students).where(eq(students.id, created.id))
+    expect(rows).toHaveLength(0)
   })
 
-  it('permanently deletes when permanent=true', async () => {
+  it('cascades the delete to the student\'s guardians', async () => {
     ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
     const [created] = await db.insert(students).values({ name: 'To Remove' }).returning()
     createdIds.push(created.id)
+    await db.insert(parentsGuardians).values({ studentId: created.id, name: 'ABC', isPrimary: true })
 
-    await DELETE(req(`http://localhost/api/students?id=${created.id}&permanent=true`, { method: 'DELETE' }))
+    await DELETE(req(`http://localhost/api/students?id=${created.id}`, { method: 'DELETE' }))
 
-    const rows = await db.select().from(students).where(eq(students.id, created.id))
-    expect(rows).toHaveLength(0)
-    // Already gone — nothing left for afterEach to clean up, but the ID stays
-    // tracked harmlessly since the delete-by-id is a no-op on a missing row.
+    const guardianRows = await db.select().from(parentsGuardians).where(eq(parentsGuardians.studentId, created.id))
+    expect(guardianRows).toHaveLength(0)
   })
 })
