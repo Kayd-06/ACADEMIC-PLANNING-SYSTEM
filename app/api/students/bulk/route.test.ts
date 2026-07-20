@@ -1,5 +1,6 @@
+import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { students } from '@/lib/db/schema'
+import { students, parentsGuardians } from '@/lib/db/schema'
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
@@ -49,6 +50,31 @@ describe('POST /api/students/bulk', () => {
     const rows = await db.select().from(students)
     expect(rows).toHaveLength(1)
     expect(rows[0].name).toBe('Updated')
+  })
+
+  it('upserts the primary guardian instead of duplicating it on repeat import', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    // Unique-per-run roll number — the file's own afterEach uses an unscoped
+    // db.delete(students), which the DB Guard silently blocks, so leftover
+    // rows from prior runs persist. Use a fresh rollNo each run and clean up
+    // this test's own row by ID in the finally block below.
+    const rollNo = `GT-${Date.now()}`
+    const row = {
+      name: 'Guardian Test', rollNo, class: '11 - A', section: 'A',
+      guardianName: 'ABC', guardianPhone: '9876543210', guardianEmail: 'suresh.sharma@example.com',
+    }
+    try {
+      await POST(req({ students: [row] }))
+      await POST(req({ students: [{ ...row, guardianPhone: '9998887770' }] }))
+
+      const [student] = await db.select().from(students).where(eq(students.rollNo, rollNo))
+      const guardianRows = await db.select().from(parentsGuardians).where(eq(parentsGuardians.studentId, student.id))
+      expect(guardianRows).toHaveLength(1)
+      expect(guardianRows[0].phone).toBe('9998887770')
+    } finally {
+      const [student] = await db.select().from(students).where(eq(students.rollNo, rollNo))
+      if (student) await db.delete(students).where(eq(students.id, student.id))
+    }
   })
 
   it('skips rows with no name and reports the total of valid rows', async () => {

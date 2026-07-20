@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { parentsGuardians } from '@/lib/db/schema'
 import { upsertStudentByRollClassSection, createStudent, deleteAllStudents } from '@/lib/db/queries/students'
@@ -78,14 +79,22 @@ export async function POST(req: NextRequest) {
 
         const guardianName = s.guardianName?.trim()
         if (guardianName) {
-          await db.insert(parentsGuardians).values({
-            studentId: student.id,
+          const guardianData = {
             name: guardianName,
             relationship: s.guardianRelationship?.trim() || 'Parent',
             phone: s.guardianPhone?.trim() || undefined,
             email: s.guardianEmail?.trim() || undefined,
-            isPrimary: true,
-          })
+          }
+          const [existingPrimary] = await db.select({ id: parentsGuardians.id })
+            .from(parentsGuardians)
+            .where(and(eq(parentsGuardians.studentId, student.id), eq(parentsGuardians.isPrimary, true)))
+          if (existingPrimary) {
+            await db.update(parentsGuardians)
+              .set({ ...guardianData, updatedAt: new Date() })
+              .where(eq(parentsGuardians.id, existingPrimary.id))
+          } else {
+            await db.insert(parentsGuardians).values({ ...guardianData, studentId: student.id, isPrimary: true })
+          }
         }
 
         return student
