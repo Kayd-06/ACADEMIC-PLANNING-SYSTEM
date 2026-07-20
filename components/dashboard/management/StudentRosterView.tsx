@@ -14,7 +14,6 @@ export default function StudentRosterView() {
 
   // Filters
   const [classFilter, setClassFilter] = useState('All Classes')
-  const [sectionFilter, setSectionFilter] = useState('All Sections')
   const [batchFilter, setBatchFilter] = useState('All Batches')
   
   // Toast
@@ -111,7 +110,6 @@ export default function StudentRosterView() {
 
   // Get unique filter options
   const classes = ['All Classes', ...Array.from(new Set(students.map(s => s.rawClass).filter(Boolean)))]
-  const sections = ['All Sections', ...Array.from(new Set(students.map(s => s.rawSection).filter(Boolean)))]
   const batches = ['All Batches', ...Array.from(new Set([
     ...students.map(s => s.batch).filter(Boolean),
     // Keep the sidebar-selected batch present even if it has no students yet
@@ -123,7 +121,6 @@ export default function StudentRosterView() {
   // alone would show students who were never enrolled in the selected program.
   const filteredStudents = students.filter(s => {
     if (classFilter !== 'All Classes' && s.rawClass !== classFilter) return false
-    if (sectionFilter !== 'All Sections' && s.rawSection !== sectionFilter) return false
     if (batchFilter !== 'All Batches' && s.batch !== batchFilter) return false
     if (selectedProgramName && s.program !== selectedProgramName) return false
     return true
@@ -195,16 +192,6 @@ export default function StudentRosterView() {
               className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors outline-none appearance-none cursor-pointer"
             >
               {classes.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="flex-1">
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">Section</label>
-            <select 
-              value={sectionFilter}
-              onChange={(e) => setSectionFilter(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors outline-none appearance-none cursor-pointer"
-            >
-              {sections.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div className="flex-1">
