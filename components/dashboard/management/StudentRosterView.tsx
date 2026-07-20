@@ -40,20 +40,6 @@ export default function StudentRosterView() {
     showToast(`🔄 Real-time Sync: Roster updated successfully.`)
   }
 
-  // Simulate real-time updates / notifications
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const randomNotifications = [
-        "Attendance summary synced with parent portal.",
-        "1 new student admission application received.",
-        "Batch 2024 registry check completed successfully.",
-        "System backup and log rotation executed."
-      ]
-      const msg = randomNotifications[Math.floor(Math.random() * randomNotifications.length)]
-      showToast(`🔔 Real-time info: ${msg}`)
-    }, 30000) // every 30s
-    return () => clearInterval(interval)
-  }, [])
 
   useEffect(() => {
     fetchStudents()
