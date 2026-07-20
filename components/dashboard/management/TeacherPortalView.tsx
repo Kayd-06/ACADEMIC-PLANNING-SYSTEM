@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertical, FileIcon, MessageCircle, Loader2, X, ExternalLink, Edit2, Save, Pencil, Trash2, ChevronDown } from 'lucide-react'
+import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertical, FileIcon, MessageCircle, Loader2, X, ExternalLink, Edit2, Save, Pencil, Trash2, ChevronDown, Download } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import FacultyProfileModal from './FacultyProfileModal'
 import { getBlobUrl } from '@/lib/blob'
@@ -269,6 +269,77 @@ export default function TeacherPortalView() {
     { label: 'Counseling Sessions Logged', value: data.kpis.counselingSessions.toString(), icon: MessageSquare },
   ] : []
 
+  const handleExport = async () => {
+    if (!data?.faculty || data.faculty.length === 0) {
+      showToast('No faculty data to export')
+      return
+    }
+    
+    const exportData = filteredFaculty
+    if (exportData.length === 0) {
+      showToast('No faculty match the current filter')
+      return
+    }
+
+    showToast('Preparing export...')
+    try {
+      const res = await fetch('/api/teacher-portal/faculty')
+      if (!res.ok) {
+        showToast('Failed to fetch full faculty data')
+        return
+      }
+      const fullFacultyList = await res.json()
+
+      const headers = [
+        'Full Name', 'Employee ID', 'Date of Birth', 'Gender', 'Bio', 'Profile Image URL',
+        'Email', 'Phone', 'Alt Phone', 'Address Line 1', 'City', 'State', 'Pincode',
+        'Subject', 'Specialization', 'Qualification', 'Primary Stream', 'Experience (Years)', 'Joining Date', 'Batches', 'Status'
+      ]
+      const csvRows = [headers.join(',')]
+      
+      for (const listFac of exportData) {
+        const fullFac = fullFacultyList.find((f: any) => f.id === listFac._id) || {}
+        const escape = (str: any) => `"${String(str || '').replace(/"/g, '""')}"`
+        const row = [
+          escape(fullFac.name || listFac.name),
+          escape(fullFac.employeeId),
+          escape(fullFac.dob),
+          escape(fullFac.gender),
+          escape(fullFac.bio),
+          escape(fullFac.profileImgUrl),
+          escape(fullFac.email),
+          escape(fullFac.phone),
+          escape(fullFac.altPhone),
+          escape(fullFac.addressLine1),
+          escape(fullFac.city),
+          escape(fullFac.state),
+          escape(fullFac.pincode),
+          escape(fullFac.subject || listFac.sub),
+          escape(fullFac.specialization || listFac.spec),
+          escape(fullFac.qualification),
+          escape(fullFac.primaryStream),
+          escape(fullFac.experienceYears != null ? fullFac.experienceYears : fullFac.experience),
+          escape(fullFac.joiningDate),
+          escape(fullFac.batches || listFac.batches),
+          escape(fullFac.status || listFac.status)
+        ]
+        csvRows.push(row.join(','))
+      }
+      
+      const csvString = csvRows.join('\n')
+      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `faculty_export_${new Date().toISOString().split('T')[0]}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (e) {
+      showToast('Error generating export')
+    }
+  }
+
   return (
     <div className="flex-1 p-8 overflow-auto bg-slate-50 min-h-screen relative">
 
@@ -419,6 +490,12 @@ export default function TeacherPortalView() {
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-900">Faculty Directory</h2>
               <div className="flex items-center gap-3 text-slate-400">
+
+                {/* Export button */}
+                <button onClick={handleExport} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export</span>
+                </button>
 
                 {/* Filter dropdown */}
                 <div className="relative" ref={filterRef}>

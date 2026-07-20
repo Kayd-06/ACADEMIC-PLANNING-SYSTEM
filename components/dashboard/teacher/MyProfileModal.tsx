@@ -83,7 +83,7 @@ export default function MyProfileModal({ isOpen, onClose, onSaved }: { isOpen: b
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.name.trim()) { setError('Name is required.'); return }
+    if (false) {}
     setSaving(true)
     setError('')
     try {
@@ -144,17 +144,6 @@ export default function MyProfileModal({ isOpen, onClose, onSaved }: { isOpen: b
                 <form onSubmit={handleSave} className="space-y-4">
                   {error && <p className="text-sm text-rose-600 font-medium bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">{error}</p>}
 
-                  <p className={sectionClass}>Identity</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className={labelClass}>Full Name *</label><input value={form.name} onChange={set('name')} className={inputClass} /></div>
-                    <div><label className={labelClass}>Employee ID</label><input value={form.employeeId} onChange={set('employeeId')} className={inputClass} placeholder="EMP-0042" /></div>
-                    <div><label className={labelClass}>Date of Birth</label><input type="date" value={form.dob} onChange={set('dob')} className={inputClass} /></div>
-                    <div><label className={labelClass}>Gender</label>
-                      <select value={form.gender} onChange={set('gender')} className={inputClass}>
-                        {GENDERS.map(g => <option key={g} value={g}>{g || 'Select…'}</option>)}
-                      </select>
-                    </div>
-                  </div>
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className={labelClass + ' mb-0'}>Profile Image URL or File</label>
@@ -168,7 +157,7 @@ export default function MyProfileModal({ isOpen, onClose, onSaved }: { isOpen: b
                   </div>
 
                   <p className={sectionClass}>Contact Information</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3 mb-2">
                     <div><label className={labelClass}>Phone</label><input value={form.phone} onChange={set('phone')} className={inputClass} /></div>
                     <div><label className={labelClass}>Alt Phone</label><input value={form.altPhone} onChange={set('altPhone')} className={inputClass} /></div>
                     <div><label className={labelClass}>Address Line 1</label><input value={form.addressLine1} onChange={set('addressLine1')} className={inputClass} /></div>
@@ -176,20 +165,8 @@ export default function MyProfileModal({ isOpen, onClose, onSaved }: { isOpen: b
                     <div><label className={labelClass}>State</label><input value={form.state} onChange={set('state')} className={inputClass} /></div>
                     <div><label className={labelClass}>Pincode</label><input value={form.pincode} onChange={set('pincode')} className={inputClass} maxLength={10} /></div>
                   </div>
-
-                  <p className={sectionClass}>Professional Profile</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className={labelClass}>Subject</label><input value={form.subject} onChange={set('subject')} className={inputClass} /></div>
-                    <div><label className={labelClass}>Specialization</label><input value={form.specialization} onChange={set('specialization')} className={inputClass} /></div>
-                    <div><label className={labelClass}>Qualification</label><input value={form.qualification} onChange={set('qualification')} className={inputClass} /></div>
-                    <div><label className={labelClass}>Primary Stream</label>
-                      <select value={form.primaryStream} onChange={set('primaryStream')} className={inputClass}>
-                        {STREAMS.map(s => <option key={s} value={s}>{s || 'Select…'}</option>)}
-                      </select>
-                    </div>
-                    <div><label className={labelClass}>Experience (Years)</label><input type="number" min="0" value={form.experienceYears} onChange={set('experienceYears')} className={inputClass} /></div>
-                    <div><label className={labelClass}>Joining Date</label><input type="date" value={form.joiningDate} onChange={set('joiningDate')} className={inputClass} /></div>
-                  </div>
+                  
+                  <p className="text-xs text-slate-500 italic mb-4">Professional details and identity can only be edited by the school administration.</p>
 
                   <div className="flex gap-3 pt-2">
                     <button type="button" onClick={() => setEditing(false)} className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors">
