@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { parentsGuardians } from '@/lib/db/schema'
+import { parentsGuardians, programs, batches } from '@/lib/db/schema'
 import {
   upsertStudentByRollClassSection,
   upsertStudentByAdmissionNumber,
@@ -18,6 +18,23 @@ interface BulkDefaults {
   program?: string
   batch?: string
   section?: string
+}
+
+interface FieldError {
+  row: string
+  field: 'program' | 'batch' | 'general'
+  value: string
+  message: string
+}
+
+class ValidationError extends Error {
+  field: 'program' | 'batch'
+  value: string
+  constructor(field: 'program' | 'batch', value: string, message: string) {
+    super(message)
+    this.field = field
+    this.value = value
+  }
 }
 
 function resolveField(rowValue: string, defaultValue?: string): string {
@@ -56,6 +73,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No valid rows found. Each row needs at least a Name.' }, { status: 400 })
     }
 
+    // Program/Batch must match a real, school-scoped record — CSV values and
+    // modal defaults are free text with no other guarantee of correctness.
+    const schoolPrograms = schoolId
+      ? await db.select().from(programs).where(eq(programs.schoolId, schoolId))
+      : await db.select().from(programs)
+    const schoolBatches = schoolId
+      ? await db.select().from(batches).where(eq(batches.schoolId, schoolId))
+      : await db.select().from(batches)
+    const programByName = new Map(schoolPrograms.map((p) => [p.name.trim().toLowerCase(), p]))
+    const batchByName = new Map(schoolBatches.map((b) => [b.name.trim().toLowerCase(), b]))
+
+    const rowLabels = valid.map((s: any) => {
+      const name = s.name.trim()
+      const rollNo = s.rollNo?.trim()
+      return rollNo ? `${name} (Roll ${rollNo})` : name
+    })
+
     const results = await Promise.allSettled(
       valid.map(async (s: any) => {
         const name = s.name.trim()
@@ -66,6 +100,23 @@ export async function POST(req: NextRequest) {
         const batch = resolveField(s.batch?.trim() || '', defaults?.batch)
         const parentContact = s.parentContact?.trim() || ''
         const status = s.status?.trim() || 'active'
+
+        let matchedProgram: typeof schoolPrograms[number] | undefined
+        if (program) {
+          matchedProgram = programByName.get(program.toLowerCase())
+          if (!matchedProgram) {
+            throw new ValidationError('program', program, `Program "${program}" does not exist. Create it first in Academic Planning, or fix the spelling.`)
+          }
+        }
+        if (batch) {
+          const matchedBatch = batchByName.get(batch.toLowerCase())
+          if (!matchedBatch) {
+            throw new ValidationError('batch', batch, `Batch "${batch}" does not exist. Create it first in Academic Planning, or fix the spelling.`)
+          }
+          if (matchedProgram && matchedBatch.programId !== matchedProgram.id) {
+            throw new ValidationError('batch', batch, `Batch "${batch}" exists but belongs to a different Program, not "${program}".`)
+          }
+        }
 
         const data: NewStudent = {
           name, rollNo, class: cls, section, program, batch, parentContact,
@@ -116,15 +167,23 @@ export async function POST(req: NextRequest) {
     )
 
     const succeeded = results.filter((r) => r.status === 'fulfilled').length
-    const failedResults = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[]
-    const failed = failedResults.length
-    const failedReasons = failedResults.map((r) => r.reason?.message || r.reason)
+    const errors: FieldError[] = []
+    results.forEach((r, i) => {
+      if (r.status !== 'rejected') return
+      const reason = r.reason
+      if (reason instanceof ValidationError) {
+        errors.push({ row: rowLabels[i], field: reason.field, value: reason.value, message: reason.message })
+      } else {
+        errors.push({ row: rowLabels[i], field: 'general', value: '', message: reason?.message || String(reason) })
+      }
+    })
+    const failed = errors.length
 
     if (failed > 0) {
-      console.error('Bulk import failures:', failedReasons)
+      console.error('Bulk import failures:', errors)
     }
 
-    return NextResponse.json({ succeeded, failed, total: valid.length, failedReasons }, { status: 201 })
+    return NextResponse.json({ succeeded, failed, total: valid.length, errors }, { status: 201 })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
