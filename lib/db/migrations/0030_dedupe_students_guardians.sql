@@ -7,7 +7,7 @@ USING (
   WHERE is_primary = true
 ) ranked
 WHERE pg.id = ranked.id AND ranked.rn > 1;
-
+--> statement-breakpoint
 -- Drop students that are exact duplicates on every identifying field, keeping the most recent.
 DELETE FROM students s
 USING (
