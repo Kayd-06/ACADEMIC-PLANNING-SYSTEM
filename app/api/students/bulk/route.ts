@@ -3,8 +3,14 @@ import { auth } from '@/lib/auth'
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { parentsGuardians } from '@/lib/db/schema'
-import { upsertStudentByRollClassSection, createStudent, deleteAllStudents } from '@/lib/db/queries/students'
-import type { NewStudent } from '@/lib/db/schema'
+import {
+  upsertStudentByRollClassSection,
+  upsertStudentByAdmissionNumber,
+  upsertStudentByNameClassSection,
+  createStudent,
+  deleteAllStudents,
+} from '@/lib/db/queries/students'
+import type { NewStudent, Student } from '@/lib/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,11 +77,19 @@ export async function POST(req: NextRequest) {
           if (typeof v === 'string' && v.trim()) data[f] = v.trim()
         }
 
-        // If rollNo + class + section all present → upsert (prevents duplicates)
-        // Otherwise → plain insert (name-only rows are always added)
-        const student = rollNo && cls && section
-          ? await upsertStudentByRollClassSection(data)
-          : await createStudent(data)
+        // Match on the most reliable key available, falling back progressively:
+        // rollNo+class+section, then admission number, then name+class+section,
+        // then a plain insert (name-only rows are always added fresh).
+        let student: Student
+        if (rollNo && cls && section) {
+          student = await upsertStudentByRollClassSection(data)
+        } else if (data.admissionNumber) {
+          student = await upsertStudentByAdmissionNumber(data)
+        } else if (cls && section) {
+          student = await upsertStudentByNameClassSection(data)
+        } else {
+          student = await createStudent(data)
+        }
 
         const guardianName = s.guardianName?.trim()
         if (guardianName) {

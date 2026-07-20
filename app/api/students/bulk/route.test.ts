@@ -77,6 +77,40 @@ describe('POST /api/students/bulk', () => {
     }
   })
 
+  it('upserts by admission number when rollNo/class/section are incomplete', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const admissionNumber = `ADM-${Date.now()}`
+    const row = { name: 'Admission Match', admissionNumber }
+    try {
+      await POST(req({ students: [row] }))
+      await POST(req({ students: [{ ...row, name: 'Admission Match Updated' }] }))
+
+      const rows = await db.select().from(students).where(eq(students.admissionNumber, admissionNumber))
+      expect(rows).toHaveLength(1)
+      expect(rows[0].name).toBe('Admission Match Updated')
+    } finally {
+      const rows = await db.select().from(students).where(eq(students.admissionNumber, admissionNumber))
+      for (const r of rows) await db.delete(students).where(eq(students.id, r.id))
+    }
+  })
+
+  it('upserts by name+class+section when no rollNo or admission number is present', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const name = `Name Match ${Date.now()}`
+    const row = { name, class: '9 - B', section: 'B' }
+    try {
+      await POST(req({ students: [row] }))
+      await POST(req({ students: [{ ...row, phone: '9998887770' }] }))
+
+      const rows = await db.select().from(students).where(eq(students.name, name))
+      expect(rows).toHaveLength(1)
+      expect(rows[0].phone).toBe('9998887770')
+    } finally {
+      const rows = await db.select().from(students).where(eq(students.name, name))
+      for (const r of rows) await db.delete(students).where(eq(students.id, r.id))
+    }
+  })
+
   it('skips rows with no name and reports the total of valid rows', async () => {
     ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
     const res = await POST(req({ students: [{ name: '' }, { name: 'Valid' }] }))

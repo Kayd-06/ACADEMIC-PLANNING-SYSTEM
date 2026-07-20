@@ -98,6 +98,42 @@ export async function upsertStudentByRollClassSection(data: NewStudent): Promise
   return createStudent(data)
 }
 
+export async function upsertStudentByAdmissionNumber(data: NewStudent): Promise<Student> {
+  const conditions: any[] = [eq(students.admissionNumber, data.admissionNumber ?? '')]
+  if (data.schoolId) conditions.push(eq(students.schoolId, data.schoolId))
+
+  const existing = await db.select().from(students).where(and(...conditions))
+  if (existing[0]) {
+    const updated = await db
+      .update(students)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(students.id, existing[0].id))
+      .returning()
+    return updated[0]
+  }
+  return createStudent(data)
+}
+
+export async function upsertStudentByNameClassSection(data: NewStudent): Promise<Student> {
+  const conditions: any[] = [
+    eq(students.name, data.name),
+    eq(students.class, data.class ?? ''),
+    eq(students.section, data.section ?? ''),
+  ]
+  if (data.schoolId) conditions.push(eq(students.schoolId, data.schoolId))
+
+  const existing = await db.select().from(students).where(and(...conditions))
+  if (existing[0]) {
+    const updated = await db
+      .update(students)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(students.id, existing[0].id))
+      .returning()
+    return updated[0]
+  }
+  return createStudent(data)
+}
+
 export async function updateStudent(id: string, data: Partial<NewStudent>, schoolId?: string | null): Promise<Student | null> {
   const condition = schoolId ? and(eq(students.id, id), eq(students.schoolId, schoolId)) : eq(students.id, id)
   const rows = await db
