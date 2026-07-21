@@ -5,6 +5,7 @@ import { schools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { isAdminOfSchool, removeSchoolFromAdmin, setActiveSchool, getAdminSchools } from '@/lib/db/queries/adminSchools'
 import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,8 +20,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (membership.role !== 'owner') return NextResponse.json({ error: 'Only owners can edit school details' }, { status: 403 })
 
   const body = await req.json()
-  const { name, board, classes, programs, mouStartDate, mouEndDate, isActive, contactPerson, email, address, gstNo } = body
+  const { name, board, classes, programs, mouStartDate, mouEndDate, isActive, contactPerson, phone, email, address, gstNo } = body
   if (gstNo !== undefined && !isValidGstPrefix(gstNo)) return NextResponse.json({ error: GST_FORMAT_ERROR }, { status: 400 })
+  if (phone !== undefined && !isValidPhone(phone)) return NextResponse.json({ error: PHONE_FORMAT_ERROR }, { status: 400 })
   const updates: Record<string, any> = { updatedAt: new Date() }
   if (name !== undefined) updates.name = name
   if (board !== undefined) updates.board = board
@@ -30,6 +32,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (mouEndDate !== undefined) updates.mouEndDate = mouEndDate
   if (isActive !== undefined) updates.isActive = isActive
   if (contactPerson !== undefined) updates.contactPerson = contactPerson
+  if (phone !== undefined) updates.phone = phone
   if (email !== undefined) updates.email = email
   if (address !== undefined) updates.address = address
   if (gstNo !== undefined) updates.gstNo = gstNo

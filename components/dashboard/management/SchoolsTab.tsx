@@ -6,11 +6,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import ClearDataModal from './ClearDataModal'
 import { SelectBoard, MultiSelectPrograms, MultiSelectClasses, formatClasses, formatMouStatus } from './SchoolFormHelpers'
 import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
 
 type SchoolEntry = {
   id: string; name: string; board: string; classes: string; programs: string
   mouStartDate: string | null; mouEndDate: string | null; joinCode: string | null; isActive: boolean; role: 'owner' | 'member'
-  contactPerson?: string; email?: string; address?: string; gstNo?: string
+  contactPerson?: string; phone?: string; email?: string; address?: string; gstNo?: string
 }
 
 const EMPTY_FORM = {
@@ -21,6 +22,7 @@ const EMPTY_FORM = {
   mouStartDate: '',
   mouEndDate: '',
   contactPerson: '',
+  phone: '',
   email: '',
   address: '',
   gstNo: ''
@@ -100,6 +102,7 @@ export default function SchoolsTab() {
   async function createSchool() {
     if (!createForm.name.trim()) { showMsg('School name is required', 'error'); return }
     if (!isValidGstPrefix(createForm.gstNo)) { showMsg(GST_FORMAT_ERROR, 'error'); return }
+    if (!isValidPhone(createForm.phone)) { showMsg(PHONE_FORMAT_ERROR, 'error'); return }
     setCreating(true)
     try {
       const res = await fetch('/api/admin/schools', {
@@ -133,6 +136,7 @@ export default function SchoolsTab() {
   async function saveEdit() {
     if (!editSchool) return
     if (!isValidGstPrefix(editForm.gstNo)) { showMsg(GST_FORMAT_ERROR, 'error'); return }
+    if (!isValidPhone(editForm.phone)) { showMsg(PHONE_FORMAT_ERROR, 'error'); return }
     setSaving(true)
     try {
       const res = await fetch(`/api/admin/schools/${editSchool.id}`, {
@@ -189,7 +193,7 @@ export default function SchoolsTab() {
                 <h2 className="text-lg font-bold text-slate-900">Create New School</h2>
                 <button onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
               </div>
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 pb-2">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">School Name *</label>
                   <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
@@ -222,6 +226,12 @@ export default function SchoolsTab() {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Contact Person</label>
                   <input value={createForm.contactPerson} onChange={e => setCreateForm(f => ({ ...f, contactPerson: e.target.value }))}
                     placeholder="e.g. John Doe"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Phone</label>
+                  <input value={createForm.phone} onChange={e => setCreateForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                    placeholder="e.g. 9876543210" inputMode="numeric" maxLength={10}
                     className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                 </div>
                 <div>
@@ -299,7 +309,7 @@ export default function SchoolsTab() {
                 <h2 className="text-lg font-bold text-slate-900">Edit School</h2>
                 <button onClick={() => setEditSchool(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
               </div>
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 pb-2">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">School Name *</label>
                   <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
@@ -331,6 +341,12 @@ export default function SchoolsTab() {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Contact Person</label>
                   <input value={editForm.contactPerson} onChange={e => setEditForm(f => ({ ...f, contactPerson: e.target.value }))}
                     placeholder="e.g. John Doe"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Phone</label>
+                  <input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                    placeholder="e.g. 9876543210" inputMode="numeric" maxLength={10}
                     className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                 </div>
                 <div>
@@ -457,6 +473,7 @@ export default function SchoolsTab() {
                           mouStartDate: school.mouStartDate || '',
                           mouEndDate: school.mouEndDate || '',
                           contactPerson: school.contactPerson || '',
+                          phone: school.phone || '',
                           email: school.email || '',
                           address: school.address || '',
                           gstNo: school.gstNo || ''

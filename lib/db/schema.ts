@@ -70,6 +70,7 @@ export const schools = pgTable('schools', {
   email: varchar('email', { length: 255 }).default(''),
   address: text('address').default(''),
   gstNo: varchar('gst_no', { length: 50 }).default(''),
+  phone: varchar('phone', { length: 10 }).default(''),
   isActive: boolean('is_active').notNull().default(true),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })

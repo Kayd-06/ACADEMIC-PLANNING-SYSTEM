@@ -5,6 +5,7 @@ import { schools, announcements } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getAdminSchools, addSchoolToAdmin, setActiveSchool } from '@/lib/db/queries/adminSchools'
 import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,9 +39,10 @@ export async function POST(req: NextRequest) {
   if ((session.user as any).role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { name, board, classes, programs, mouStartDate, mouEndDate, contactPerson, email, address, gstNo } = body
+  const { name, board, classes, programs, mouStartDate, mouEndDate, contactPerson, phone, email, address, gstNo } = body
   if (!name?.trim()) return NextResponse.json({ error: 'School name is required' }, { status: 400 })
   if (!isValidGstPrefix(gstNo)) return NextResponse.json({ error: GST_FORMAT_ERROR }, { status: 400 })
+  if (!isValidPhone(phone)) return NextResponse.json({ error: PHONE_FORMAT_ERROR }, { status: 400 })
 
   let joinCode = generateJoinCode()
   let tries = 0
@@ -61,6 +63,7 @@ export async function POST(req: NextRequest) {
     joinCode,
     adminEmail: session.user.email || '',
     contactPerson: contactPerson || '',
+    phone: phone || '',
     email: email || '',
     address: address || '',
     gstNo: gstNo || '',

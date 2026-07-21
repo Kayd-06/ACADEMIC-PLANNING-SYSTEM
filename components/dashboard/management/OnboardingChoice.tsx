@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Building2, Hash, Plus, ArrowLeft, Loader2, CheckCircle2, LogOut } from 'lucide-react'
 import { SelectBoard, MultiSelectPrograms, MultiSelectClasses } from './SchoolFormHelpers'
 import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
 
 type Choice = 'select' | 'create' | 'join'
 
@@ -16,6 +17,7 @@ const EMPTY_FORM = {
   mouStartDate: '',
   mouEndDate: '',
   contactPerson: '',
+  phone: '',
   email: '',
   address: '',
   gstNo: ''
@@ -44,6 +46,7 @@ export default function OnboardingChoice({ userName }: { userName: string }) {
     e.preventDefault()
     if (!createForm.name.trim()) { setError('School name is required.'); return }
     if (!isValidGstPrefix(createForm.gstNo)) { setError(GST_FORMAT_ERROR); return }
+    if (!isValidPhone(createForm.phone)) { setError(PHONE_FORMAT_ERROR); return }
     setLoading(true)
     setError('')
     try {
@@ -152,7 +155,7 @@ export default function OnboardingChoice({ userName }: { userName: string }) {
                 </div>
                 {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">{error}</p>}
                 <form onSubmit={handleCreate} className="space-y-3">
-                  <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+                  <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1 pb-2">
                     <div>
                       <label className={labelClass}>School Name *</label>
                       <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} className={inputClass} placeholder="e.g. Riverdale Coaching Institute" autoFocus />
@@ -181,6 +184,10 @@ export default function OnboardingChoice({ userName }: { userName: string }) {
                     <div>
                       <label className={labelClass}>Contact Person</label>
                       <input value={createForm.contactPerson} onChange={e => setCreateForm(f => ({ ...f, contactPerson: e.target.value }))} className={inputClass} placeholder="e.g. John Doe" />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Phone</label>
+                      <input value={createForm.phone} onChange={e => setCreateForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} className={inputClass} placeholder="e.g. 9876543210" inputMode="numeric" maxLength={10} />
                     </div>
                     <div>
                       <label className={labelClass}>Email</label>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSchoolById, updateSchool } from '@/lib/db/queries/school'
 import { auth } from '@/lib/auth'
 import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,9 @@ export async function PATCH(req: Request) {
     const data = await req.json()
     if (!isValidGstPrefix(data.gstNo)) {
       return NextResponse.json({ error: GST_FORMAT_ERROR }, { status: 400 })
+    }
+    if (!isValidPhone(data.phone)) {
+      return NextResponse.json({ error: PHONE_FORMAT_ERROR }, { status: 400 })
     }
     const school = await updateSchool(schoolId, data)
 

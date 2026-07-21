@@ -31,6 +31,7 @@ export default function InstitutionalDashboard() {
   const [schoolData, setSchoolData] = useState<{
     name?: string; board: string; classes: string; programs: string
     mouStartDate: string | null; mouEndDate: string | null; joinCode: string
+    contactPerson?: string; phone?: string | null; email?: string; address?: string; gstNo?: string
   } | null>(null)
   const [schoolLoading, setSchoolLoading] = useState(true)
   const [codeCopied, setCodeCopied] = useState(false)
@@ -126,7 +127,7 @@ export default function InstitutionalDashboard() {
       <SchoolDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        initialData={schoolData ?? { board: '', classes: '', programs: '', mouStartDate: '', mouEndDate: '', contactPerson: '', email: '', address: '', gstNo: '' }}
+        initialData={schoolData ?? { board: '', classes: '', programs: '', mouStartDate: '', mouEndDate: '', contactPerson: '', phone: '', email: '', address: '', gstNo: '' }}
         onSave={handleSave}
       />
       <ProtocolsModal

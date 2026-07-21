@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Save, Loader2 } from 'lucide-react'
 import { SelectBoard, MultiSelectPrograms, MultiSelectClasses } from './SchoolFormHelpers'
 import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
 
 interface SchoolData {
   board: string
@@ -12,6 +13,7 @@ interface SchoolData {
   mouStartDate?: string | null
   mouEndDate?: string | null
   contactPerson?: string
+  phone?: string | null
   email?: string
   address?: string
   gstNo?: string
@@ -38,6 +40,7 @@ export default function SchoolDetailsModal({
 
   async function handleSave() {
     if (!isValidGstPrefix(form.gstNo)) { setError(GST_FORMAT_ERROR); return }
+    if (!isValidPhone(form.phone)) { setError(PHONE_FORMAT_ERROR); return }
     setError('')
     setLoading(true)
     await onSave(form)
@@ -111,8 +114,20 @@ export default function SchoolDetailsModal({
                 />
               </div>
               <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</label>
+                <input
+                  type="tel"
+                  value={form.phone || ''}
+                  onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                  placeholder="e.g. 9876543210"
+                  inputMode="numeric"
+                  maxLength={10}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                />
+              </div>
+              <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</label>
-                <input 
+                <input
                   type="email" 
                   value={form.email || ''}
                   onChange={e => setForm({ ...form, email: e.target.value })}
@@ -139,9 +154,10 @@ export default function SchoolDetailsModal({
                   placeholder="e.g. 07AAAAA1111A1Z1"
                   className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                 />
-                {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
               </div>
             </div>
+
+            {error && <p className="text-xs text-red-600 px-6 pb-2">{error}</p>}
 
             <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
               <button 
