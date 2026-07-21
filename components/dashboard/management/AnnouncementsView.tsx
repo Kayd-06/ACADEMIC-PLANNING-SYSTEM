@@ -6,6 +6,7 @@ import {
   Bell, Plus, Trash2, Edit3, X, Calendar, Clock,
   Pin, Loader2, RefreshCw, AlertCircle, CheckCircle, User
 } from 'lucide-react'
+import { formatDate as formatDateShared } from '@/lib/date'
 
 interface Announcement {
   _id: string
@@ -66,14 +67,11 @@ function formatTimeAgo(dateStr: string | Date) {
     return `Posted ${diffHrs}h ago`
   }
   
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatDateShared(d) || ''
 }
 
 function formatDate(dateStr: string) {
-  if (!dateStr) return '—'
-  const dateObj = new Date(dateStr)
-  if (isNaN(dateObj.getTime())) return dateStr
-  return dateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
+  return formatDateShared(dateStr) || '—'
 }
 
 const FILTERS: (Announcement['type'] | 'All')[] = ['All', 'General', 'Academic', 'Exam', 'Holiday', 'Urgent', 'Fee']

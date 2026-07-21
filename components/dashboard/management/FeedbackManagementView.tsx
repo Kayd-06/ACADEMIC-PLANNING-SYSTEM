@@ -26,12 +26,10 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { formatDate } from '@/lib/date'
 
 function formatShortDate(dateStr: string) {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return dateStr
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatDate(dateStr) || '—'
 }
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {

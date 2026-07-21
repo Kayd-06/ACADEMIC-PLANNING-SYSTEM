@@ -41,6 +41,7 @@ import {
   Table,
   Info
 } from 'lucide-react'
+import { formatDate } from '@/lib/date'
 
 // Formatting helper for currency in INR
 function formatCurrency(amount: number) {
@@ -1187,12 +1188,12 @@ export default function FeeManagementView() {
                             </span>
                             <span className="text-[10px] font-medium text-slate-500 flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-slate-400" />
-                              Due: {record.dueDate || 'N/A'}
+                              Due: {formatDate(record.dueDate) || 'N/A'}
                             </span>
                             {record.paidDate && (
                               <span className="text-[10px] font-medium text-emerald-600 flex items-center gap-1">
                                 <CheckCircle className="w-3 h-3" />
-                                Paid: {record.paidDate}
+                                Paid: {formatDate(record.paidDate)}
                               </span>
                             )}
                           </div>
@@ -1807,7 +1808,7 @@ export default function FeeManagementView() {
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Transaction Date</span>
-                    <span className="font-bold text-slate-800">{selectedReceipt.paidDate || selectedReceipt.dueDate || 'N/A'}</span>
+                    <span className="font-bold text-slate-800">{formatDate(selectedReceipt.paidDate) || formatDate(selectedReceipt.dueDate) || 'N/A'}</span>
                     <span className="text-slate-400 block text-[10px] mt-0.5">By: {selectedReceipt.recordedByName || 'Management'}</span>
                   </div>
                 </div>

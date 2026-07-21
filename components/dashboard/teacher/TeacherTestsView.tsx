@@ -24,6 +24,7 @@ import {
 import UploadPdfModal from '@/components/dashboard/UploadPdfModal'
 import TestGradingModal from '@/components/dashboard/TestGradingModal'
 import { getLocalToday } from '@/lib/scheduleUtils'
+import { formatDate } from '@/lib/date'
 
 export default function TeacherTestsView() {
   const { showAlert } = useAlert()
@@ -833,7 +834,7 @@ export default function TeacherTestsView() {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex flex-col text-[11px] font-semibold text-slate-700">
-                                <span>{t.date}</span>
+                                <span>{formatDate(t.date)}</span>
                                 <span className="text-[9px] text-slate-400 flex items-center gap-1 mt-0.5"><Clock className="w-2.5 h-2.5" />{t.time}</span>
                               </div>
                             </td>

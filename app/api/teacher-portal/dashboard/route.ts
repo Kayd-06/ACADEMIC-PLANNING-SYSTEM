@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { counselingSessions, faculty, studyMaterials } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
+import { formatDate } from '@/lib/date'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,7 +61,7 @@ export async function GET() {
         spec: mat.subject.includes('JEE') ? 'JEE' : (mat.subject.includes('NEET') ? 'NEET' : 'GENERAL'),
         specTheme: mat.subject.includes('NEET') ? 'green' : 'blue',
         author: mat.provider,
-        time: new Date(mat.createdAt).toLocaleDateString(),
+        time: formatDate(mat.createdAt),
         iconColor: isDoc ? 'text-blue-500' : 'text-red-500',
         iconBg: isDoc ? 'bg-blue-50' : 'bg-red-50',
       }
@@ -70,7 +71,7 @@ export async function GET() {
       _id: sess.id,
       student: sess.studentName,
       teacher: `with ${sess.counselor}`,
-      date: new Date(sess.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      date: formatDate(sess.date),
       rawDate: sess.date,
       notes: sess.notes,
       status: sess.status,

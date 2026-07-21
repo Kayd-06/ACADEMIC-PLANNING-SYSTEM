@@ -7,6 +7,7 @@ import { getReportById } from '@/lib/db/queries/student-reports'
 import { computeStudentAttendance, computeAssignmentAverage } from '@/lib/db/queries/attendance'
 import { computeTestPerformance } from '@/lib/db/queries/tests'
 import { getLocalToday } from '@/lib/scheduleUtils'
+import { formatDate } from '@/lib/date'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       className: report.className,
       subject: report.subject,
       term: report.term,
-      date: new Date(report.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date: formatDate(report.createdAt),
       entries,
     })
   } catch (err) {

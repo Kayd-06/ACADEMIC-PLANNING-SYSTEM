@@ -6,6 +6,7 @@ import {
   Star, MessageSquare, Calendar, Check,
   UserX, Loader2, Filter, AlertCircle, RefreshCw
 } from 'lucide-react'
+import { formatDate } from '@/lib/date'
 
 interface FeedbackItem {
   _id: string
@@ -68,7 +69,7 @@ function formatFeedbackDate(dateStr: string) {
     return `${diffDays} days ago`
   }
   
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatDate(d)
 }
 
 const EXCHANGE_STATUS_BADGE: Record<string, string> = {

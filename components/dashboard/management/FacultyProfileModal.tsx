@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { X, Plus, Trash2, Loader2, Mail, Phone, MapPin, GraduationCap, BookOpen, Users, Layers } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
 import Avatar from '../Avatar'
+import { formatDate } from '@/lib/date'
 
 const BATCH_ROLES = ['primary', 'substitute', 'assistant']
 const ROLE_BADGE: Record<string, string> = {
@@ -142,7 +143,7 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
               <Field label="Email" value={t.email} />
               <Field label="Phone" value={t.phone} />
               <Field label="Alt Phone" value={t.altPhone} />
-              <Field label="Date of Birth" value={t.dob} />
+              <Field label="Date of Birth" value={formatDate(t.dob)} />
               <Field label="Gender" value={t.gender} />
               <div className="col-span-2 md:col-span-1">
                 <Field label="Address" value={[t.addressLine1, t.city, t.state, t.pincode].filter(Boolean).join(', ')} />
@@ -159,7 +160,7 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
               <Field label="Qualification" value={t.qualification} />
               <Field label="Experience" value={t.experienceYears != null ? `${t.experienceYears} years` : t.experience} />
               <Field label="Primary Stream" value={t.primaryStream} />
-              <Field label="Joining Date" value={t.joiningDate} />
+              <Field label="Joining Date" value={formatDate(t.joiningDate)} />
               <Field label="Specialization" value={t.specialization} />
               <Field label="Linked User Account" value={t.userId ? 'Linked ✓' : 'Not linked'} />
             </div>

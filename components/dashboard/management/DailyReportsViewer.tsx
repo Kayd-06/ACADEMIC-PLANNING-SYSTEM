@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { CalendarDays, Users, BookOpen, ClipboardList, CheckCircle2, Flag, Loader2, RefreshCw, TrendingUp, Pencil, Trash2, X } from 'lucide-react'
+import { formatDateWithWeekday } from '@/lib/date'
 
 const EMPTY_EDIT = { subject: '', chapter: '', topicsCovered: '', presentCount: 0, absentCount: 0, homeworkGiven: '', observations: '' }
 
@@ -99,9 +100,7 @@ function getTodayLocal() {
 }
 
 function formatDisplayDate(dateStr: string) {
-  try {
-    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  } catch { return dateStr }
+  return formatDateWithWeekday(dateStr + 'T00:00:00') || dateStr
 }
 
 function initials(name: string) {

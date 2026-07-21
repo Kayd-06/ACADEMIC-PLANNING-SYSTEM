@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, MapPin, Plus, Trash2, X, Loader2, Repeat } from 'lucide-react'
+import { formatDate, formatDateWithWeekday } from '@/lib/date'
 
 const DAY_NAMES = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 const TIMES = ['08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '01:00 PM']
@@ -50,9 +51,7 @@ function parseHour(t: string): number {
 }
 
 function fmtDateLabel(iso: string) {
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })
+  return formatDateWithWeekday(iso) || iso
 }
 
 const inputClass = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
@@ -310,7 +309,7 @@ export default function TeacherSchedulePage() {
   })
 
   const upcomingSpecials = specials.filter(sc => sc.date >= todayStr)
-  const weekLabel = `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${days[6] ? new Date(days[6].iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}`
+  const weekLabel = `${formatDate(weekStart)} - ${days[6] ? formatDate(days[6].iso) : ''}`
 
   function shiftWeek(delta: number) {
     const d = new Date(weekStart)

@@ -15,11 +15,11 @@ import {
   TrendingUp,
   Info
 } from 'lucide-react'
+import { formatDate } from '@/lib/date'
 
-// Helper to format date into human readable form (e.g., Jun 18)
+// Helper to format date into human readable form (e.g., 18 Jun 2026)
 function formatShortDate(dateStr: string) {
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatDate(dateStr)
 }
 
 // Helper to get day name (Mon, Tue...)

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAlert } from '@/components/dashboard/AlertProvider'
 import { motion, AnimatePresence } from 'framer-motion'
+import { formatDate } from '@/lib/date'
 import {
   HeartHandshake, Plus, Search, Filter, Eye, Flag, RefreshCw,
   X, ChevronLeft, ChevronRight, Calendar, Clock,
@@ -84,9 +85,7 @@ function getInitials(name: string) {
 }
 
 function fmtDate(d: string) {
-  if (!d) return '—'
-  const dt = new Date(d)
-  return isNaN(dt.getTime()) ? d : dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatDate(d) || '—'
 }
 
 const EMPTY_FORM = {

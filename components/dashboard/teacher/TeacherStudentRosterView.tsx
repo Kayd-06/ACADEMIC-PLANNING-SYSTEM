@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, Filter, Mail, Phone, MessageSquare, User, Loader2, Search, Briefcase, MapPin, Check } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
+import { formatDate } from '@/lib/date'
 import Avatar from '@/components/dashboard/Avatar'
 import MessageParentModal from '@/components/dashboard/MessageParentModal'
 
@@ -314,7 +315,7 @@ export default function TeacherStudentRosterView() {
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                 <h3 className="text-sm font-bold text-slate-900 mb-6">Student Information</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-y-5 gap-x-4">
-                  <InfoField label="Date of Birth" value={s.dob} />
+                  <InfoField label="Date of Birth" value={formatDate(s.dob)} />
                   <InfoField label="Gender" value={s.gender} />
                   <InfoField label="Blood Group" value={s.bloodGroup} />
                   <InfoField label="Aadhar Number" value={s.aadharNumber} />
@@ -322,7 +323,7 @@ export default function TeacherStudentRosterView() {
                   <InfoField label="Phone" value={s.phone} />
                   <InfoField label="Previous School" value={s.previousSchool} />
                   <InfoField label="Previous %" value={s.previousPercentage} />
-                  <InfoField label="Admission Date" value={s.admissionDate} />
+                  <InfoField label="Admission Date" value={formatDate(s.admissionDate)} />
                   <InfoField label="Status" value={s.status} />
                   <div className="col-span-2">
                     <InfoField label="Address" value={[s.addressLine1, s.city, s.state, s.pincode].filter(Boolean).join(', ')} />
@@ -458,7 +459,7 @@ export default function TeacherStudentRosterView() {
                             <div className="min-w-0">
                               <p className="text-[13px] font-bold text-slate-900 truncate">{e.batchName}</p>
                               <p className="text-[11px] text-slate-500 mt-0.5">
-                                {e.rollNumber ? `Roll ${e.rollNumber}` : 'No roll'}{e.enrollmentDate ? ` • Enrolled ${e.enrollmentDate}` : ''}
+                                {e.rollNumber ? `Roll ${e.rollNumber}` : 'No roll'}{e.enrollmentDate ? ` • Enrolled ${formatDate(e.enrollmentDate)}` : ''}
                               </p>
                             </div>
                             <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full border shrink-0 ${enrollmentStatusStyle[e.status] ?? 'border-slate-200 text-slate-600 bg-white'}`}>

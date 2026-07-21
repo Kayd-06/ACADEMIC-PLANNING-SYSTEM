@@ -16,6 +16,7 @@ import {
   Save,
   Loader2
 } from 'lucide-react'
+import { formatDate as formatDateShared } from '@/lib/date'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -64,18 +65,7 @@ export default function AcademicPlanning({ role }: { role: 'management' | 'teach
     setTimeout(() => setToast(null), 3000)
   }
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return 'N/A'
-    try {
-      return new Date(dateStr).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      })
-    } catch (e) {
-      return dateStr
-    }
-  }
+  const formatDate = (dateStr: string) => formatDateShared(dateStr) || 'N/A'
 
   // CRUD Handlers
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

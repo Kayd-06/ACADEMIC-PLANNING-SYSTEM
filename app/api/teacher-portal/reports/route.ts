@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createReport, listReports, getReportById } from '@/lib/db/queries/student-reports'
+import { formatDate } from '@/lib/date'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +41,7 @@ export async function GET() {
         term: s.term,
         students: s.studentCount,
         avg: `${avgScore}%`,
-        date: new Date(s.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        date: formatDate(s.createdAt),
       }
     })
 

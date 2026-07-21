@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react'
+import { formatDate, formatDateWithWeekday } from '@/lib/date'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 14 },
@@ -51,12 +52,7 @@ function getTodayLocal() {
 }
 
 function formatDisplayDate(dateStr: string) {
-  try {
-    const d = new Date(dateStr.replace(/-/g, '/'))
-    return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  } catch {
-    return dateStr
-  }
+  return formatDateWithWeekday(dateStr.replace(/-/g, '/')) || dateStr
 }
 
 const emptyClass = (): ClassRow => ({ className: '', subject: '', topicCovered: '', studentsPresent: '' })
@@ -501,7 +497,7 @@ export default function DailyReportForm({ firstName }: { firstName: string }) {
                             report.status === 'submitted' ? 'bg-emerald-500' : 'bg-amber-400'
                           }`} />
                           <span className="text-xs font-semibold text-gray-700">
-                            {new Date(report.date.replace(/-/g, '/')).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                            {formatDate(report.date.replace(/-/g, '/'))}
                           </span>
                           {isActive && (
                             <span className="text-[9px] font-bold text-[#002045] uppercase tracking-wider">Active</span>

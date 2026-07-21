@@ -13,6 +13,7 @@ import {
   ChevronRight, 
   User 
 } from 'lucide-react'
+import { formatDate } from '@/lib/date'
 
 // Helper for avatar initials
 function getInitials(name: string) {
@@ -390,7 +391,7 @@ export default function AcademicRecordsView() {
                 >
                   {tests.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.title} - {t.batch} ({new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                      {t.title} - {t.batch} ({formatDate(t.date)})
                     </option>
                   ))}
                 </select>

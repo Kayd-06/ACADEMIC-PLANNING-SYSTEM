@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { X, User, Phone, Mail, Loader2, Plus, Pencil, Trash2, MapPin, Briefcase, IndianRupee } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
+import { formatDate } from '@/lib/date'
 import Avatar from '@/components/dashboard/Avatar'
 import MessageParentModal from '@/components/dashboard/MessageParentModal'
 
@@ -370,7 +371,7 @@ export default function StudentProfileDrawer({ studentRow, onClose, onEdit, onDe
               <div className="mb-8">
                 <h4 className={`${sectionHeader} mb-4 pb-2 border-b border-slate-100`}>Personal Details</h4>
                 <div className="grid grid-cols-2 gap-y-4 gap-x-4">
-                  <Field label="Date of Birth" value={s.dob} />
+                  <Field label="Date of Birth" value={formatDate(s.dob)} />
                   <Field label="Gender" value={s.gender} />
                   <Field label="Blood Group" value={s.bloodGroup} />
                 </div>
@@ -391,7 +392,7 @@ export default function StudentProfileDrawer({ studentRow, onClose, onEdit, onDe
               <div className="mb-8">
                 <h4 className={`${sectionHeader} mb-4 pb-2 border-b border-slate-100`}>Status &amp; Metadata</h4>
                 <div className="grid grid-cols-2 gap-y-4 gap-x-4">
-                  <Field label="Admission Date" value={s.admissionDate} />
+                  <Field label="Admission Date" value={formatDate(s.admissionDate)} />
                   <Field label="Status" value={s.status} />
                   <div className="col-span-2">
                     <Field label="Notes" value={s.notes} />
@@ -419,7 +420,7 @@ export default function StudentProfileDrawer({ studentRow, onClose, onEdit, onDe
                         <div className="min-w-0">
                           <p className="text-[13px] font-bold text-slate-900 truncate">{e.batchName}</p>
                           <p className="text-[11px] text-slate-500 mt-0.5">
-                            {e.rollNumber ? `Roll ${e.rollNumber}` : 'No roll'}{e.enrollmentDate ? ` • Enrolled ${e.enrollmentDate}` : ''}
+                            {e.rollNumber ? `Roll ${e.rollNumber}` : 'No roll'}{e.enrollmentDate ? ` • Enrolled ${formatDate(e.enrollmentDate)}` : ''}
                           </p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">

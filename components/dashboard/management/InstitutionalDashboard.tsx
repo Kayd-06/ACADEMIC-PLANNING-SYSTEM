@@ -10,6 +10,7 @@ import AnnouncementsView from './AnnouncementsView'
 import ScheduleManagementView from './ScheduleManagementView'
 import { getLocalToday, buildTodaysClasses, type TodayClassEntry } from '@/lib/scheduleUtils'
 import { formatClasses, formatMouStatus } from './SchoolFormHelpers'
+import { formatDate } from '@/lib/date'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -269,7 +270,7 @@ export default function InstitutionalDashboard() {
                   const title = ann.title || ann.label || 'Announcement'
                   const isUrgent = ann.type === 'Urgent' || ann.urgent
                   const isRead = readIds.includes(ann.id || ann._id)
-                  const dateStr = ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Recent'
+                  const dateStr = ann.createdAt ? formatDate(ann.createdAt) : 'Recent'
                   return (
                     <div
                       key={ann._id || ann.id || i}
@@ -380,7 +381,7 @@ export default function InstitutionalDashboard() {
                 </span>
                 <span className="text-xs font-semibold text-slate-400">
                   {selectedAnnouncement.createdAt
-                    ? new Date(selectedAnnouncement.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    ? formatDate(selectedAnnouncement.createdAt)
                     : 'Recent'
                   }
                 </span>

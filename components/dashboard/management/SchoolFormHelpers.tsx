@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { ChevronDown, Check, Plus, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { formatDate } from '@/lib/date'
 
 const BOARDS = [
   'CBSE Affiliated',
@@ -490,7 +491,7 @@ export function formatMouStatus(startDate?: string | null, endDate?: string | nu
   const end = new Date(endDate)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const formatted = end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  const formatted = formatDate(end)
   return end < today ? `Expired ${formatted}` : `Active until ${formatted}`
 }
 

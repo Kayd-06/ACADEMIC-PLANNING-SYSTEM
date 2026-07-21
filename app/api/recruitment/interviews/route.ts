@@ -4,6 +4,7 @@ import { recruitmentInterviews } from '@/lib/db/schema'
 import { desc, eq } from 'drizzle-orm'
 import { logAuditAction } from '@/lib/audit'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { formatDateTime } from '@/lib/date'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
       {
         category: 'General',
         title: `Upcoming Interview: ${newInt.candidateName}`,
-        message: `Interview scheduled on ${new Date(newInt.dateTime).toLocaleString()} (${newInt.mode}) with Interviewer: ${newInt.interviewerName}.`,
+        message: `Interview scheduled on ${formatDateTime(newInt.dateTime)} (${newInt.mode}) with Interviewer: ${newInt.interviewerName}.`,
         createdAt: notifyTime,
         link: '/management/recruitment',
       }
@@ -118,7 +119,7 @@ export async function PATCH(req: Request) {
       {
         category: 'General',
         title: `Interview Updated: ${updatedInt.candidateName}`,
-        message: `Interview schedule updated: ${new Date(updatedInt.dateTime).toLocaleString()} (${updatedInt.mode}).`,
+        message: `Interview schedule updated: ${formatDateTime(updatedInt.dateTime)} (${updatedInt.mode}).`,
         createdAt: notifyTime,
         link: '/management/recruitment',
       }
@@ -153,7 +154,7 @@ export async function DELETE(req: Request) {
         {
           category: 'General',
           title: `Interview Cancelled: ${oldInt.candidateName}`,
-          message: `The interview scheduled for ${new Date(oldInt.dateTime).toLocaleString()} has been cancelled.`,
+          message: `The interview scheduled for ${formatDateTime(oldInt.dateTime)} has been cancelled.`,
           link: '/management/recruitment',
         }
       )

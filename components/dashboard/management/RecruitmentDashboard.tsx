@@ -23,6 +23,7 @@ import {
   Trash2,
   Pencil
 } from 'lucide-react'
+import { formatDate } from '@/lib/date'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -539,7 +540,7 @@ export default function RecruitmentDashboard() {
                 </div>
                 <div className="text-right flex items-center gap-3">
                   <div>
-                    <p className="text-sm font-bold text-gray-900">{a.scheduledDate}</p>
+                    <p className="text-sm font-bold text-gray-900">{formatDate(a.scheduledDate)}</p>
                     <p className="text-xs text-gray-500">{a.scheduledTime}</p>
                   </div>
                   <button onClick={() => handleDeleteAppraisal(a._id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-red-400 hover:text-red-600">

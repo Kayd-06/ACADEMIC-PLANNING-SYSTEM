@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Calendar, ChevronDown, CheckCircle2, Flag, Send, UserCheck, UserX, Loader2, ChevronUp } from 'lucide-react'
+import { formatDate } from '@/lib/date'
 
 function getTodayLocal() {
   const d = new Date()
@@ -245,7 +246,7 @@ export default function TeacherDailyReportView() {
             <tbody className="divide-y divide-slate-100">
               {displayed.map((sub, idx) => (
                 <tr key={sub.id || idx} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 text-[13px] font-semibold text-slate-700">{sub.date}</td>
+                  <td className="px-6 py-4 text-[13px] font-semibold text-slate-700">{formatDate(sub.date)}</td>
                   <td className="px-6 py-4 text-[13px] font-bold text-slate-900">{sub.batch}</td>
                   <td className="px-6 py-4 text-[13px] text-slate-600">{sub.subject}</td>
                   <td className="px-6 py-4 text-[13px] text-slate-500 max-w-[180px] truncate">{sub.chapter || '—'}</td>

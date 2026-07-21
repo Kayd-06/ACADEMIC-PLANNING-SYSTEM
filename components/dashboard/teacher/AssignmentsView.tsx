@@ -40,15 +40,13 @@ const fadeUp = (delay = 0) => ({
   transition: { delay, type: 'spring' as const, stiffness: 320, damping: 28 },
 })
 
-// Helper to format due date into human readable form (e.g., Oct 24)
+// Helper to format due date into human readable form (e.g., 24 Oct 2026)
 function formatShortDate(dateStr: string) {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return dateStr
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatDate(dateStr) || '—'
 }
 
 import { getBlobUrl } from '@/lib/blob'
+import { formatDate } from '@/lib/date'
 
 // Helper to get initials
 function getInitials(name: string) {
@@ -1077,7 +1075,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
                     {/* Footer / File Link */}
                     <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
                       <div className="text-[10px] text-slate-400 font-semibold">
-                        {mat.fileSize ? `${mat.fileSize} KB` : '—'} • {new Date(mat.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {mat.fileSize ? `${mat.fileSize} KB` : '—'} • {formatDate(mat.createdAt)}
                       </div>
 
                       {mat.fileUrl ? (

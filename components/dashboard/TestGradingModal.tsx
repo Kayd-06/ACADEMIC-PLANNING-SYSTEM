@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, RefreshCw, AlertCircle } from 'lucide-react'
 import { useAlert } from '@/components/dashboard/AlertProvider'
+import { formatDate } from '@/lib/date'
 
 interface GradeRow {
   studentId: string
@@ -91,7 +92,7 @@ export default function TestGradingModal({ test, onClose, onSaved }: TestGrading
           <div className="flex items-center justify-between p-6 border-b border-slate-100 sticky top-0 bg-white">
             <div>
               <h2 className="text-lg font-bold text-slate-900">Grade: {test.title}</h2>
-              <p className="text-[12px] text-slate-500 mt-0.5">{test.batch} · Total Marks {test.totalMarks} · {test.date}</p>
+              <p className="text-[12px] text-slate-500 mt-0.5">{test.batch} · Total Marks {test.totalMarks} · {formatDate(test.date)}</p>
             </div>
             <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
               <X className="w-5 h-5" />

@@ -6,6 +6,7 @@ import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, B
 import { useSession } from 'next-auth/react'
 import { getLocalToday, buildTodaysClasses } from '@/lib/scheduleUtils'
 import { formatMouStatus } from '../management/SchoolFormHelpers'
+import { formatDate, formatDateWithWeekday } from '@/lib/date'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -96,7 +97,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome back, {firstName}</h1>
           <p className="text-[13px] font-medium text-slate-500 mt-1">
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })} • You have {schedules.length} classes today
+            {formatDateWithWeekday(new Date())} • You have {schedules.length} classes today
           </p>
         </div>
         <Link href="/teacher/daily-report">
@@ -167,7 +168,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
                 const title = ann.title || ann.label || 'Announcement'
                 const isUrgent = ann.type === 'Urgent' || ann.urgent
                 const isRead = readIds.includes(ann.id || ann._id)
-                const dateStr = ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Recent'
+                const dateStr = ann.createdAt ? formatDate(ann.createdAt) : 'Recent'
                 return (
                   <div
                     key={ann._id || ann.id || i}
@@ -330,7 +331,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
                     <p className="text-xs text-slate-600 leading-relaxed italic line-clamp-2">"{f.content}"</p>
                     <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 font-semibold">
                       {f.category && <span>{f.category}</span>}
-                      <span>· {f.date ? new Date(f.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</span>
+                      <span>· {f.date ? formatDate(f.date) : ''}</span>
                     </div>
                   </div>
                 ))}
@@ -362,7 +363,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
                 </span>
                 <span className="text-xs font-semibold text-slate-400">
                   {selectedAnnouncement.createdAt
-                    ? new Date(selectedAnnouncement.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    ? formatDate(selectedAnnouncement.createdAt)
                     : 'Recent'
                   }
                 </span>

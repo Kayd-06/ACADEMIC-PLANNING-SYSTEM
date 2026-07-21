@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { listReports, getDashboardData } from '@/lib/db/queries/student-reports'
+import { formatDate } from '@/lib/date'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
       className: r.className,
       subject: r.subject,
       term: r.term,
-      date: new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date: formatDate(r.createdAt),
       students: r.studentCount,
       theme: 'blue',
     }))

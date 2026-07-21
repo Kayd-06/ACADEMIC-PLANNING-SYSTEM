@@ -28,6 +28,7 @@ import UploadPdfModal from '@/components/dashboard/UploadPdfModal'
 import ExportQuestionsModal from '@/components/dashboard/ExportQuestionsModal'
 import TestGradingModal from '@/components/dashboard/TestGradingModal'
 import { getLocalToday } from '@/lib/scheduleUtils'
+import { formatDate } from '@/lib/date'
 
 // Simple helper to get the weekday name index (0 = Monday, 6 = Sunday)
 function getWeekdayIndex(dateStr: string) {
@@ -660,7 +661,7 @@ export default function TestsBankView() {
                             <td className="px-6 py-4 text-xs font-semibold text-slate-600">{t.facultyName || '—'}</td>
                             <td className="px-6 py-4 text-xs font-semibold text-slate-600">{t.batch}</td>
                             <td className="px-6 py-4 text-xs font-semibold text-slate-600">{t.program || '—'}</td>
-                            <td className="px-6 py-4 text-xs font-semibold text-slate-600">{t.date}</td>
+                            <td className="px-6 py-4 text-xs font-semibold text-slate-600">{formatDate(t.date)}</td>
                             <td className="px-6 py-4 text-center">
                               <span className={`px-2 py-0.5 text-[9px] font-bold rounded ${
                                 t.status === 'Graded' ? 'bg-green-50 text-green-700 border border-green-100' :

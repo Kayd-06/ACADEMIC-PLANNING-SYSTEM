@@ -6,6 +6,7 @@ import {
   HeartHandshake, Plus, Search, Filter, Eye, RefreshCw,
   X, Calendar, Clock, CheckCircle, AlertTriangle, XCircle, Trash2, ChevronRight, ChevronDown, User, AlertCircle
 } from 'lucide-react'
+import { formatDate as formatDateShared } from '@/lib/date'
 
 interface Session {
   _id: string
@@ -74,10 +75,7 @@ function getAvatarBg(name: string) {
 }
 
 function formatDate(dateStr: string) {
-  if (!dateStr) return '—'
-  const dateObj = new Date(dateStr)
-  if (isNaN(dateObj.getTime())) return dateStr
-  return dateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+  return formatDateShared(dateStr) || '—'
 }
 
 export default function TeacherCounselingLogView({ counselorName, counselorId }: { counselorName: string, counselorId?: string }) {
@@ -470,7 +468,7 @@ export default function TeacherCounselingLogView({ counselorName, counselorId }:
                               <p>{session.notes || 'No notes documented.'}</p>
                               <div className="flex items-center justify-between pt-2.5 text-[10px] text-slate-400 font-mono">
                                 <span>Counselor: {session.counselor}</span>
-                                <span>Logged: {new Date(session.createdAt).toLocaleDateString()}</span>
+                                <span>Logged: {formatDateShared(session.createdAt)}</span>
                               </div>
                             </div>
                           </motion.div>

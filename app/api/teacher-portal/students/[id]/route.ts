@@ -7,6 +7,7 @@ import { eq, desc, asc } from 'drizzle-orm'
 import { computeStudentAttendance } from '@/lib/db/queries/attendance'
 import { computeTestPerformance } from '@/lib/db/queries/tests'
 import { getLocalToday } from '@/lib/scheduleUtils'
+import { formatDate } from '@/lib/date'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,7 +54,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const testPerformance = await computeTestPerformance(student.id, schoolId)
     const recentTests = testPerformance.map(t => ({
       test: `${t.title} (${t.subject})`,
-      date: new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      date: formatDate(t.date),
       score: t.absent ? 'Absent' : t.marksObtained !== null ? `${t.marksObtained}/${t.totalMarks}` : 'Pending',
       percentage: t.percentage,
     }))
@@ -77,7 +78,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .orderBy(desc(counselingSessions.date))
 
     const counselingNotes = counseling.map((c: any) => ({
-      date: new Date(c.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date: formatDate(c.date),
       notes: c.notes || `Counseling session with ${c.counselor}`,
     }))
 

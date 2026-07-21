@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { X, Plus, Pencil, Trash2, Loader2, Repeat, Sparkles, ToggleLeft, ToggleRight, Building2, Filter, GraduationCap, Users } from 'lucide-react'
+import { formatDate } from '@/lib/date'
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const SPECIAL_TYPES = ['Extra', 'Doubt', 'Revision', 'Makeup', 'Orientation']
@@ -510,7 +511,7 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
                 {specials.map(sc => (
                   <tr key={sc._id} className="hover:bg-slate-50/50">
                     <td className="px-4 py-3.5">
-                      <p className="text-[13px] font-bold text-slate-900">{sc.date}</p>
+                      <p className="text-[13px] font-bold text-slate-900">{formatDate(sc.date)}</p>
                       <p className="text-[12px] text-slate-500">{sc.startTime} - {sc.endTime}{sc.room ? ` • ${sc.room}` : ''}</p>
                     </td>
                     <td className="px-4 py-3.5">

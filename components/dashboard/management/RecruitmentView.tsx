@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { formatDate, formatDateTime } from '@/lib/date'
 import {
   Briefcase,
   Users,
@@ -783,8 +784,8 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                             </span>
                           </td>
                           <td className="p-4 text-xs font-medium text-slate-600">
-                            <div>Posted: {req.postingDate || 'N/A'}</div>
-                            {req.closingDate && <div>Closes: {req.closingDate}</div>}
+                            <div>Posted: {formatDate(req.postingDate) || 'N/A'}</div>
+                            {req.closingDate && <div>Closes: {formatDate(req.closingDate)}</div>}
                           </td>
                           <td className="p-4 text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -1408,7 +1409,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                           <div className="text-[10px] truncate max-w-[180px] text-slate-500">{log.userAgent}</div>
                         </td>
                         <td className="p-4 text-xs font-semibold text-slate-600">
-                          {new Date(log.timestamp).toLocaleString()}
+                          {formatDateTime(log.timestamp)}
                         </td>
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-2">
