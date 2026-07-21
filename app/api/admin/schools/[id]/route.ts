@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { schools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { isAdminOfSchool, removeSchoolFromAdmin, setActiveSchool, getAdminSchools } from '@/lib/db/queries/adminSchools'
+import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const body = await req.json()
   const { name, board, classes, programs, mouStartDate, mouEndDate, isActive, contactPerson, email, address, gstNo } = body
+  if (gstNo !== undefined && !isValidGstPrefix(gstNo)) return NextResponse.json({ error: GST_FORMAT_ERROR }, { status: 400 })
   const updates: Record<string, any> = { updatedAt: new Date() }
   if (name !== undefined) updates.name = name
   if (board !== undefined) updates.board = board

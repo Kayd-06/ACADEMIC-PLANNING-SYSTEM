@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSchoolById, updateSchool } from '@/lib/db/queries/school'
 import { auth } from '@/lib/auth'
+import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,9 @@ export async function PATCH(req: Request) {
     if (!schoolId) return NextResponse.json({ error: 'No active school' }, { status: 404 })
 
     const data = await req.json()
+    if (!isValidGstPrefix(data.gstNo)) {
+      return NextResponse.json({ error: GST_FORMAT_ERROR }, { status: 400 })
+    }
     const school = await updateSchool(schoolId, data)
 
     return NextResponse.json(school)

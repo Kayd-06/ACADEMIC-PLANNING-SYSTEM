@@ -5,6 +5,7 @@ import { Plus, X, Loader2, Copy, Check, Building2, Pencil, Trash2, LogOut, Hash,
 import { motion, AnimatePresence } from 'framer-motion'
 import ClearDataModal from './ClearDataModal'
 import { SelectBoard, MultiSelectPrograms, MultiSelectClasses, formatClasses, formatMouStatus } from './SchoolFormHelpers'
+import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
 
 type SchoolEntry = {
   id: string; name: string; board: string; classes: string; programs: string
@@ -98,6 +99,7 @@ export default function SchoolsTab() {
 
   async function createSchool() {
     if (!createForm.name.trim()) { showMsg('School name is required', 'error'); return }
+    if (!isValidGstPrefix(createForm.gstNo)) { showMsg(GST_FORMAT_ERROR, 'error'); return }
     setCreating(true)
     try {
       const res = await fetch('/api/admin/schools', {
@@ -130,6 +132,7 @@ export default function SchoolsTab() {
 
   async function saveEdit() {
     if (!editSchool) return
+    if (!isValidGstPrefix(editForm.gstNo)) { showMsg(GST_FORMAT_ERROR, 'error'); return }
     setSaving(true)
     try {
       const res = await fetch(`/api/admin/schools/${editSchool.id}`, {

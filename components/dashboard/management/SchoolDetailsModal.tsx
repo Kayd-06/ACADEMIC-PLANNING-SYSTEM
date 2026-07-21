@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Save, Loader2 } from 'lucide-react'
 import { SelectBoard, MultiSelectPrograms, MultiSelectClasses } from './SchoolFormHelpers'
+import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
 
 interface SchoolData {
   board: string
@@ -29,12 +30,15 @@ export default function SchoolDetailsModal({
 }) {
   const [form, setForm] = useState<SchoolData>(initialData)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     setForm(initialData)
   }, [initialData])
 
   async function handleSave() {
+    if (!isValidGstPrefix(form.gstNo)) { setError(GST_FORMAT_ERROR); return }
+    setError('')
     setLoading(true)
     await onSave(form)
     setLoading(false)
@@ -135,6 +139,7 @@ export default function SchoolDetailsModal({
                   placeholder="e.g. 07AAAAA1111A1Z1"
                   className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                 />
+                {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
               </div>
             </div>
 

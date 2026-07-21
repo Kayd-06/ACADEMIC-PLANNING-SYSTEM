@@ -4,6 +4,7 @@ import { useSession, signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Building2, Hash, Plus, ArrowLeft, Loader2, CheckCircle2, LogOut } from 'lucide-react'
 import { SelectBoard, MultiSelectPrograms, MultiSelectClasses } from './SchoolFormHelpers'
+import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
 
 type Choice = 'select' | 'create' | 'join'
 
@@ -42,6 +43,7 @@ export default function OnboardingChoice({ userName }: { userName: string }) {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!createForm.name.trim()) { setError('School name is required.'); return }
+    if (!isValidGstPrefix(createForm.gstNo)) { setError(GST_FORMAT_ERROR); return }
     setLoading(true)
     setError('')
     try {

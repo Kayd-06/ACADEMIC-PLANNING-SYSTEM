@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { schools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
+import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { name, board, classes, programs, mouStartDate, mouEndDate, adminEmail, contactPerson, email, address, gstNo } = body
   if (!name) return NextResponse.json({ error: 'School name is required' }, { status: 400 })
+  if (!isValidGstPrefix(gstNo)) return NextResponse.json({ error: GST_FORMAT_ERROR }, { status: 400 })
 
   // Generate a unique join code
   let joinCode = generateJoinCode()
