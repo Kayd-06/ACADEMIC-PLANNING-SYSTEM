@@ -6,6 +6,7 @@ import StudentFormModal from './StudentFormModal'
 import CsvUploadModal, { downloadTemplate } from './CsvUploadModal'
 import StudentProfileDrawer from './StudentProfileDrawer'
 import { getBlobUrl } from '@/lib/blob'
+import Avatar from '../Avatar'
 
 export default function StudentRosterView() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
@@ -249,13 +250,8 @@ export default function StudentRosterView() {
                       <td className="px-6 py-4 text-[13px] font-semibold text-slate-600">{student.roll}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          {student.profileImgUrl ? (
-                            <img src={getBlobUrl(student.profileImgUrl)} alt={student.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
-                          ) : (
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold ${student.color}`}>
-                              {student.initials}
-                            </div>
-                          )}
+                          <Avatar src={student.profileImgUrl ? getBlobUrl(student.profileImgUrl) : null} name={student.name} initials={student.initials}
+                            size="w-8 h-8" colorClassName={student.color} textClassName="text-[11px] font-bold" />
                           <span className="text-[13px] font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{student.name}</span>
                         </div>
                       </td>

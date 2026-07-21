@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, Filter, Mail, Phone, MessageSquare, User, Loader2, Search, Briefcase, MapPin, Check } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
+import Avatar from '@/components/dashboard/Avatar'
 import MessageParentModal from '@/components/dashboard/MessageParentModal'
 
 function InfoField({ label, value }: { label: string; value: any }) {
@@ -247,13 +248,8 @@ export default function TeacherStudentRosterView() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    {student.profileImgUrl ? (
-                      <img src={getBlobUrl(student.profileImgUrl)} alt={student.name} className="w-10 h-10 rounded-full object-cover shadow-sm shrink-0" />
-                    ) : (
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${student.color}`}>
-                        {student.initials}
-                      </div>
-                    )}
+                    <Avatar src={student.profileImgUrl ? getBlobUrl(student.profileImgUrl) : null} name={student.name} initials={student.initials}
+                      size="w-10 h-10" shapeClassName="rounded-full shadow-sm" colorClassName={student.color} textClassName="text-sm font-bold" />
                     <div>
                       <h4 className="text-[13px] font-bold text-slate-900 truncate w-32">{student.name}</h4>
                       <p className="text-[11px] text-slate-500">Roll: {student.roll}</p>
@@ -292,13 +288,8 @@ export default function TeacherStudentRosterView() {
               {/* Top Profile Card */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col sm:flex-row items-start justify-between gap-4">
                 <div className="flex items-center gap-6">
-                  {s.profileImgUrl ? (
-                    <img src={getBlobUrl(s.profileImgUrl)} alt={activeStudent.name} className="w-20 h-20 rounded-full object-cover shadow-sm border-[3px] border-white ring-1 ring-slate-100" />
-                  ) : (
-                    <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold shadow-sm border-[3px] border-white ring-1 ring-slate-100 ${activeStudent.color}`}>
-                      {activeStudent.initials}
-                    </div>
-                  )}
+                  <Avatar src={s.profileImgUrl ? getBlobUrl(s.profileImgUrl) : null} name={activeStudent.name} initials={activeStudent.initials}
+                    size="w-20 h-20" shapeClassName="rounded-full shadow-sm border-[3px] border-white ring-1 ring-slate-100" colorClassName={activeStudent.color} textClassName="text-2xl font-bold" />
                   <div>
                     <h2 className="text-xl font-bold text-slate-900 mb-1">{activeStudent.name}</h2>
                     <p className="text-[13px] text-slate-600 font-medium mb-3">

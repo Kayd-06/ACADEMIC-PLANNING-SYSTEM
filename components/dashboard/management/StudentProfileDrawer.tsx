@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { X, User, Phone, Mail, Loader2, Plus, Pencil, Trash2, MapPin, Briefcase, IndianRupee } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
+import Avatar from '@/components/dashboard/Avatar'
 import MessageParentModal from '@/components/dashboard/MessageParentModal'
 
 const inputClass = 'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors'
@@ -310,13 +311,8 @@ export default function StudentProfileDrawer({ studentRow, onClose, onEdit, onDe
         <div className="flex-1 overflow-y-auto p-6">
           {/* Identity */}
           <div className="flex flex-col items-center mb-8">
-            {s?.profileImgUrl ? (
-              <img src={getBlobUrl(s.profileImgUrl)} alt={studentRow.name} className="w-24 h-24 rounded-full object-cover mb-4 shadow-sm border-4 border-white ring-2 ring-slate-100" />
-            ) : (
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold mb-4 shadow-sm border-4 border-white ring-2 ring-slate-100 ${studentRow.color}`}>
-                {studentRow.initials}
-              </div>
-            )}
+            <Avatar src={s?.profileImgUrl ? getBlobUrl(s.profileImgUrl) : null} name={studentRow.name} initials={studentRow.initials}
+              size="w-24 h-24" shapeClassName="rounded-full mb-4 shadow-sm border-4 border-white ring-2 ring-slate-100" colorClassName={studentRow.color} textClassName="text-3xl font-bold" />
             <h3 className="text-xl font-bold text-slate-900 mb-1">{studentRow.name}</h3>
             <p className="text-[13px] text-slate-500 font-medium mb-4">
               Roll No: {studentRow.roll}{s?.admissionNumber ? ` • Adm. No: ${s.admissionNumber}` : ''}

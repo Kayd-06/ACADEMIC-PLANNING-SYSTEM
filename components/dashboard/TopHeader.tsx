@@ -166,6 +166,10 @@ export default function TopHeader({ initials }: TopHeaderProps) {
   const sessionPhotoUrl = (session?.user as any)?.profileImgUrl as string | null | undefined
   const myPhotoUrl = role === 'teacher' ? teacherPhotoUrl : (sessionPhotoUrl ?? null)
 
+  const [myPhotoBroken, setMyPhotoBroken] = useState(false)
+  useEffect(() => { setMyPhotoBroken(false) }, [myPhotoUrl])
+  const myPhotoOk = myPhotoUrl && !myPhotoBroken
+
   function openEditPhoto() {
     setShowProfileMenu(false)
     setPhotoUrlInput(sessionPhotoUrl ?? '')
@@ -463,7 +467,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
             onClick={() => setShowProfileMenu(v => !v)}
             className="w-8 h-8 rounded-full bg-[#002045] flex items-center justify-center text-white text-xs font-semibold hover:bg-[#1a365d] transition-colors focus:outline-none focus:ring-2 focus:ring-[#002045]/30 overflow-hidden"
           >
-            {myPhotoUrl ? <img src={getBlobUrl(myPhotoUrl)} alt="" className="w-full h-full object-cover" /> : initials}
+            {myPhotoOk ? <img src={getBlobUrl(myPhotoUrl!)} alt="" className="w-full h-full object-cover" onError={() => setMyPhotoBroken(true)} /> : initials}
           </button>
 
           <AnimatePresence>
@@ -479,7 +483,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-[#002045] flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden">
-                      {myPhotoUrl ? <img src={getBlobUrl(myPhotoUrl)} alt="" className="w-full h-full object-cover" /> : initials}
+                      {myPhotoOk ? <img src={getBlobUrl(myPhotoUrl!)} alt="" className="w-full h-full object-cover" onError={() => setMyPhotoBroken(true)} /> : initials}
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-800 truncate">{session?.user?.name ?? '—'}</p>
@@ -804,7 +808,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
                 {session && (
                   <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow overflow-hidden">
-                      {myPhotoUrl ? <img src={getBlobUrl(myPhotoUrl)} alt="" className="w-full h-full object-cover" /> : initials}
+                      {myPhotoOk ? <img src={getBlobUrl(myPhotoUrl!)} alt="" className="w-full h-full object-cover" onError={() => setMyPhotoBroken(true)} /> : initials}
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-800 truncate">{session.user?.name}</p>

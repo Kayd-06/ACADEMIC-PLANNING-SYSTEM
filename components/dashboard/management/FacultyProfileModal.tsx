@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, Plus, Trash2, Loader2, Mail, Phone, MapPin, GraduationCap, BookOpen, Users, Layers } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
+import Avatar from '../Avatar'
 
 const BATCH_ROLES = ['primary', 'substitute', 'assistant']
 const ROLE_BADGE: Record<string, string> = {
@@ -115,13 +116,7 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-4">
-            {t.profileImgUrl ? (
-              <img src={getBlobUrl(t.profileImgUrl)} alt={t.name} className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-100" />
-            ) : (
-              <div className="w-14 h-14 rounded-full bg-[#0b1320] text-white flex items-center justify-center text-lg font-bold">
-                {t.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-              </div>
-            )}
+            <Avatar src={t.profileImgUrl ? getBlobUrl(t.profileImgUrl) : null} name={t.name} size="w-14 h-14" shapeClassName="rounded-full ring-2 ring-slate-100" textClassName="text-lg font-bold" />
             <div>
               <h2 className="text-lg font-bold text-slate-900">{t.name}</h2>
               <p className="text-xs text-slate-500">

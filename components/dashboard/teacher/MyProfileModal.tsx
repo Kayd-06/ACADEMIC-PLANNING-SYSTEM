@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Loader2, Pencil, Save, ArrowLeft, Upload } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
+import Avatar from '@/components/dashboard/Avatar'
 
 const GENDERS = ['', 'Male', 'Female', 'Other']
 const STREAMS = ['', 'Science', 'Mathematics', 'Commerce', 'Humanities', 'Languages', 'Computer Science', 'Arts', 'Physical Education']
@@ -181,13 +182,8 @@ export default function MyProfileModal({ isOpen, onClose, onSaved }: { isOpen: b
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      {p.profileImgUrl ? (
-                        <img src={getBlobUrl(p.profileImgUrl)} alt={p.name} className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-100" />
-                      ) : (
-                        <div className="w-14 h-14 rounded-full bg-[#002045] text-white flex items-center justify-center text-lg font-bold">
-                          {p.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                        </div>
-                      )}
+                      <Avatar src={p.profileImgUrl ? getBlobUrl(p.profileImgUrl) : null} name={p.name}
+                        size="w-14 h-14" shapeClassName="rounded-full ring-2 ring-slate-100" colorClassName="bg-[#002045] text-white" textClassName="text-lg font-bold" />
                       <div>
                         <p className="text-base font-bold text-slate-900">{p.name}</p>
                         <p className="text-xs text-slate-500">

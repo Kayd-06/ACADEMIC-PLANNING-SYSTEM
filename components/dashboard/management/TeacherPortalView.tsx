@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertical, FileIcon, MessageCircle, Loader2, X, ExternalLink, Edit2, Save, Pencil, Trash2, ChevronDown, Download } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import FacultyProfileModal from './FacultyProfileModal'
+import Avatar from '../Avatar'
 import { getBlobUrl } from '@/lib/blob'
 
 type FacultyMember = { _id: string; name: string; sub: string; spec: string; specTheme: string; batches: number; exp: string; status: string; initials: string; color: string; profileImgUrl?: string | null }
@@ -542,11 +543,8 @@ export default function TeacherPortalView() {
                       <tr key={fac._id || idx} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            {fac.profileImgUrl ? (
-                              <img src={getBlobUrl(fac.profileImgUrl)} alt={fac.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
-                            ) : (
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${fac.color}`}>{fac.initials}</div>
-                            )}
+                            <Avatar src={fac.profileImgUrl ? getBlobUrl(fac.profileImgUrl) : null} name={fac.name} initials={fac.initials}
+                              size="w-10 h-10" shapeClassName="rounded-full shadow-sm" colorClassName={fac.color} textClassName="text-sm font-bold" />
                             <div><h4 className="text-[13px] font-bold text-slate-900">{fac.name}</h4><p className="text-[11px] text-slate-500">{fac.sub}</p></div>
                           </div>
                         </td>
