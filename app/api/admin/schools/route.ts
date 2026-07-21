@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   if ((session.user as any).role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { name, board, classes, programs, mouStatus, contactPerson, email, address, gstNo } = body
+  const { name, board, classes, programs, mouStartDate, mouEndDate, contactPerson, email, address, gstNo } = body
   if (!name?.trim()) return NextResponse.json({ error: 'School name is required' }, { status: 400 })
 
   let joinCode = generateJoinCode()
@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
     board: board || 'CBSE Affiliated',
     classes: classes || '6, 7, 8, 9, 10, 11, 12',
     programs: programs || 'JEE, NEET, Foundational',
-    mouStatus: mouStatus || 'Active (2025)',
+    mouStartDate: mouStartDate || null,
+    mouEndDate: mouEndDate || null,
     joinCode,
     adminEmail: session.user.email || '',
     contactPerson: contactPerson || '',

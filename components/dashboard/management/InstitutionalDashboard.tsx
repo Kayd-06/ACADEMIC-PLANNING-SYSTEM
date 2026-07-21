@@ -9,7 +9,7 @@ import ProtocolsModal from './ProtocolsModal'
 import AnnouncementsView from './AnnouncementsView'
 import ScheduleManagementView from './ScheduleManagementView'
 import { getLocalToday, buildTodaysClasses, type TodayClassEntry } from '@/lib/scheduleUtils'
-import { formatClasses } from './SchoolFormHelpers'
+import { formatClasses, formatMouStatus } from './SchoolFormHelpers'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -29,7 +29,8 @@ export default function InstitutionalDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isProtocolsModalOpen, setIsProtocolsModalOpen] = useState(false)
   const [schoolData, setSchoolData] = useState<{
-    name?: string; board: string; classes: string; programs: string; mouStatus: string; joinCode: string
+    name?: string; board: string; classes: string; programs: string
+    mouStartDate: string | null; mouEndDate: string | null; joinCode: string
   } | null>(null)
   const [schoolLoading, setSchoolLoading] = useState(true)
   const [codeCopied, setCodeCopied] = useState(false)
@@ -125,7 +126,7 @@ export default function InstitutionalDashboard() {
       <SchoolDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        initialData={schoolData ?? { board: '', classes: '', programs: '', mouStatus: '', contactPerson: '', email: '', address: '', gstNo: '' }}
+        initialData={schoolData ?? { board: '', classes: '', programs: '', mouStartDate: '', mouEndDate: '', contactPerson: '', email: '', address: '', gstNo: '' }}
         onSave={handleSave}
       />
       <ProtocolsModal
@@ -182,7 +183,7 @@ export default function InstitutionalDashboard() {
                 { label: 'CURRENT BOARD', value: schoolData?.board || 'Not set' },
                 { label: 'ACTIVE CLASSES', value: schoolData?.classes ? formatClasses(schoolData.classes) : 'Not set' },
                 { label: 'PROGRAMS OFFERED', value: schoolData?.programs || 'Not set' },
-                { label: 'MOU STATUS', value: schoolData?.mouStatus || 'Not set', primary: true },
+                { label: 'MOU STATUS', value: formatMouStatus(schoolData?.mouStartDate, schoolData?.mouEndDate), primary: true },
               ].map(item => (
                 <div key={item.label} className={`rounded-xl p-4 border flex flex-col justify-center relative ${item.primary ? 'bg-indigo-50/40 border-indigo-200/60' : 'bg-slate-50/70 border-slate-100'}`}>
                   <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${item.primary ? 'text-indigo-600' : 'text-slate-500'}`}>{item.label}</p>

@@ -12,7 +12,8 @@ const EMPTY_FORM = {
   board: 'CBSE Affiliated',
   classes: '6, 7, 8, 9, 10, 11, 12',
   programs: 'JEE, NEET, Foundational',
-  mouStatus: 'Active (2025)',
+  mouStartDate: '',
+  mouEndDate: '',
   contactPerson: '',
   email: '',
   address: '',
@@ -164,8 +165,11 @@ export default function OnboardingChoice({ userName }: { userName: string }) {
                         <MultiSelectClasses value={createForm.classes} onChange={val => setCreateForm(f => ({ ...f, classes: val }))} />
                       </div>
                       <div>
-                        <label className={labelClass}>MOU Status</label>
-                        <input value={createForm.mouStatus} onChange={e => setCreateForm(f => ({ ...f, mouStatus: e.target.value }))} className={inputClass} />
+                        <label className={labelClass}>MOU Dates</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input type="date" value={createForm.mouStartDate} onChange={e => setCreateForm(f => ({ ...f, mouStartDate: e.target.value }))} className={inputClass} />
+                          <input type="date" value={createForm.mouEndDate} onChange={e => setCreateForm(f => ({ ...f, mouEndDate: e.target.value }))} className={inputClass} />
+                        </div>
                       </div>
                     </div>
                     <div>

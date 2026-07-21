@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   if ((session.user as any).role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { name, board, classes, programs, mouStatus, adminEmail, contactPerson, email, address, gstNo } = body
+  const { name, board, classes, programs, mouStartDate, mouEndDate, adminEmail, contactPerson, email, address, gstNo } = body
   if (!name) return NextResponse.json({ error: 'School name is required' }, { status: 400 })
 
   // Generate a unique join code
@@ -55,7 +55,8 @@ export async function POST(req: NextRequest) {
     board: board || 'CBSE Affiliated',
     classes: classes || '6, 7, 8, 9, 10, 11, 12',
     programs: programs || 'JEE, NEET, Foundational',
-    mouStatus: mouStatus || 'Active (2025)',
+    mouStartDate: mouStartDate || null,
+    mouEndDate: mouEndDate || null,
     joinCode,
     adminEmail: adminEmail || session.user.email || '',
     contactPerson: contactPerson || '',
@@ -78,14 +79,15 @@ export async function PATCH(req: NextRequest) {
   if (!schoolId) return NextResponse.json({ error: 'No school associated with this account' }, { status: 400 })
 
   const body = await req.json()
-  const { name, board, classes, programs, mouStatus, isActive } = body
+  const { name, board, classes, programs, mouStartDate, mouEndDate, isActive } = body
 
   const updates: Record<string, any> = { updatedAt: new Date() }
   if (name !== undefined) updates.name = name
   if (board !== undefined) updates.board = board
   if (classes !== undefined) updates.classes = classes
   if (programs !== undefined) updates.programs = programs
-  if (mouStatus !== undefined) updates.mouStatus = mouStatus
+  if (mouStartDate !== undefined) updates.mouStartDate = mouStartDate
+  if (mouEndDate !== undefined) updates.mouEndDate = mouEndDate
   if (isActive !== undefined) updates.isActive = isActive
 
   const [updated] = await db.update(schools).set(updates).where(eq(schools.id, schoolId)).returning()

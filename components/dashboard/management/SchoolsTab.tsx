@@ -4,11 +4,11 @@ import { useSession } from 'next-auth/react'
 import { Plus, X, Loader2, Copy, Check, Building2, Pencil, Trash2, LogOut, Hash, CheckCircle2, ArrowRightLeft, AlertTriangle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ClearDataModal from './ClearDataModal'
-import { SelectBoard, MultiSelectPrograms, MultiSelectClasses, formatClasses } from './SchoolFormHelpers'
+import { SelectBoard, MultiSelectPrograms, MultiSelectClasses, formatClasses, formatMouStatus } from './SchoolFormHelpers'
 
 type SchoolEntry = {
   id: string; name: string; board: string; classes: string; programs: string
-  mouStatus: string; joinCode: string | null; isActive: boolean; role: 'owner' | 'member'
+  mouStartDate: string | null; mouEndDate: string | null; joinCode: string | null; isActive: boolean; role: 'owner' | 'member'
   contactPerson?: string; email?: string; address?: string; gstNo?: string
 }
 
@@ -17,7 +17,8 @@ const EMPTY_FORM = {
   board: 'CBSE Affiliated',
   classes: '6, 7, 8, 9, 10, 11, 12',
   programs: 'JEE, NEET, Foundational',
-  mouStatus: 'Active (2025)',
+  mouStartDate: '',
+  mouEndDate: '',
   contactPerson: '',
   email: '',
   address: '',
@@ -205,10 +206,14 @@ export default function SchoolsTab() {
                   <MultiSelectPrograms value={createForm.programs} onChange={val => setCreateForm(f => ({ ...f, programs: val }))} />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">MOU Status</label>
-                  <input value={createForm.mouStatus} onChange={e => setCreateForm(f => ({ ...f, mouStatus: e.target.value }))}
-                    placeholder="e.g. Active (2025)"
-                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">MOU Dates</label>
+                  <div className="mt-1 grid grid-cols-2 gap-2">
+                    <input type="date" value={createForm.mouStartDate} onChange={e => setCreateForm(f => ({ ...f, mouStartDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                    <input type="date" value={createForm.mouEndDate} onChange={e => setCreateForm(f => ({ ...f, mouEndDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">Leave End Date blank for an ongoing MOU.</p>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Contact Person</label>
@@ -310,9 +315,14 @@ export default function SchoolsTab() {
                   <MultiSelectPrograms value={editForm.programs} onChange={val => setEditForm(f => ({ ...f, programs: val }))} />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">MOU Status</label>
-                  <input value={editForm.mouStatus} onChange={e => setEditForm(f => ({ ...f, mouStatus: e.target.value }))}
-                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">MOU Dates</label>
+                  <div className="mt-1 grid grid-cols-2 gap-2">
+                    <input type="date" value={editForm.mouStartDate} onChange={e => setEditForm(f => ({ ...f, mouStartDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                    <input type="date" value={editForm.mouEndDate} onChange={e => setEditForm(f => ({ ...f, mouEndDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">Leave End Date blank for an ongoing MOU.</p>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Contact Person</label>
@@ -411,7 +421,7 @@ export default function SchoolsTab() {
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-500">MOU</span>
-                      <span className="font-medium text-slate-700">{school.mouStatus}</span>
+                      <span className="font-medium text-slate-700">{formatMouStatus(school.mouStartDate, school.mouEndDate)}</span>
                     </div>
                   </div>
 
@@ -441,7 +451,8 @@ export default function SchoolsTab() {
                           board: school.board,
                           classes: school.classes,
                           programs: school.programs,
-                          mouStatus: school.mouStatus,
+                          mouStartDate: school.mouStartDate || '',
+                          mouEndDate: school.mouEndDate || '',
                           contactPerson: school.contactPerson || '',
                           email: school.email || '',
                           address: school.address || '',

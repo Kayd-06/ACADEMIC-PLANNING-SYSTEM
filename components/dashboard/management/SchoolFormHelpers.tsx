@@ -485,6 +485,15 @@ export function MultiSelectPrograms({
   )
 }
 
+export function formatMouStatus(startDate?: string | null, endDate?: string | null): string {
+  if (!endDate) return 'Active'
+  const end = new Date(endDate)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const formatted = end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return end < today ? `Expired ${formatted}` : `Active until ${formatted}`
+}
+
 const CLASS_OPTIONS = ['6', '7', '8', '9', '10', '11', '12', '12 pass']
 
 export function formatClasses(value: string): string {

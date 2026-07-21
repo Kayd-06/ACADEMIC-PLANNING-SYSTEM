@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { BookOpen, Users, Calendar, ClipboardList, ChevronRight, Plus, Filter, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Clock, Megaphone, Bell, Star, MessageSquareText } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { getLocalToday, buildTodaysClasses } from '@/lib/scheduleUtils'
+import { formatMouStatus } from '../management/SchoolFormHelpers'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 12 },
@@ -147,7 +148,7 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
               {schoolLoading ? (
                 <span className="block h-3 w-20 rounded bg-gray-200 animate-pulse mt-1" />
               ) : (
-                <p className="text-xs font-bold text-emerald-700">{schoolData?.mouStatus || 'Not set'}</p>
+                <p className="text-xs font-bold text-emerald-700">{formatMouStatus(schoolData?.mouStartDate, schoolData?.mouEndDate)}</p>
               )}
             </div>
           </div>

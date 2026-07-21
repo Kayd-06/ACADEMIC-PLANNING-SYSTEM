@@ -8,7 +8,8 @@ interface SchoolData {
   board: string
   classes: string
   programs: string
-  mouStatus: string
+  mouStartDate?: string | null
+  mouEndDate?: string | null
   contactPerson?: string
   email?: string
   address?: string
@@ -78,13 +79,22 @@ export default function SchoolDetailsModal({
                 <MultiSelectPrograms value={form.programs} onChange={val => setForm({ ...form, programs: val })} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">MOU Status</label>
-                <input 
-                  type="text" 
-                  value={form.mouStatus}
-                  onChange={e => setForm({ ...form, mouStatus: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                />
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">MOU Dates</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={form.mouStartDate || ''}
+                    onChange={e => setForm({ ...form, mouStartDate: e.target.value })}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  />
+                  <input
+                    type="date"
+                    value={form.mouEndDate || ''}
+                    onChange={e => setForm({ ...form, mouEndDate: e.target.value })}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400">Leave End Date blank for an ongoing MOU.</p>
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact Person</label>
