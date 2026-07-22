@@ -65,16 +65,19 @@ function FacultyFormFields({ form, setForm }: { form: typeof EMPTY_FACULTY_FORM;
       <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest pt-1">Professional Profile</p>
       <div className="grid grid-cols-2 gap-4">
         <div><label className={fieldLabel}>Subject *</label>
-          <input value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className={fieldInput} placeholder="Physics" /></div>
+          <input list="subject-options" value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className={fieldInput} placeholder="Physics" />
+          <datalist id="subject-options">
+            {['Physics', 'Chemistry', 'Maths', 'Biology', 'English', 'Science', 'Social Science', 'Mental Ability'].map(s => <option key={s} value={s} />)}
+          </datalist>
+        </div>
         <div><label className={fieldLabel}>Specialization *</label>
-          <input value={form.specialization} onChange={e => setForm({ ...form, specialization: e.target.value })} className={fieldInput} placeholder="JEE Advanced" /></div>
+          <select value={form.specialization} onChange={e => setForm({ ...form, specialization: e.target.value })} className={fieldInput}>
+            <option value="">Select…</option>
+            {Array.from(new Set(['JEE Main', 'JEE Advanced', 'NEET UG', 'BITSAT', 'NTSE', 'CUET', 'Science Olympiad', 'Maths Olympiad', form.specialization].filter(Boolean))).map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
         <div><label className={fieldLabel}>Qualification</label>
           <input value={form.qualification} onChange={e => setForm({ ...form, qualification: e.target.value })} className={fieldInput} placeholder="M.Sc., B.Ed." /></div>
-        <div><label className={fieldLabel}>Primary Stream</label>
-          <select value={form.primaryStream} onChange={e => setForm({ ...form, primaryStream: e.target.value })} className={fieldInput}>
-            <option value="">Select…</option>
-            {['Science', 'Mathematics', 'Commerce', 'Humanities', 'Languages', 'Computer Science', 'Arts', 'Physical Education'].map(s => <option key={s} value={s}>{s}</option>)}
-          </select></div>
         <div><label className={fieldLabel}>Experience (Years)</label>
           <input type="number" min="0" value={form.experienceYears} onChange={e => setForm({ ...form, experienceYears: e.target.value, experience: e.target.value ? `${e.target.value} years` : form.experience })} className={fieldInput} /></div>
         <div><label className={fieldLabel}>Joining Date</label>
@@ -469,9 +472,6 @@ export default function TeacherPortalView() {
           <h1 className="text-2xl font-bold text-slate-900">Teacher Portal</h1>
           <p className="text-[13px] text-slate-500 mt-1">Monitor faculty schedules, materials, and counseling activity</p>
         </div>
-        <button onClick={() => setShowAddFaculty(true)} className="flex items-center gap-2 px-5 py-2.5 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm">
-          <Plus className="w-4 h-4" /> Add Faculty
-        </button>
       </div>
 
       {/* KPIs */}
@@ -526,7 +526,7 @@ export default function TeacherPortalView() {
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-slate-400">
                 <User className="w-12 h-12 mb-4 text-slate-300" />
                 <p className="text-base font-bold text-slate-600 mb-1">{data?.faculty.length === 0 ? 'No Faculty Members' : 'No results for this filter'}</p>
-                <p className="text-sm font-medium">{data?.faculty.length === 0 ? 'Click "Add Faculty" to build your directory.' : 'Try a different status filter.'}</p>
+                <p className="text-sm font-medium">{data?.faculty.length === 0 ? 'No faculty members found.' : 'Try a different status filter.'}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
