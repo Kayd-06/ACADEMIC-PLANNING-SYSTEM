@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Plus, MoreVertical, X, Loader2, CheckCircle, Pencil, Trash2 } from 'lucide-react'
 import SchoolsTab from './SchoolsTab'
 import BatchesTab from './BatchesTab'
+import FacultyTab from './FacultyTab'
 import SyllabusKanbanBoard from '../SyllabusKanbanBoard'
 import { SelectTargetExam } from './SchoolFormHelpers'
 
@@ -234,7 +235,7 @@ export default function AcademicPlanningView() {
       {/* Tabs */}
       <div className="border-b border-slate-200 mb-8">
         <div className="flex gap-8">
-          {['Schools', 'Programs', 'Batches', 'Syllabus Tracker'].map((tab) => (
+          {['Schools', 'Programs', 'Batches', 'Syllabus Tracker', 'Faculty'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -351,6 +352,8 @@ export default function AcademicPlanningView() {
       )}
 
       {activeTab === 'Schools' && <SchoolsTab />}
+
+      {activeTab === 'Faculty' && <FacultyTab />}
     </div>
   )
 }
