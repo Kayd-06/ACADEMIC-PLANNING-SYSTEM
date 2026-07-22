@@ -26,6 +26,23 @@ export default function StudentRosterView() {
   // Edit/Delete
   const [editingStudent, setEditingStudent] = useState<any>(null)
 
+  // The roster list only carries a summary shape (name/roll/contact/etc.) —
+  // fetch the full record before editing so the form isn't missing fields,
+  // same as StudentProfileDrawer's "Edit Profile" button does.
+  const handleEditClick = async (student: any) => {
+    try {
+      const res = await fetch(`/api/students/${student._id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setEditingStudent({ ...data.student, _id: data.student.id })
+        return
+      }
+    } catch {
+      // fall through to the summary row below
+    }
+    setEditingStudent(student)
+  }
+
   // CSV upload
   const [showCsvModal, setShowCsvModal] = useState(false)
 
@@ -270,7 +287,7 @@ export default function StudentRosterView() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
-                            onClick={(e) => { e.stopPropagation(); setEditingStudent(student) }}
+                            onClick={(e) => { e.stopPropagation(); handleEditClick(student) }}
                             className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           >
                             <Pencil className="w-4 h-4" />
