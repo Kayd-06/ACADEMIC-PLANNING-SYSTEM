@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Upload, Loader2 } from 'lucide-react'
+import { Upload, Loader2, Trash2 } from 'lucide-react'
 import FacultyCsvUploadModal from './FacultyCsvUploadModal'
 import Avatar from '../Avatar'
 
@@ -9,6 +9,9 @@ export default function FacultyTab() {
   const [loading, setLoading] = useState(true)
   const [showImport, setShowImport] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => { fetchFaculty() }, [])
 
@@ -40,19 +43,54 @@ export default function FacultyTab() {
     )
   }
 
+  async function handleDelete() {
+    setDeleting(true)
+    setDeleteError(null)
+    const ids = Array.from(selectedIds)
+    const results = await Promise.allSettled(
+      ids.map((id) => fetch(`/api/teacher-portal/faculty?id=${id}`, { method: 'DELETE' }))
+    )
+    const failed = results.filter((r) => r.status === 'rejected' || !r.value.ok).length
+    setDeleting(false)
+    setShowConfirm(false)
+    setSelectedIds(new Set())
+    await fetchFaculty()
+    if (failed > 0) {
+      setDeleteError(`Deleted ${ids.length - failed} of ${ids.length} faculty members. ${failed} failed — please retry.`)
+    }
+  }
+
+  const selectedNames = facultyList.filter((f) => selectedIds.has(f.id)).map((f) => f.name)
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <p className="text-[13px] text-slate-500">
           {facultyList.length} faculty member{facultyList.length === 1 ? '' : 's'} across all batches
         </p>
-        <button
-          onClick={() => setShowImport(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm active:scale-95"
-        >
-          <Upload className="w-4 h-4" /> Import CSV
-        </button>
+        <div className="flex items-center gap-3">
+          {selectedIds.size > 0 && (
+            <button
+              onClick={() => setShowConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-all shadow-sm active:scale-95"
+            >
+              <Trash2 className="w-4 h-4" /> Delete ({selectedIds.size})
+            </button>
+          )}
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm active:scale-95"
+          >
+            <Upload className="w-4 h-4" /> Import CSV
+          </button>
+        </div>
       </div>
+
+      {deleteError && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
+          {deleteError}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-20">
@@ -130,6 +168,38 @@ export default function FacultyTab() {
           onClose={() => setShowImport(false)}
           onImported={() => { setShowImport(false); fetchFaculty() }}
         />
+      )}
+
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">
+              {selectedNames.length <= 5
+                ? `Delete ${selectedNames.join(', ')}?`
+                : `Delete ${selectedNames.length} faculty members?`}
+            </h3>
+            <p className="text-sm text-slate-500 mb-6">
+              This also removes their batch assignments and cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
+              >
+                {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
