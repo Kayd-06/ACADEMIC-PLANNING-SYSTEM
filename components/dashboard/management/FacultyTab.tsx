@@ -2,11 +2,13 @@
 import { useState, useEffect } from 'react'
 import { Upload, Loader2 } from 'lucide-react'
 import FacultyCsvUploadModal from './FacultyCsvUploadModal'
+import Avatar from '../Avatar'
 
 export default function FacultyTab() {
   const [facultyList, setFacultyList] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showImport, setShowImport] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => { fetchFaculty() }, [])
 
@@ -21,6 +23,21 @@ export default function FacultyTab() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelectedIds((prev) =>
+      prev.size === facultyList.length ? new Set() : new Set(facultyList.map((f) => f.id))
+    )
   }
 
   return (
@@ -50,6 +67,15 @@ export default function FacultyTab() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
+                <th className="px-6 py-3 text-left w-10">
+                  <input
+                    type="checkbox"
+                    checked={facultyList.length > 0 && selectedIds.size === facultyList.length}
+                    onChange={toggleAll}
+                    aria-label="Select all faculty"
+                  />
+                </th>
+                <th className="px-6 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[10px] w-14">Avatar</th>
                 {['Name', 'Employee ID', 'Subject / Specialization', 'Batches', 'Status'].map((h) => (
                   <th key={h} className="px-6 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[10px]">{h}</th>
                 ))}
@@ -58,6 +84,17 @@ export default function FacultyTab() {
             <tbody className="divide-y divide-slate-100">
               {facultyList.map((f) => (
                 <tr key={f.id} className="hover:bg-slate-50/70">
+                  <td className="px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(f.id)}
+                      onChange={() => toggleRow(f.id)}
+                      aria-label={`Select ${f.name}`}
+                    />
+                  </td>
+                  <td className="px-6 py-4">
+                    <Avatar src={f.profileImgUrl} name={f.name} size="w-8 h-8" />
+                  </td>
                   <td className="px-6 py-4 font-bold text-slate-900">{f.name}</td>
                   <td className="px-6 py-4 text-slate-500">{f.employeeId || '—'}</td>
                   <td className="px-6 py-4 text-slate-600">{f.subject}{f.specialization ? ` — ${f.specialization}` : ''}</td>
