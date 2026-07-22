@@ -65,10 +65,27 @@ function FacultyFormFields({ form, setForm }: { form: typeof EMPTY_FACULTY_FORM;
       <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest pt-1">Professional Profile</p>
       <div className="grid grid-cols-2 gap-4">
         <div><label className={fieldLabel}>Subject *</label>
-          <input list="subject-options" value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className={fieldInput} placeholder="Physics" />
-          <datalist id="subject-options">
-            {['Physics', 'Chemistry', 'Maths', 'Biology', 'English', 'Science', 'Social Science', 'Mental Ability'].map(s => <option key={s} value={s} />)}
-          </datalist>
+          {['Physics', 'Chemistry', 'Maths', 'Biology', 'English', 'Science', 'Social Science', 'Mental Ability', ''].includes(form.subject) || form.subject === undefined ? (
+            <select
+              value={form.subject}
+              onChange={e => {
+                if (e.target.value === 'CUSTOM') setForm({ ...form, subject: ' ' })
+                else setForm({ ...form, subject: e.target.value })
+              }}
+              className={fieldInput}
+            >
+              <option value="">Select…</option>
+              {['Physics', 'Chemistry', 'Maths', 'Biology', 'English', 'Science', 'Social Science', 'Mental Ability'].map(s => <option key={s} value={s}>{s}</option>)}
+              <option value="CUSTOM">Custom...</option>
+            </select>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input value={form.subject.trim()} onChange={e => setForm({ ...form, subject: e.target.value })} className={fieldInput} placeholder="Enter custom subject" autoFocus />
+              <button type="button" onClick={() => setForm({ ...form, subject: '' })} className="mt-1 p-2 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 flex-shrink-0 transition-colors" title="Back to presets">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
         <div><label className={fieldLabel}>Specialization *</label>
           <select value={form.specialization} onChange={e => setForm({ ...form, specialization: e.target.value })} className={fieldInput}>
