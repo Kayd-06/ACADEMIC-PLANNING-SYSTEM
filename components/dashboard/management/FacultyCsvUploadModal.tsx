@@ -19,7 +19,6 @@ interface ParsedRow {
   subject: string
   specialization: string
   qualification: string
-  primaryStream: string
   experienceYears: string
   joiningDate: string
   status: string
@@ -37,7 +36,7 @@ export const TEMPLATE_HEADERS = [
   'Name', 'Employee ID', 'Email', 'Phone', 'Alt Phone',
   'Date of Birth (YYYY-MM-DD)', 'Gender',
   'Address Line 1', 'City', 'State', 'Pincode',
-  'Subject', 'Specialization', 'Qualification', 'Primary Stream',
+  'Subject', 'Specialization', 'Qualification',
   'Experience (Years)', 'Joining Date (YYYY-MM-DD)', 'Status', 'Batches',
   'Bio', 'Profile Image URL',
 ]
@@ -49,11 +48,11 @@ export function downloadTemplate() {
       'Anita Rao', 'EMP-201', 'anita.rao@example.com', '9876500011', '9876500012',
       '1985-03-14', 'Female',
       '22 Park Street', 'Ahmedabad', 'Gujarat', '380001',
-      'Physics', 'Mechanics', 'M.Sc. Physics', 'JEE',
+      'Physics', 'Mechanics', 'M.Sc. Physics',
       '8', '2020-06-01', 'ACTIVE', 'JEE Batch A, JEE Batch B',
       'Specializes in mechanics and thermodynamics.', '',
     ],
-    ['Vikram Singh', '', '', '', '', '', '', '', '', '', '', 'Chemistry', 'Organic Chemistry', '', '', '', '', 'ACTIVE', '', '', ''],
+    ['Vikram Singh', '', '', '', '', '', '', '', '', '', '', 'Chemistry', 'Organic Chemistry', '', '', '', 'ACTIVE', '', '', ''],
   ]
   const ws = XLSX.utils.aoa_to_sheet(data)
   ws['!cols'] = TEMPLATE_HEADERS.map(h => ({ wch: Math.max(14, Math.min(28, h.length + 4)) }))
@@ -151,7 +150,6 @@ export default function FacultyCsvUploadModal({ onClose, onImported }: FacultyCs
               subject: get(['subject']),
               specialization: get(['specialization']),
               qualification: get(['qualification']),
-              primaryStream: get(['primarystream', 'stream']),
               experienceYears: get(['experienceyears', 'experience']),
               joiningDate: get(['joiningdateyyyymmdd', 'joiningdate']),
               status: get(['status']),

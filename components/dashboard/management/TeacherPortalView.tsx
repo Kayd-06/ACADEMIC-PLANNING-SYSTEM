@@ -1,9 +1,10 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertical, FileIcon, MessageCircle, Loader2, X, ExternalLink, Edit2, Save, Pencil, Trash2, ChevronDown, Download } from 'lucide-react'
+import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertical, FileIcon, MessageCircle, Loader2, X, ExternalLink, Edit2, Save, Pencil, Trash2, ChevronDown, Download, Upload } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import FacultyProfileModal from './FacultyProfileModal'
+import FacultyCsvUploadModal from './FacultyCsvUploadModal'
 import Avatar from '../Avatar'
 import { getBlobUrl } from '@/lib/blob'
 
@@ -153,10 +154,8 @@ export default function TeacherPortalView() {
     setOpenMenuId(id)
   }
 
-  // Add Faculty modal
-  const [showAddFaculty, setShowAddFaculty] = useState(false)
-  const [facultyForm, setFacultyForm] = useState(EMPTY_FACULTY_FORM)
-  const [savingFaculty, setSavingFaculty] = useState(false)
+  // Import Faculty modal
+  const [showImportModal, setShowImportModal] = useState(false)
 
   // Edit Faculty modal
   const [editFaculty, setEditFaculty] = useState<FacultyMember | null>(null)
@@ -196,16 +195,6 @@ export default function TeacherPortalView() {
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
   const filteredFaculty = (data?.faculty ?? []).filter(f => statusFilter === 'ALL' || f.status === statusFilter)
-
-  const handleAddFaculty = async () => {
-    if (!facultyForm.name || !facultyForm.subject || !facultyForm.specialization) { showToast('Name, subject, and specialization are required'); return }
-    setSavingFaculty(true)
-    try {
-      const res = await fetch('/api/teacher-portal/faculty', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...facultyForm, batches: Number(facultyForm.batches) }) })
-      if (res.ok) { showToast('Faculty member added'); setShowAddFaculty(false); setFacultyForm(EMPTY_FACULTY_FORM); fetchData() }
-      else showToast((await res.json()).error || 'Failed to add faculty')
-    } catch { showToast('Failed to add faculty') } finally { setSavingFaculty(false) }
-  }
 
   const openEditFaculty = async (fac: FacultyMember) => {
     setOpenMenuId(null)
@@ -379,26 +368,13 @@ export default function TeacherPortalView() {
         <FacultyProfileModal teacher={profileFaculty} onClose={() => setProfileFaculty(null)} showToast={showToast} />
       )}
 
-      {/* Add Faculty Modal */}
+      {/* Import Modal */}
       <AnimatePresence>
-        {showAddFaculty && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 max-h-[90vh] flex flex-col">
-              <div className="flex items-center justify-between mb-6 shrink-0">
-                <h2 className="text-lg font-bold text-slate-900">Add Faculty Member</h2>
-                <button onClick={() => setShowAddFaculty(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
-              </div>
-              <div className="overflow-y-auto flex-1 pr-1">
-                <FacultyFormFields form={facultyForm} setForm={setFacultyForm} />
-              </div>
-              <div className="flex gap-3 mt-6 shrink-0">
-                <button onClick={() => setShowAddFaculty(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50">Cancel</button>
-                <button onClick={handleAddFaculty} disabled={savingFaculty} className="flex-1 px-4 py-2.5 bg-[#0b1320] text-white rounded-lg text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {savingFaculty ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add Faculty
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+        {showImportModal && (
+          <FacultyCsvUploadModal
+            onClose={() => setShowImportModal(false)}
+            onImported={() => { setShowImportModal(false); fetchData() }}
+          />
         )}
       </AnimatePresence>
 
@@ -513,6 +489,12 @@ export default function TeacherPortalView() {
                 <button onClick={handleExport} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors">
                   <Download className="w-3.5 h-3.5" />
                   <span>Export</span>
+                </button>
+
+                {/* Import button */}
+                <button onClick={() => setShowImportModal(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Import CSV</span>
                 </button>
 
                 {/* Filter dropdown */}

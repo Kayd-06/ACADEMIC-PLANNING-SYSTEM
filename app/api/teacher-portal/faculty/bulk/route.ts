@@ -29,7 +29,7 @@ class ValidationError extends Error {
 const FACULTY_ROW_FIELDS = [
   'employeeId', 'email', 'phone', 'altPhone', 'dob', 'gender',
   'addressLine1', 'city', 'state', 'pincode',
-  'qualification', 'primaryStream', 'joiningDate', 'bio', 'profileImgUrl',
+  'qualification', 'joiningDate', 'bio', 'profileImgUrl',
 ] as const
 
 export async function POST(req: NextRequest) {
