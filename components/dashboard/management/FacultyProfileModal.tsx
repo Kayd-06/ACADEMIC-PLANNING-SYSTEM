@@ -106,6 +106,40 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
     else showToast('Failed to remove')
   }
 
+  const linkedProgramForBatch = (batchName: string) =>
+    batchOptions.find(bo => bo.name === batchName)?.programName ?? null
+
+  // Removing a program also removes every batch assignment that was auto-linked to it,
+  // since a batch without its program would be an inconsistent state.
+  async function removeProgram(program: any) {
+    const linkedBatches = batches.filter(b => linkedProgramForBatch(b.batchName)?.toLowerCase() === program.programName?.toLowerCase())
+    const results = await Promise.all([
+      fetch(`/api/teacher-portal/faculty/${teacher.id}/assignments?type=program&assignmentId=${program.id}`, { method: 'DELETE' }),
+      ...linkedBatches.map(b => fetch(`/api/teacher-portal/faculty/${teacher.id}/assignments?type=batch&assignmentId=${b.id}`, { method: 'DELETE' })),
+    ])
+    if (results.every(r => r.ok)) refresh()
+    else showToast('Failed to remove')
+  }
+
+  // Removing a batch also removes its linked program, unless another
+  // assigned batch still belongs to that same program.
+  async function removeBatch(batch: any) {
+    const res = await fetch(`/api/teacher-portal/faculty/${teacher.id}/assignments?type=batch&assignmentId=${batch.id}`, { method: 'DELETE' })
+    if (!res.ok) { showToast('Failed to remove'); return }
+
+    const linkedProgramName = linkedProgramForBatch(batch.batchName)
+    if (linkedProgramName) {
+      const stillLinked = batches.some(b => b.id !== batch.id && linkedProgramForBatch(b.batchName)?.toLowerCase() === linkedProgramName.toLowerCase())
+      if (!stillLinked) {
+        const program = programs.find(p => p.programName?.toLowerCase() === linkedProgramName.toLowerCase())
+        if (program) {
+          await fetch(`/api/teacher-portal/faculty/${teacher.id}/assignments?type=program&assignmentId=${program.id}`, { method: 'DELETE' })
+        }
+      }
+    }
+    refresh()
+  }
+
   const t = teacher
   const inputClass = 'px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
 
@@ -174,7 +208,7 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
               {programs.map(p => (
                 <span key={p.id} className={`inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-full text-xs font-bold border ${p.isPrimary ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                   {p.programName}{p.isPrimary ? ' ★' : ''}
-                  <button onClick={() => removeAssignment('program', p.id)} className="p-0.5 hover:text-rose-600 rounded-full"><X className="w-3 h-3" /></button>
+                  <button onClick={() => removeProgram(p)} className="p-0.5 hover:text-rose-600 rounded-full"><X className="w-3 h-3" /></button>
                 </span>
               ))}
             </div>
@@ -226,7 +260,7 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${ROLE_BADGE[b.role] ?? 'bg-slate-50 text-slate-600 border-slate-200'}`}>{b.role}</span>
-                      <button onClick={() => removeAssignment('batch', b.id)} className="p-1 text-slate-400 hover:text-rose-600 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => removeBatch(b)} className="p-1 text-slate-400 hover:text-rose-600 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
                 ))}
