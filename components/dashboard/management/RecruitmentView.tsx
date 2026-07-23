@@ -121,7 +121,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
     specialization: '',
     expectedSalary: '',
     appliedDate: '',
-    workflowStatus: 'Requirement',
+    workflowStatus: 'Applied',
     roleApplied: '',
     department: 'SCIENCE',
     requirementId: '',
@@ -398,7 +398,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
     }
   }
 
-  const stages = ['Requirement', 'Shortlisted', 'Interview Scheduled', 'Under Review', 'Offer Extended', 'Hired']
+  const stages = ['Applied', 'Shortlisted', 'Interview Scheduled', 'Under Review', 'Offer Extended', 'Hired']
 
   if (loading && !dashboardData) {
     return (
@@ -441,7 +441,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 setShowReqModal(true)
               } else if (activeTab === 'candidates' || activeTab === 'overview') {
                 setEditingCand(null)
-                setCandForm({ name: '', contactEmail: '', contactPhone: '', qualification: '', resumeLink: '', yearsOfExperience: '3', currentOrganization: '', specialization: '', expectedSalary: '', appliedDate: new Date().toISOString().split('T')[0], workflowStatus: 'Requirement', roleApplied: '', department: 'SCIENCE', requirementId: '', schoolId: schoolId || (adminSchools.length === 1 ? adminSchools[0].id : '') })
+                setCandForm({ name: '', contactEmail: '', contactPhone: '', qualification: '', resumeLink: '', yearsOfExperience: '3', currentOrganization: '', specialization: '', expectedSalary: '', appliedDate: new Date().toISOString().split('T')[0], workflowStatus: 'Applied', roleApplied: '', department: 'SCIENCE', requirementId: '', schoolId: schoolId || (adminSchools.length === 1 ? adminSchools[0].id : '') })
                 setShowCandModal(true)
               } else if (activeTab === 'appraisals') {
                 setEditingApp(null)
@@ -595,10 +595,11 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 overflow-x-auto pb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 overflow-x-auto pb-4">
                 {stages.map(stage => {
                   const stageCandidates = candidates.filter(c => {
-                    const matchStage = (c.workflowStatus || 'Requirement').toLowerCase() === stage.toLowerCase()
+                    const candStatus = c.workflowStatus?.toLowerCase() === 'requirement' ? 'applied' : (c.workflowStatus || 'Applied').toLowerCase()
+                    const matchStage = candStatus === stage.toLowerCase()
                     const matchSchool = schoolFilter === 'ALL' || c.schoolId === schoolFilter
                     return matchStage && matchSchool
                   })
@@ -649,13 +650,6 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                                     )}
                                   </div>
                                 </div>
-                                <button
-                                  onClick={() => setCandidateToDelete(cand)}
-                                  className="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors shrink-0"
-                                  title="Delete Candidate"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
                               </div>
 
                               <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-600">
@@ -674,13 +668,20 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                               <div className="mt-3 pt-2 border-t border-slate-100 flex flex-col gap-1">
                                 <div className="relative w-full">
                                   <select
-                                    value={cand.workflowStatus || 'Requirement'}
-                                    onChange={e => handleUpdateCandidateStatus(cand, e.target.value)}
+                                    value={cand.workflowStatus === 'Requirement' ? 'Applied' : (cand.workflowStatus || 'Applied')}
+                                    onChange={e => {
+                                      if (e.target.value === 'DELETE_CANDIDATE') {
+                                        setCandidateToDelete(cand)
+                                      } else {
+                                        handleUpdateCandidateStatus(cand, e.target.value)
+                                      }
+                                    }}
                                     className="w-full text-[10px] font-bold bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg pl-2 pr-6 py-1 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer appearance-none transition-all"
                                   >
                                     {stages.map(s => (
                                       <option key={s} value={s}>{s}</option>
                                     ))}
+                                    <option value="DELETE_CANDIDATE" className="text-red-600 font-bold">🗑 Delete Candidate</option>
                                   </select>
                                   <ChevronDown className="w-3 h-3 text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                                 </div>
@@ -716,7 +717,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   placeholder="Search role, subject, department..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50/50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 placeholder:text-slate-400 font-medium transition-all"
+                  className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 placeholder:text-slate-400 font-medium transition-all"
                 />
               </div>
 
@@ -1018,11 +1019,18 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                             <td className="p-4">
                               <div className="relative inline-block w-40">
                                 <select
-                                  value={cand.workflowStatus || 'Requirement'}
-                                  onChange={e => handleUpdateCandidateStatus(cand, e.target.value)}
+                                  value={cand.workflowStatus === 'Requirement' ? 'Applied' : (cand.workflowStatus || 'Applied')}
+                                  onChange={e => {
+                                    if (e.target.value === 'DELETE_CANDIDATE') {
+                                      setCandidateToDelete(cand)
+                                    } else {
+                                      handleUpdateCandidateStatus(cand, e.target.value)
+                                    }
+                                  }}
                                   className="w-full text-xs font-bold pl-3 pr-8 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer transition-all"
                                 >
                                   {stages.map(s => <option key={s} value={s}>{s}</option>)}
+                                  <option value="DELETE_CANDIDATE" className="text-red-600 font-bold">🗑 Delete Candidate</option>
                                 </select>
                                 <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                               </div>
@@ -1043,7 +1051,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                                       specialization: cand.specialization || '',
                                       expectedSalary: cand.expectedSalary || '',
                                       appliedDate: cand.appliedDate || '',
-                                      workflowStatus: cand.workflowStatus || 'Requirement',
+                                      workflowStatus: cand.workflowStatus === 'Requirement' ? 'Applied' : (cand.workflowStatus || 'Applied'),
                                       roleApplied: cand.roleApplied || '',
                                       department: cand.department || 'SCIENCE',
                                       requirementId: cand.requirementId || '',
