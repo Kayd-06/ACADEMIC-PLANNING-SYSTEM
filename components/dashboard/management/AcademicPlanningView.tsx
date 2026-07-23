@@ -5,7 +5,7 @@ import SchoolsTab from './SchoolsTab'
 import BatchesTab from './BatchesTab'
 import FacultyTab from './FacultyTab'
 import SyllabusKanbanBoard from '../SyllabusKanbanBoard'
-import { SelectTargetExam } from './SchoolFormHelpers'
+import { MultiSelectTargetExam } from './SchoolFormHelpers'
 
 interface ProgramData {
   _id: string
@@ -67,7 +67,7 @@ function ProgramFormModal({ initial, isEdit, submitting, onSubmit, onClose }: {
           </div>
           <div>
             <label className={labelClass}>Target Exam</label>
-            <SelectTargetExam value={form.targetExam} onChange={val => setForm(prev => ({ ...prev, targetExam: val }))} />
+            <MultiSelectTargetExam value={form.targetExam} onChange={val => setForm(prev => ({ ...prev, targetExam: val }))} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
