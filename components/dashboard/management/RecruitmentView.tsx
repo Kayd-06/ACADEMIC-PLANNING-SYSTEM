@@ -60,6 +60,18 @@ const getAvatarColor = (name: string) => {
   return avatarColors[charCode % avatarColors.length]
 }
 
+function formatSalaryDisplay(val?: string | number | null): string {
+  if (!val) return ''
+  const str = String(val).trim()
+  if (!str) return ''
+  if (str.startsWith('₹') || str.startsWith('$')) return str
+  const cleanNum = parseFloat(str.replace(/[^0-9.]/g, ''))
+  if (!isNaN(cleanNum) && cleanNum > 0) {
+    return `₹${cleanNum.toLocaleString('en-IN')}`
+  }
+  return `₹${str}`
+}
+
 export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'requirements' | 'candidates' | 'appraisals' | 'audit'>('overview')
   const [loading, setLoading] = useState(true)
@@ -605,7 +617,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 overflow-x-auto pb-4">
+              <div className="flex gap-4 overflow-x-auto pb-4 pt-1 snap-x scrollbar-thin max-w-full">
                 {stages.map(stage => {
                   const stageCandidates = candidates.filter(c => {
                     const candStatus = c.workflowStatus?.toLowerCase() === 'requirement' ? 'applied' : (c.workflowStatus || 'Applied').toLowerCase()
@@ -616,18 +628,18 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   return (
                     <div
                       key={stage}
-                      className="bg-slate-50/70 rounded-2xl p-3 border border-slate-200 flex flex-col min-h-[440px] shadow-xs"
+                      className="min-w-[280px] w-[280px] shrink-0 bg-slate-50/80 rounded-2xl p-3.5 border border-slate-200/90 flex flex-col min-h-[480px] shadow-xs snap-start"
                     >
                       <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200/80">
                         <span className="font-bold text-xs uppercase tracking-wider text-slate-700">
                           {stage}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-200/80 text-slate-700">
                           {stageCandidates.length}
                         </span>
                       </div>
 
-                      <div className="space-y-3 flex-1 overflow-y-auto max-h-[450px] pr-1">
+                      <div className="space-y-3 flex-1 overflow-y-auto max-h-[500px] pr-1">
                         {stageCandidates.length === 0 ? (
                           <div className="h-full flex flex-col items-center justify-center text-center p-4">
                             <p className="text-xs font-medium text-slate-400">No candidates in this stage</p>
@@ -636,64 +648,103 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                           stageCandidates.map(cand => (
                             <div
                               key={cand.id || cand._id}
-                              className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs hover:shadow-md transition-all group"
+                              className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all group relative space-y-3"
                             >
-                              <div className="flex items-start justify-between">
-                                <div className="flex items-center gap-2.5">
-                                  <div className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shadow-xs shrink-0 ${getAvatarColor(cand.name)}`}>
-                                    {cand.avatarInitials || 'XX'}
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div className={`w-10 h-10 rounded-full font-extrabold text-xs flex items-center justify-center shadow-xs shrink-0 ${getAvatarColor(cand.name)}`}>
+                                    {cand.avatarInitials || (cand.name ? cand.name.slice(0, 2).toUpperCase() : 'XX')}
                                   </div>
-                                  <div>
-                                    <h4 className="font-bold text-xs text-slate-800 group-hover:text-indigo-600 transition-colors tracking-tight">
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="font-bold text-sm text-slate-900 group-hover:text-indigo-600 transition-colors tracking-tight truncate">
                                       {cand.name}
                                     </h4>
-                                    <p className="text-[10px] text-slate-500 mt-0.5 font-medium flex items-center gap-1.5 flex-wrap">
-                                      <span>{cand.roleApplied || 'General'}</span>
-                                      <span className="text-slate-300">•</span>
-                                      <span className="px-1.5 py-0.2 bg-slate-50 border border-slate-200/60 rounded text-[9px] font-bold text-slate-500 uppercase">{cand.department || 'SCIENCE'}</span>
-                                    </p>
-                                    {getSchoolName(cand.schoolId) && (
-                                      <div className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60 text-[10px] font-bold">
-                                        <Building2 className="w-3 h-3 text-indigo-600 shrink-0" />
-                                        <span className="truncate max-w-[130px]">{getSchoolName(cand.schoolId)}</span>
-                                      </div>
-                                    )}
+                                    <div className="text-xs font-semibold text-slate-500 truncate mt-0.5">
+                                      {cand.roleApplied || 'General Faculty'}
+                                    </div>
                                   </div>
+                                </div>
+
+                                {/* Explicit Actions: Edit and Delete */}
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => {
+                                      setEditingCand(cand)
+                                      setCandForm({
+                                        name: cand.name || '',
+                                        contactEmail: cand.contactEmail || '',
+                                        contactPhone: cand.contactPhone || '',
+                                        qualification: cand.qualification || '',
+                                        resumeLink: cand.resumeLink || '',
+                                        yearsOfExperience: cand.yearsOfExperience || '3',
+                                        currentOrganization: cand.currentOrganization || '',
+                                        specialization: cand.specialization || '',
+                                        expectedSalary: cand.expectedSalary || '',
+                                        appliedDate: cand.appliedDate || '',
+                                        workflowStatus: cand.workflowStatus === 'Requirement' ? 'Applied' : (cand.workflowStatus || 'Applied'),
+                                        roleApplied: cand.roleApplied || '',
+                                        department: cand.department || 'SCIENCE',
+                                        requirementId: cand.requirementId || '',
+                                        schoolId: cand.schoolId || ''
+                                      })
+                                      setShowCandModal(true)
+                                    }}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                    title="Edit Candidate"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => setCandidateToDelete(cand)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    title="Delete Candidate"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 </div>
                               </div>
 
-                              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-600">
+                              {/* Department & School tags */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {cand.department && (
+                                  <span className="inline-block px-2 py-0.5 bg-slate-100 border border-slate-200/80 rounded-md text-[10px] font-extrabold text-slate-600 uppercase tracking-wide">
+                                    {cand.department}
+                                  </span>
+                                )}
+                                {getSchoolName(cand.schoolId) && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60 text-[10px] font-bold">
+                                    <Building2 className="w-3 h-3 text-indigo-600 shrink-0" />
+                                    <span className="truncate max-w-[140px]">{getSchoolName(cand.schoolId)}</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Exp & Expected Salary Row */}
+                              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-semibold">
                                 <span className="flex items-center gap-1 text-slate-500">
                                   <Clock className="w-3.5 h-3.5 text-slate-400" />
                                   {cand.yearsOfExperience} yrs exp
                                 </span>
                                 {cand.expectedSalary && (
-                                  <span className="font-bold text-slate-700">
-                                    {cand.expectedSalary.replace(/\$/g, '₹')}
+                                  <span className="font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200/60 shadow-2xs">
+                                    {formatSalaryDisplay(cand.expectedSalary)}
                                   </span>
                                 )}
                               </div>
 
-                              {/* Stage shifter */}
-                              <div className="mt-3 pt-2 border-t border-slate-100 flex flex-col gap-1">
+                              {/* Stage Dropdown Selector */}
+                              <div className="pt-1">
                                 <div className="relative w-full">
                                   <select
                                     value={cand.workflowStatus === 'Requirement' ? 'Applied' : (cand.workflowStatus || 'Applied')}
-                                    onChange={e => {
-                                      if (e.target.value === 'DELETE_CANDIDATE') {
-                                        setCandidateToDelete(cand)
-                                      } else {
-                                        handleUpdateCandidateStatus(cand, e.target.value)
-                                      }
-                                    }}
-                                    className="w-full text-[10px] font-bold bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg pl-2 pr-6 py-1 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer appearance-none transition-all"
+                                    onChange={e => handleUpdateCandidateStatus(cand, e.target.value)}
+                                    className="w-full text-xs font-bold bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl pl-3 pr-8 py-1.5 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer appearance-none transition-all"
                                   >
                                     {stages.map(s => (
                                       <option key={s} value={s}>{s}</option>
                                     ))}
-                                    <option value="DELETE_CANDIDATE" className="text-red-600 font-bold">🗑 Delete Candidate</option>
                                   </select>
-                                  <ChevronDown className="w-3 h-3 text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                  <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                                 </div>
                               </div>
                             </div>
@@ -1008,7 +1059,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                               <div className="text-xs font-medium text-slate-500 mt-0.5">{cand.currentOrganization || 'N/A'}</div>
                             </td>
                             <td className="p-4 font-extrabold text-slate-900">
-                              {cand.expectedSalary ? cand.expectedSalary.replace(/\$/g, '₹') : 'Negotiable'}
+                              {cand.expectedSalary ? formatSalaryDisplay(cand.expectedSalary) : 'Negotiable'}
                             </td>
                             <td className="p-4">
                               {cand.resumeLink ? (
