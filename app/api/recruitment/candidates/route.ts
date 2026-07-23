@@ -115,6 +115,12 @@ export async function PATCH(req: Request) {
     if ('schoolId' in updates) {
       updates.schoolId = updates.schoolId ? updates.schoolId : null
     }
+    if ('requirementId' in updates) {
+      updates.requirementId = updates.requirementId ? updates.requirementId : null
+    }
+    if ('appliedDate' in updates && !updates.appliedDate) {
+      delete updates.appliedDate
+    }
 
     const [updatedCand] = await db.update(recruitmentCandidates).set({
       ...updates,
