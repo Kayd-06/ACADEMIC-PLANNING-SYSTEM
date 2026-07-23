@@ -595,7 +595,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 overflow-x-auto pb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 overflow-x-auto pb-4">
                 {stages.map(stage => {
                   const stageCandidates = candidates.filter(c => {
                     const candStatus = c.workflowStatus?.toLowerCase() === 'requirement' ? 'applied' : (c.workflowStatus || 'Applied').toLowerCase()
