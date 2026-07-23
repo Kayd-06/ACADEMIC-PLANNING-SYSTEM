@@ -146,6 +146,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const data = pickFields(body)
     if (!data.name) return NextResponse.json({ error: 'Batch name is required' }, { status: 400 })
+    if (!data.startDate) return NextResponse.json({ error: 'Start date is required' }, { status: 400 })
+    if (data.endDate && data.endDate < data.startDate) {
+      return NextResponse.json({ error: 'End date cannot be before start date' }, { status: 400 })
+    }
     if (data.classLevel && !CLASS_LEVELS.includes(data.classLevel)) {
       return NextResponse.json({ error: 'Class level must be 9, 10, 11, 12 or Dropper' }, { status: 400 })
     }
@@ -192,6 +196,12 @@ export async function PATCH(req: NextRequest) {
     const data = pickFields(body)
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
+    const effectiveStartDate = data.startDate !== undefined ? data.startDate : existing.startDate
+    const effectiveEndDate = data.endDate !== undefined ? data.endDate : existing.endDate
+    if (!effectiveStartDate) return NextResponse.json({ error: 'Start date is required' }, { status: 400 })
+    if (effectiveEndDate && effectiveEndDate < effectiveStartDate) {
+      return NextResponse.json({ error: 'End date cannot be before start date' }, { status: 400 })
     }
     if (data.classLevel && !CLASS_LEVELS.includes(data.classLevel)) {
       return NextResponse.json({ error: 'Class level must be 9, 10, 11, 12 or Dropper' }, { status: 400 })

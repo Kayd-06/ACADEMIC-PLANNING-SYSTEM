@@ -53,12 +53,12 @@ function BatchFormModal({ initial, isEdit, programs, teachers, saving, error, on
               <input type="number" min={1} value={form.capacity} onChange={set('capacity')} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Start Date</label>
-              <input type="date" value={form.startDate} onChange={set('startDate')} className={inputClass} />
+              <label className={labelClass}>Start Date *</label>
+              <input type="date" required value={form.startDate} onChange={set('startDate')} className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>End Date</label>
-              <input type="date" value={form.endDate} onChange={set('endDate')} className={inputClass} />
+              <input type="date" min={form.startDate || undefined} value={form.endDate} onChange={set('endDate')} className={inputClass} />
             </div>
           </div>
 
@@ -129,6 +129,8 @@ export default function BatchesTab({ programFilter, onClearProgramFilter }: {
 
   async function saveBatch(form: typeof EMPTY_FORM) {
     if (!form.name.trim()) { setError('Batch name is required.'); return }
+    if (!form.startDate.trim()) { setError('Start date is required.'); return }
+    if (form.endDate && form.endDate < form.startDate) { setError('End date cannot be before start date.'); return }
     setSaving(true)
     setError('')
     try {
