@@ -22,7 +22,7 @@ const STUDENT_FIELDS = [
   'name', 'admissionNumber', 'aadharNumber', 'rollNo',
   'email', 'phone', 'addressLine1', 'city', 'state', 'pincode',
   'dob', 'gender', 'bloodGroup', 'profileImgUrl',
-  'previousSchool', 'previousPercentage', 'class', 'section', 'program', 'batch', 'parentContact',
+  'previousSchool', 'previousPercentage', 'class', 'program', 'batch', 'parentContact',
   'admissionDate', 'status', 'notes', 'isActive',
 ] as const
 
@@ -52,12 +52,10 @@ export async function GET(req: NextRequest) {
     const schoolId = (session.user as any).schoolId as string | null
     const { searchParams } = new URL(req.url)
     const classFilter = searchParams.get('class')
-    const sectionFilter = searchParams.get('section')
     const activeOnly = searchParams.get('activeOnly') !== 'false'
 
     const filters: ListStudentsFilters = { activeOnly, schoolId }
     if (classFilter) filters.class = classFilter
-    if (sectionFilter) filters.section = sectionFilter
 
     const rows = await listStudents(filters)
     return NextResponse.json(rows.map(toApiShape))
@@ -91,7 +89,6 @@ export async function POST(req: NextRequest) {
       name: data.name,
       rollNo: data.rollNo ?? '',
       class: data.class ?? '',
-      section: data.section ?? '',
       program: data.program ?? '',
       batch: data.batch ?? '',
       schoolId,
@@ -99,7 +96,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(toApiShape(student), { status: 201 })
   } catch (error: any) {
     if (error.code === '23505' || error.cause?.code === '23505') {
-      return NextResponse.json({ error: 'A student with that roll number already exists in this class and section.' }, { status: 409 })
+      return NextResponse.json({ error: 'A student with that roll number already exists in this class.' }, { status: 409 })
     }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

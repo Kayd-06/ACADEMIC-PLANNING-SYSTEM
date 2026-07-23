@@ -17,7 +17,6 @@ export const dynamic = 'force-dynamic'
 interface BulkDefaults {
   program?: string
   batch?: string
-  section?: string
 }
 
 interface FieldError {
@@ -95,7 +94,6 @@ export async function POST(req: NextRequest) {
         const name = s.name.trim()
         const rollNo = s.rollNo?.trim() || ''
         const cls = s.class?.trim() || ''
-        const section = resolveField(s.section?.trim() || '', defaults?.section)
         const program = resolveField(s.program?.trim() || '', defaults?.program)
         const batch = resolveField(s.batch?.trim() || '', defaults?.batch)
         const parentContact = s.parentContact?.trim() || ''
@@ -119,7 +117,7 @@ export async function POST(req: NextRequest) {
         }
 
         const data: NewStudent = {
-          name, rollNo, class: cls, section, program, batch, parentContact,
+          name, rollNo, class: cls, program, batch, parentContact,
           status, isActive: status.toLowerCase() !== 'inactive',
           schoolId,
         }
@@ -129,14 +127,14 @@ export async function POST(req: NextRequest) {
         }
 
         // Match on the most reliable key available, falling back progressively:
-        // rollNo+class+section, then admission number, then name+class+section,
+        // rollNo+class, then admission number, then name+class,
         // then a plain insert (name-only rows are always added fresh).
         let student: Student
-        if (rollNo && cls && section) {
+        if (rollNo && cls) {
           student = await upsertStudentByRollClassSection(data)
         } else if (data.admissionNumber) {
           student = await upsertStudentByAdmissionNumber(data)
-        } else if (cls && section) {
+        } else if (cls) {
           student = await upsertStudentByNameClassSection(data)
         } else {
           student = await createStudent(data)

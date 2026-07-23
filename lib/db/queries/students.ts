@@ -4,7 +4,6 @@ import { students, type Student, type NewStudent } from '../schema'
 
 export interface ListStudentsFilters {
   class?: string
-  section?: string
   activeOnly?: boolean
   schoolId?: string | null
 }
@@ -13,17 +12,16 @@ export async function listStudents(filters: ListStudentsFilters = {}): Promise<S
   const conditions: any[] = []
   if (filters.activeOnly !== false) conditions.push(eq(students.isActive, true))
   if (filters.class) conditions.push(eq(students.class, filters.class))
-  if (filters.section) conditions.push(eq(students.section, filters.section))
   if (filters.schoolId) conditions.push(eq(students.schoolId, filters.schoolId))
 
   if (conditions.length === 0) {
-    return db.select().from(students).orderBy(students.class, students.section, students.rollNo)
+    return db.select().from(students).orderBy(students.class, students.rollNo)
   }
   return db
     .select()
     .from(students)
     .where(and(...conditions))
-    .orderBy(students.class, students.section, students.rollNo)
+    .orderBy(students.class, students.rollNo)
 }
 
 export async function findStudentsByClasses(classes: string[], activeOnly = true, schoolId?: string | null): Promise<Student[]> {
@@ -79,7 +77,6 @@ export async function upsertStudentByRollClassSection(data: NewStudent): Promise
   const conditions: any[] = [
     eq(students.rollNo, data.rollNo ?? ''),
     eq(students.class, data.class ?? ''),
-    eq(students.section, data.section ?? ''),
   ]
   if (data.schoolId) conditions.push(eq(students.schoolId, data.schoolId))
 
@@ -118,7 +115,6 @@ export async function upsertStudentByNameClassSection(data: NewStudent): Promise
   const conditions: any[] = [
     eq(students.name, data.name),
     eq(students.class, data.class ?? ''),
-    eq(students.section, data.section ?? ''),
   ]
   if (data.schoolId) conditions.push(eq(students.schoolId, data.schoolId))
 

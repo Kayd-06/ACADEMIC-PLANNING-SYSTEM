@@ -24,8 +24,9 @@ export async function GET(req: NextRequest) {
     const subjectParam = url.searchParams.get('subject') || undefined
     const termParam = url.searchParams.get('term') || undefined
     const teacherId = session.user.role === 'teacher' ? session.user.id : undefined
+    const schoolId = (session.user as any).schoolId as string | undefined
 
-    const filters = { teacherId, class: classParam, subject: subjectParam, term: termParam }
+    const filters = { schoolId, teacherId, class: classParam, subject: subjectParam, term: termParam }
 
     const [reports, dashboard] = await Promise.all([listReports(filters), getDashboardData(filters)])
 

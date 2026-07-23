@@ -84,6 +84,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
   
   const [showCandModal, setShowCandModal] = useState(false)
   const [editingCand, setEditingCand] = useState<any>(null)
+  const [candidateToDelete, setCandidateToDelete] = useState<any>(null)
 
   const [showIntModal, setShowIntModal] = useState(false)
   const [editingInt, setEditingInt] = useState<any>(null)
@@ -270,10 +271,10 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
   }
 
   const handleDeleteCandidate = async (id: string) => {
-    if (!confirm('Are you sure you want to remove this candidate profile?')) return
     try {
       await fetch(`/api/recruitment/candidates?id=${id}`, { method: 'DELETE' })
       fetchAllData()
+      setCandidateToDelete(null)
     } catch (err) {
       console.error(err)
     }
@@ -648,6 +649,13 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                                     )}
                                   </div>
                                 </div>
+                                <button
+                                  onClick={() => setCandidateToDelete(cand)}
+                                  className="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors shrink-0"
+                                  title="Delete Candidate"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
 
                               <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-600">
@@ -657,7 +665,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                                 </span>
                                 {cand.expectedSalary && (
                                   <span className="font-bold text-slate-700">
-                                    {cand.expectedSalary}
+                                    {cand.expectedSalary.replace(/\$/g, '₹')}
                                   </span>
                                 )}
                               </div>
@@ -989,7 +997,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                               <div className="text-xs font-medium text-slate-500 mt-0.5">{cand.currentOrganization || 'N/A'}</div>
                             </td>
                             <td className="p-4 font-extrabold text-slate-900">
-                              {cand.expectedSalary || 'Negotiable'}
+                              {cand.expectedSalary ? cand.expectedSalary.replace(/\$/g, '₹') : 'Negotiable'}
                             </td>
                             <td className="p-4">
                               {cand.resumeLink ? (
@@ -1049,7 +1057,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                                   <Edit className="w-4 h-4" />
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteCandidate(cand.id || cand._id)}
+                                  onClick={() => setCandidateToDelete(cand)}
                                   className="p-1.5 rounded-lg hover:bg-red-50 text-slate-700 hover:text-red-600 transition-colors"
                                   title="Delete Profile"
                                 >
@@ -1777,7 +1785,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                       type="text"
                       value={candForm.expectedSalary}
                       onChange={e => setCandForm({ ...candForm, expectedSalary: e.target.value })}
-                      placeholder="$75,000 / yr"
+                      placeholder="₹75,000 / yr"
                       className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>
@@ -2303,6 +2311,41 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Delete Candidate Confirmation Modal */}
+      <AnimatePresence>
+        {candidateToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl border border-slate-200 text-center space-y-4"
+            >
+              <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">Delete Candidate?</h3>
+              <p className="text-sm font-medium text-slate-500">
+                Are you sure you want to permanently remove <span className="text-slate-800 font-bold">{candidateToDelete.name}</span> from the system? This action cannot be undone.
+              </p>
+              <div className="flex justify-center gap-3 pt-4">
+                <button
+                  onClick={() => setCandidateToDelete(null)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm font-semibold cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteCandidate(candidateToDelete.id || candidateToDelete._id)}
+                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold shadow-md cursor-pointer transition-all transform active:scale-95"
+                >
+                  Yes, Delete Candidate
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

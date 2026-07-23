@@ -25,7 +25,6 @@ interface StudentFormValues {
   previousSchool: string
   previousPercentage: string
   class: string
-  section: string
   program: string
   batch: string
   // Status & Metadata
@@ -38,7 +37,7 @@ const EMPTY_FORM: StudentFormValues = {
   name: '', admissionNumber: '', aadharNumber: '', rollNo: '',
   email: '', phone: '', parentContact: '', addressLine1: '', city: '', state: '', pincode: '',
   dob: '', gender: '', bloodGroup: '', profileImgUrl: '',
-  previousSchool: '', previousPercentage: '', class: '', section: '', program: '', batch: '',
+  previousSchool: '', previousPercentage: '', class: '', program: '', batch: '',
   admissionDate: '', status: 'active', notes: '',
 }
 
@@ -82,7 +81,6 @@ function valuesFromStudent(student: any): StudentFormValues {
     previousSchool: clean(student.previousSchool),
     previousPercentage: clean(student.previousPercentage),
     class: clean(student.rawClass ?? student.class),
-    section: clean(student.rawSection ?? student.section),
     program: clean(student.program),
     batch: clean(student.batch),
     admissionDate: clean(student.admissionDate),
@@ -288,10 +286,6 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
               <div>
                 <label className={labelClass}>Current Class</label>
                 <input value={form.class} onChange={set('class')} className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>Section</label>
-                <input value={form.section} onChange={set('section')} className={inputClass} />
               </div>
               <div>
                 <label className={labelClass}>Program</label>

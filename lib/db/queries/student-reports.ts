@@ -18,6 +18,7 @@ export interface ReportEntryInput {
 }
 
 export interface CreateReportInput {
+  schoolId?: string
   teacherId: string
   teacherName: string
   className: string
@@ -31,6 +32,7 @@ export interface ReportWithEntries extends StudentReport {
 }
 
 export interface ListReportsFilters {
+  schoolId?: string
   teacherId?: string
   class?: string
   subject?: string
@@ -45,6 +47,7 @@ export async function createReport(data: CreateReportInput): Promise<ReportWithE
   const [report] = await db
     .insert(studentReports)
     .values({
+      schoolId: data.schoolId || null,
       teacherId: data.teacherId,
       teacherName: data.teacherName,
       className: data.className,
@@ -78,6 +81,7 @@ export async function createReport(data: CreateReportInput): Promise<ReportWithE
 
 export async function listReports(filters: ListReportsFilters = {}): Promise<StudentReportSummary[]> {
   const conditions = []
+  if (filters.schoolId) conditions.push(eq(studentReports.schoolId, filters.schoolId))
   if (filters.teacherId) conditions.push(eq(studentReports.teacherId, filters.teacherId))
   if (filters.class) conditions.push(eq(studentReports.className, filters.class))
   if (filters.subject) conditions.push(eq(studentReports.subject, filters.subject))
@@ -124,6 +128,7 @@ export async function getReportById(id: string): Promise<ReportWithEntries | nul
 }
 
 export interface DashboardFilters {
+  schoolId?: string
   teacherId?: string
   class?: string
   subject?: string
@@ -171,6 +176,7 @@ interface ScopedEntryRow {
 
 async function getScopedEntries(filters: DashboardFilters): Promise<ScopedEntryRow[]> {
   const conditions = []
+  if (filters.schoolId) conditions.push(eq(studentReports.schoolId, filters.schoolId))
   if (filters.teacherId) conditions.push(eq(studentReports.teacherId, filters.teacherId))
   if (filters.class) conditions.push(eq(studentReports.className, filters.class))
   if (filters.subject) conditions.push(eq(studentReports.subject, filters.subject))
@@ -255,6 +261,7 @@ export async function getDashboardData(filters: DashboardFilters = {}): Promise<
     .filter((s) => s.avgPercent < 65)
 
   const scopeConditions = []
+  if (filters.schoolId) scopeConditions.push(eq(studentReports.schoolId, filters.schoolId))
   if (filters.teacherId) scopeConditions.push(eq(studentReports.teacherId, filters.teacherId))
   const distinctValuesQuery = db
     .select({ className: studentReports.className, subject: studentReports.subject, term: studentReports.term })

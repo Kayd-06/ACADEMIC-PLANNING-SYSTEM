@@ -250,7 +250,7 @@ export default function StudentRosterView() {
                   <tr className="bg-slate-50/50">
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Roll No</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Student Name</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Class & Sec</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Class</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Program</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Batch</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Contact</th>

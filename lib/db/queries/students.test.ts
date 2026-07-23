@@ -53,18 +53,18 @@ describe('students queries', () => {
 
   it('listStudents defaults to active-only and sorts by class/section/rollNo', async () => {
     await createStudent({ name: 'Inactive One', isActive: false })
-    await createStudent({ name: 'Active One', class: '11 - A', section: 'A', rollNo: '002' })
-    await createStudent({ name: 'Active Two', class: '11 - A', section: 'A', rollNo: '001' })
+    await createStudent({ name: 'Active One', class: '11 - A', rollNo: '002' })
+    await createStudent({ name: 'Active Two', class: '11 - A', rollNo: '001' })
 
     const result = await listStudents()
     expect(result.map((s) => s.name)).toEqual(['Active Two', 'Active One'])
   })
 
-  it('listStudents can filter by class and section', async () => {
-    await createStudent({ name: 'In Class', class: '10 - B', section: 'B' })
-    await createStudent({ name: 'Other Class', class: '11 - A', section: 'A' })
+  it('listStudents can filter by class', async () => {
+    await createStudent({ name: 'In Class', class: '10 - B' })
+    await createStudent({ name: 'Other Class', class: '11 - A' })
 
-    const result = await listStudents({ class: '10 - B', section: 'B' })
+    const result = await listStudents({ class: '10 - B' })
     expect(result.map((s) => s.name)).toEqual(['In Class'])
   })
 
@@ -114,16 +114,15 @@ describe('students queries', () => {
       name: 'New Upsert',
       rollNo: '11A-001',
       class: '11 - A',
-      section: 'A',
     })
     expect(result.name).toBe('New Upsert')
   })
 
   it('upsertStudentByRollClassSection updates the existing row on a second call', async () => {
-    await upsertStudentByRollClassSection({ name: 'First Name', rollNo: '11A-002', class: '11 - A', section: 'A' })
-    const updated = await upsertStudentByRollClassSection({ name: 'Updated Name', rollNo: '11A-002', class: '11 - A', section: 'A' })
+    await upsertStudentByRollClassSection({ name: 'First Name', rollNo: '11A-002', class: '11 - A' })
+    const updated = await upsertStudentByRollClassSection({ name: 'Updated Name', rollNo: '11A-002', class: '11 - A' })
 
-    const all = await listStudents({ activeOnly: false, class: '11 - A', section: 'A' })
+    const all = await listStudents({ activeOnly: false, class: '11 - A' })
     expect(all).toHaveLength(1)
     expect(updated.name).toBe('Updated Name')
   })

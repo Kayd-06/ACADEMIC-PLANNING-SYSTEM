@@ -43,8 +43,7 @@ export async function GET(req: Request) {
     students.sort((a, b) => {
       const classCompare = (a.class || '').localeCompare(b.class || '')
       if (classCompare !== 0) return classCompare
-      const sectionCompare = (a.section || '').localeCompare(b.section || '')
-      if (sectionCompare !== 0) return sectionCompare
+
       return a.name.localeCompare(b.name)
     })
 
@@ -60,9 +59,8 @@ export async function GET(req: Request) {
         _id: s.id,
         roll: s.rollNo || 'N/A',
         name: s.name,
-        class: `${s.class || 'N/A'} - ${s.section || 'N/A'}`,
+        class: s.class || 'N/A',
         rawClass: s.class || '',
-        rawSection: s.section || '',
         program: s.program || 'Unassigned',
         batch: s.batch || 'Unassigned',
         batchTheme: 'blue', // defaults

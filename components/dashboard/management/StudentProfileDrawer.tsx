@@ -383,7 +383,7 @@ export default function StudentProfileDrawer({ studentRow, onClose, onEdit, onDe
                 <div className="grid grid-cols-2 gap-y-4 gap-x-4">
                   <Field label="Previous School" value={s.previousSchool} />
                   <Field label="Previous Percentage" value={s.previousPercentage} />
-                  <Field label="Current Class" value={`${s.class || '—'}${s.section ? ` - ${s.section}` : ''}`} />
+                  <Field label="Current Class" value={s.class || '—'} />
                   <Field label="Program" value={s.program} />
                 </div>
               </div>

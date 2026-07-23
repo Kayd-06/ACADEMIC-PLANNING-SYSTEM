@@ -21,7 +21,7 @@ export async function GET() {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const summaries = await listReports({ teacherId: session.user.id })
+    const summaries = await listReports({ schoolId: (session.user as any).schoolId, teacherId: session.user.id })
     const detailed = await Promise.all(summaries.map((s) => getReportById(s.id)))
 
     const formatted = summaries.map((s, idx) => {
@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
     }
 
     const report = await createReport({
+      schoolId: (session.user as any).schoolId,
       teacherId: session.user.id,
       teacherName: session.user.name ?? 'Faculty',
       className,

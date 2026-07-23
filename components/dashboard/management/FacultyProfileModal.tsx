@@ -76,6 +76,7 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
 
   async function addBatch() {
     if (!newBatch.batchName.trim()) { showToast('Batch name is required'); return }
+    if (batches.some(b => b.batchName.toLowerCase() === newBatch.batchName.trim().toLowerCase())) { showToast('Faculty is already assigned to this batch'); return }
     setSavingBatch(true)
     try {
       const res = await fetch(`/api/teacher-portal/faculty/${teacher.id}/assignments`, {

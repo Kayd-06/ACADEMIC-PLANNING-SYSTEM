@@ -96,6 +96,8 @@ function FacultyFormFields({ form, setForm }: { form: typeof EMPTY_FACULTY_FORM;
         </div>
         <div><label className={fieldLabel}>Qualification</label>
           <input value={form.qualification} onChange={e => setForm({ ...form, qualification: e.target.value })} className={fieldInput} placeholder="M.Sc., B.Ed." /></div>
+        <div><label className={fieldLabel}>Primary Stream</label>
+          <input value={form.primaryStream} onChange={e => setForm({ ...form, primaryStream: e.target.value })} className={fieldInput} placeholder="e.g. Science" /></div>
         <div><label className={fieldLabel}>Experience (Years)</label>
           <input type="number" min="0" value={form.experienceYears} onChange={e => setForm({ ...form, experienceYears: e.target.value, experience: e.target.value ? `${e.target.value} years` : form.experience })} className={fieldInput} /></div>
         <div><label className={fieldLabel}>Joining Date</label>

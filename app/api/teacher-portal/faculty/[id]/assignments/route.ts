@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { faculty, teacherSubjects, teacherBatches, teacherPrograms } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,6 +63,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (body.role && !BATCH_ROLES.includes(body.role)) {
       return NextResponse.json({ error: `role must be one of: ${BATCH_ROLES.join(', ')}` }, { status: 400 })
     }
+
+    const existing = await db.select().from(teacherBatches).where(
+      and(eq(teacherBatches.teacherId, g.id), eq(teacherBatches.batchName, body.batchName.trim()))
+    )
+    if (existing.length > 0) return NextResponse.json({ error: 'Batch already assigned' }, { status: 400 })
+
     const [row] = await db.insert(teacherBatches).values({
       teacherId: g.id,
       batchName: body.batchName.trim(),
@@ -70,6 +76,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       role: body.role || 'primary',
       assignedAt: body.assignedAt || new Date().toISOString().split('T')[0],
     }).returning()
+
+    // Auto-increment batches count
+    await db.update(faculty)
+      .set({ batches: sql`COALESCE(${faculty.batches}, 0) + 1` })
+      .where(eq(faculty.id, g.id))
+
     return NextResponse.json(row, { status: 201 })
   }
   if (body.type === 'program') {
@@ -96,7 +108,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (type === 'subject') {
     await db.delete(teacherSubjects).where(and(eq(teacherSubjects.id, assignmentId), eq(teacherSubjects.teacherId, g.id)))
   } else if (type === 'batch') {
-    await db.delete(teacherBatches).where(and(eq(teacherBatches.id, assignmentId), eq(teacherBatches.teacherId, g.id)))
+    const deleted = await db.delete(teacherBatches).where(and(eq(teacherBatches.id, assignmentId), eq(teacherBatches.teacherId, g.id))).returning()
+    if (deleted.length > 0) {
+      // Auto-decrement batches count
+      await db.update(faculty)
+        .set({ batches: sql`CASE WHEN COALESCE(${faculty.batches}, 0) > 0 THEN COALESCE(${faculty.batches}, 0) - 1 ELSE 0 END` })
+        .where(eq(faculty.id, g.id))
+    }
   } else if (type === 'program') {
     await db.delete(teacherPrograms).where(and(eq(teacherPrograms.id, assignmentId), eq(teacherPrograms.teacherId, g.id)))
   } else {

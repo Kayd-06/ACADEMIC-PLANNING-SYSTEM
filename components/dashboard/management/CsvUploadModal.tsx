@@ -23,7 +23,6 @@ interface ParsedRow {
   previousSchool: string
   previousPercentage: string
   class: string
-  section: string
   program: string
   batch: string
   admissionDate: string
@@ -226,7 +225,6 @@ export default function CsvUploadModal({ students, defaultBatch, defaultProgram,
               previousSchool: get(['previousschool']),
               previousPercentage: get(['previouspercentage']),
               class: get(['class', 'grade', 'classname']),
-              section: get(['section', 'div', 'division']),
               program: get(['program']),
               batch: get(['batch']),
               admissionDate: get(['admissiondateyyyymmdd', 'admissiondate']),
