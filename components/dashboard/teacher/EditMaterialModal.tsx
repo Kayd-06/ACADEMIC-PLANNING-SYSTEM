@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Pencil, BookOpen } from 'lucide-react'
+import { X, Pencil, BookOpen, Upload, FileText } from 'lucide-react'
 
 interface EditMaterialModalProps {
   isOpen: boolean
@@ -14,6 +14,8 @@ interface EditMaterialModalProps {
     subject: string
     type: string
     count: number
+    fileUrl?: string
+    fileName?: string
   } | null
 }
 
@@ -25,15 +27,18 @@ export default function EditMaterialModal({ isOpen, onClose, onSuccess, material
     type: 'PDFs',
     count: 1
   })
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (material) {
       setFormData({
-        provider: material.provider,
-        subject: material.subject,
-        type: material.type,
-        count: material.count
+        provider: material.provider || '',
+        subject: material.subject || '',
+        type: material.type || 'PDFs',
+        count: material.count || 1
       })
+      setSelectedFile(null)
     }
   }, [material])
 
@@ -43,12 +48,32 @@ export default function EditMaterialModal({ isOpen, onClose, onSuccess, material
     setLoading(true)
     try {
       const id = material._id || material.id
+      let fileUrl = material.fileUrl
+      let fileName = material.fileName
+      let fileSize: number | undefined
+
+      if (selectedFile) {
+        const fd = new FormData()
+        fd.append('file', selectedFile)
+        fd.append('folder', 'materials')
+        const uploadRes = await fetch('/api/blob/upload', { method: 'POST', body: fd })
+        const uploadData = await uploadRes.json()
+        if (uploadRes.ok && uploadData.url) {
+          fileUrl = uploadData.url
+          fileName = selectedFile.name
+          fileSize = Math.round(selectedFile.size / 1024)
+        }
+      }
+
       const res = await fetch('/api/teacher-portal/materials', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id,
-          ...formData
+          ...formData,
+          fileUrl,
+          fileName,
+          fileSize
         })
       })
       if (res.ok) {
@@ -141,6 +166,34 @@ export default function EditMaterialModal({ isOpen, onClose, onSuccess, material
                   <option value="Daily Practice">Daily Practice Papers (DPPS)</option>
                   <option value="Video Lectures">Video Lectures</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Replace File / Document (Optional)</label>
+                {material.fileName && !selectedFile && (
+                  <div className="mb-2 p-3 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-between text-xs font-semibold text-gray-700">
+                    <div className="flex items-center gap-2 truncate">
+                      <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span className="truncate">Current: {material.fileName}</span>
+                    </div>
+                  </div>
+                )}
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex flex-col items-center justify-center p-4 border-2 border-dashed border-indigo-200 bg-indigo-50/20 rounded-2xl cursor-pointer hover:bg-indigo-50 transition-all"
+                >
+                  <Upload className="w-5 h-5 text-indigo-600 mb-1" />
+                  <p className="text-xs font-bold text-gray-700">
+                    {selectedFile ? selectedFile.name : 'Click to browse or replace file'}
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Supports PDF, DOCX, ZIP, MP4 (Max 50MB)</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+                  />
+                </div>
               </div>
 
               <div className="pt-4 flex gap-3">

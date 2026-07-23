@@ -30,7 +30,8 @@ import {
   Video,
   GraduationCap,
   Sparkles,
-  ClipboardList
+  ClipboardList,
+  Upload
 } from 'lucide-react'
 
 // Animation variants
@@ -132,6 +133,8 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
   const [editMatBatch, setEditMatBatch] = useState('')
   const [editMatType, setEditMatType] = useState('PDF')
   const [editMatIsPublic, setEditMatIsPublic] = useState(true)
+  const [editMatFile, setEditMatFile] = useState<File | null>(null)
+  const [editMatFileUrl, setEditMatFileUrl] = useState<string>('')
 
   // Grading Form states
   const [gradingMarks, setGradingMarks] = useState<Record<string, string>>({})
@@ -140,6 +143,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
 
   const asgFileRef = useRef<HTMLInputElement>(null)
   const matFileRef = useRef<HTMLInputElement>(null)
+  const editMatFileRef = useRef<HTMLInputElement>(null)
 
   // Custom Delete Confirmation State
   const [asgToDelete, setAsgToDelete] = useState<string | null>(null)
@@ -520,6 +524,8 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
     setEditMatBatch(mat.batchId || '')
     setEditMatType(mat.type || 'PDF')
     setEditMatIsPublic(mat.isPublic !== false)
+    setEditMatFile(null)
+    setEditMatFileUrl(mat.fileUrl || '')
     setShowEditMaterialModal(true)
   }
 
@@ -528,11 +534,28 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
     if (!selectedMaterial) return
     setSubmitting(true)
     try {
+      let fileUrl = editMatFileUrl
+      let fileName = selectedMaterial.fileName
+      let fileSize = selectedMaterial.fileSize
+
+      if (editMatFile) {
+        const fd = new FormData()
+        fd.append('file', editMatFile)
+        fd.append('folder', 'materials')
+        const uploadRes = await fetch('/api/blob/upload', { method: 'POST', body: fd })
+        const uploadData = await uploadRes.json()
+        if (uploadRes.ok && uploadData.url) {
+          fileUrl = uploadData.url
+          fileName = editMatFile.name
+          fileSize = Math.round(editMatFile.size / 1024)
+        }
+      }
+
       const res = await fetch('/api/teacher-portal/materials', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: selectedMaterial.id,
+          id: selectedMaterial.id || selectedMaterial._id,
           title: editMatTitle,
           description: editMatDescription,
           provider: editMatProvider,
@@ -541,7 +564,10 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
           programId: editMatProgram,
           batchId: editMatBatch,
           type: editMatType,
-          isPublic: editMatIsPublic
+          isPublic: editMatIsPublic,
+          fileUrl,
+          fileName,
+          fileSize
         })
       })
 
@@ -549,6 +575,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
         showAlert({ title: 'Success', message: 'Study material updated successfully.', type: 'success' })
         setShowEditMaterialModal(false)
         setSelectedMaterial(null)
+        setEditMatFile(null)
         fetchMaterials()
       } else {
         showAlert({ title: 'Error', message: 'Failed to update study material.', type: 'warning' })
@@ -1720,7 +1747,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
             >
               <div className="px-6 py-4 border-b border-gray-150 flex items-center justify-between bg-gray-50/50">
                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-emerald-650" /> Upload Study Material
+                  <BookOpen className="w-5 h-5 text-emerald-600" /> Upload Study Material
                 </h2>
                 <button onClick={() => setShowUploadMaterialModal(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer border-none bg-transparent">
                   <X className="w-5 h-5 text-gray-400" />
@@ -1890,7 +1917,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
             >
               <div className="px-6 py-4 border-b border-gray-150 flex items-center justify-between bg-gray-50/50">
                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <Pencil className="w-5 h-5 text-indigo-650" /> Edit Study Material
+                  <Pencil className="w-5 h-5 text-indigo-600" /> Edit Study Material
                 </h2>
                 <button onClick={() => setShowEditMaterialModal(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer border-none bg-transparent">
                   <X className="w-5 h-5 text-gray-400" />
@@ -1995,6 +2022,45 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
                       Is Public / Visible to all
                     </label>
                   </div>
+
+                  {/* File Upload Section in Edit Modal */}
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">
+                      Upload File / Replace Document (Optional)
+                    </label>
+                    {editMatFileUrl && !editMatFile && (
+                      <div className="mb-2 p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-700">
+                        <div className="flex items-center gap-2 truncate">
+                          <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <span className="truncate">Current: {selectedMaterial?.fileName || 'Attached Document'}</span>
+                        </div>
+                        <a
+                          href={getBlobUrl(editMatFileUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-600 hover:underline font-bold text-xs shrink-0"
+                        >
+                          View Current
+                        </a>
+                      </div>
+                    )}
+                    <div
+                      onClick={() => editMatFileRef.current?.click()}
+                      className="border border-dashed border-indigo-200 bg-indigo-50/20 p-4 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-indigo-50/40 transition-colors"
+                    >
+                      <Upload className="w-5 h-5 text-indigo-600" />
+                      <span className="text-xs text-slate-700 font-bold">
+                        {editMatFile ? editMatFile.name : 'Click to browse or replace document'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">Supports PDF, DOCX, ZIP, MP4 (Max 50MB)</span>
+                      <input
+                        ref={editMatFileRef}
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => setEditMatFile(e.target.files?.[0] || null)}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="pt-4 flex gap-3">
@@ -2008,7 +2074,7 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 py-3 rounded-2xl bg-indigo-650 hover:bg-indigo-700 text-white text-xs font-bold shadow-lg transition-all cursor-pointer disabled:opacity-50 border-none flex items-center justify-center gap-1.5"
+                    className="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-lg shadow-indigo-100/50 transition-all cursor-pointer disabled:opacity-50 border-none flex items-center justify-center gap-1.5"
                   >
                     {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     Save Changes

@@ -87,7 +87,7 @@ export async function PATCH(req: NextRequest) {
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const schoolId = getSchoolId(session)
 
-    const { id, provider, subject, type, title, description, isPublic, batchId, chapterId, programId, subjectId } = await req.json()
+    const { id, provider, subject, type, title, description, isPublic, batchId, chapterId, programId, subjectId, fileUrl, fileName, fileSize } = await req.json()
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
     const updates: any = {}
@@ -101,6 +101,9 @@ export async function PATCH(req: NextRequest) {
     if (chapterId !== undefined) updates.chapterId = chapterId
     if (programId !== undefined) updates.programId = programId
     if (subjectId !== undefined) updates.subjectId = subjectId
+    if (fileUrl !== undefined) updates.fileUrl = fileUrl
+    if (fileName !== undefined) updates.fileName = fileName
+    if (fileSize !== undefined) updates.fileSize = fileSize
 
     const condition = schoolId ? and(eq(studyMaterials.id, id), eq(studyMaterials.schoolId, schoolId)) : eq(studyMaterials.id, id)
     const [updated] = await db.update(studyMaterials).set(updates).where(condition).returning()
