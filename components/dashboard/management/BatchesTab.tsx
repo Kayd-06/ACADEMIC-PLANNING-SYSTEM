@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Plus, Pencil, Trash2, Loader2, Users, GraduationCap, CalendarDays, UserCheck } from 'lucide-react'
+import { X, Plus, Pencil, Trash2, Loader2, Users, GraduationCap, CalendarDays, UserCheck, AlertTriangle } from 'lucide-react'
 
 const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Dropper']
 
@@ -238,6 +238,15 @@ export default function BatchesTab({ programFilter, onClearProgramFilter }: {
                     <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full ${pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-400' : 'bg-indigo-600'}`} style={{ width: `${pct}%` }} />
                     </div>
+                    {pct >= 100 ? (
+                      <p className="flex items-center gap-1.5 text-[11px] font-semibold text-rose-600 mt-2">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> No seats left — create a new batch or increase this batch's capacity.
+                      </p>
+                    ) : pct >= 80 ? (
+                      <p className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-600 mt-2">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Only {b.capacity - b.enrolledCount} seat{b.capacity - b.enrolledCount === 1 ? '' : 's'} left — consider increasing capacity.
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 mt-4">
