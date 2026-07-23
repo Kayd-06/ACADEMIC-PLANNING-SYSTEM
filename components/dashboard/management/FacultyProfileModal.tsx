@@ -33,14 +33,12 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
   // The school's actual programs & batches, for typo-proof dropdowns instead
   // of free-text assignment fields.
   const [programOptions, setProgramOptions] = useState<{ id: string; name: string }[]>([])
-  const [batchOptions, setBatchOptions] = useState<{ id: string; name: string }[]>([])
+  const [batchOptions, setBatchOptions] = useState<{ id: string; name: string; programName: string | null }[]>([])
 
   const [newSubject, setNewSubject] = useState({ subjectName: '', programName: '', isPrimary: true })
   const [newBatch, setNewBatch] = useState({ batchName: '', subjectName: '', role: 'primary' })
-  const [newProgram, setNewProgram] = useState({ programName: '', isPrimary: true })
   const [savingSubject, setSavingSubject] = useState(false)
   const [savingBatch, setSavingBatch] = useState(false)
-  const [savingProgram, setSavingProgram] = useState(false)
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/teacher-portal/faculty/${teacher.id}/assignments`)
@@ -59,7 +57,7 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
       if (Array.isArray(d)) setProgramOptions(d.map((p: any) => ({ id: p._id, name: p.name })))
     }).catch(() => {})
     fetch('/api/batches').then(r => r.ok ? r.json() : []).then(d => {
-      if (Array.isArray(d)) setBatchOptions(d.map((b: any) => ({ id: b._id, name: b.name })))
+      if (Array.isArray(d)) setBatchOptions(d.map((b: any) => ({ id: b._id, name: b.name, programName: b.programName ?? null })))
     }).catch(() => {})
   }, [])
 
@@ -84,22 +82,22 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'batch', ...newBatch }),
       })
-      if (res.ok) { setNewBatch({ batchName: '', subjectName: '', role: 'primary' }); refresh() }
-      else showToast('Failed to assign batch')
-    } finally { setSavingBatch(false) }
-  }
+      if (!res.ok) { showToast('Failed to assign batch'); return }
 
-  async function addProgram() {
-    if (!newProgram.programName.trim()) { showToast('Program name is required'); return }
-    setSavingProgram(true)
-    try {
-      const res = await fetch(`/api/teacher-portal/faculty/${teacher.id}/assignments`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'program', ...newProgram }),
-      })
-      if (res.ok) { setNewProgram({ programName: '', isPrimary: true }); refresh() }
-      else showToast('Failed to assign program')
-    } finally { setSavingProgram(false) }
+      // Auto-assign the program linked to this batch so management doesn't
+      // also have to assign it manually in the Programs section.
+      const linkedProgram = batchOptions.find(b => b.name === newBatch.batchName)?.programName
+      const alreadyAssigned = programs.some(p => p.programName?.toLowerCase() === linkedProgram?.toLowerCase())
+      if (linkedProgram && !alreadyAssigned) {
+        await fetch(`/api/teacher-portal/faculty/${teacher.id}/assignments`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'program', programName: linkedProgram, isPrimary: true }),
+        })
+      }
+
+      setNewBatch({ batchName: '', subjectName: '', role: 'primary' })
+      refresh()
+    } finally { setSavingBatch(false) }
   }
 
   async function removeAssignment(type: 'subject' | 'batch' | 'program', id: string) {
@@ -171,26 +169,14 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
             <h3 className="text-[12px] font-extrabold text-slate-900 uppercase tracking-widest pb-2 border-b border-slate-100 mb-4 flex items-center gap-2">
               <Layers className="w-3.5 h-3.5 text-slate-400" /> Programs Assigned
             </h3>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {programs.length === 0 && <p className="text-xs text-slate-400 italic">No programs assigned — this teacher can see students across every program.</p>}
+            <div className="flex flex-wrap gap-2">
+              {programs.length === 0 && <p className="text-xs text-slate-400 italic">No programs assigned — this teacher can see students across every program. Assigning a batch below will auto-assign its program.</p>}
               {programs.map(p => (
                 <span key={p.id} className={`inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-full text-xs font-bold border ${p.isPrimary ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                   {p.programName}{p.isPrimary ? ' ★' : ''}
                   <button onClick={() => removeAssignment('program', p.id)} className="p-0.5 hover:text-rose-600 rounded-full"><X className="w-3 h-3" /></button>
                 </span>
               ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <select value={newProgram.programName} onChange={e => setNewProgram({ ...newProgram, programName: e.target.value })} className={inputClass + ' w-44'}>
-                <option value="">Select a program…</option>
-                {programOptions.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
-              </select>
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer">
-                <input type="checkbox" checked={newProgram.isPrimary} onChange={e => setNewProgram({ ...newProgram, isPrimary: e.target.checked })} className="accent-purple-600" /> Primary
-              </label>
-              <button onClick={addProgram} disabled={savingProgram} className="flex items-center gap-1 px-3 py-2 bg-[#0b1320] text-white text-xs font-bold rounded-lg hover:bg-slate-800 disabled:opacity-50">
-                {savingProgram ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />} Assign
-              </button>
             </div>
           </div>
 
