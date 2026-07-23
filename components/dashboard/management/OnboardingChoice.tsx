@@ -6,6 +6,8 @@ import { Building2, Hash, Plus, ArrowLeft, Loader2, CheckCircle2, LogOut } from 
 import { SelectBoard, MultiSelectPrograms, MultiSelectClasses } from './SchoolFormHelpers'
 import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
 import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
+import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
+import { isValidDateRange, DATE_RANGE_ERROR } from '@/lib/validation/date'
 
 type Choice = 'select' | 'create' | 'join'
 
@@ -47,6 +49,8 @@ export default function OnboardingChoice({ userName }: { userName: string }) {
     if (!createForm.name.trim()) { setError('School name is required.'); return }
     if (!isValidGstPrefix(createForm.gstNo)) { setError(GST_FORMAT_ERROR); return }
     if (!isValidPhone(createForm.phone)) { setError(PHONE_FORMAT_ERROR); return }
+    if (!isValidEmail(createForm.email)) { setError(EMAIL_FORMAT_ERROR); return }
+    if (!isValidDateRange(createForm.mouStartDate, createForm.mouEndDate)) { setError(DATE_RANGE_ERROR); return }
     setLoading(true)
     setError('')
     try {

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, MapPin, Plus, Trash2, X, Loader2, Repeat } from 'lucide-react'
 import { formatDate, formatDateWithWeekday } from '@/lib/date'
+import { isValidDateRange, DATE_RANGE_ERROR } from '@/lib/validation/date'
 
 const DAY_NAMES = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 const TIMES = ['08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '01:00 PM']
@@ -163,6 +164,7 @@ function WeeklySlotModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
 
   async function save() {
     if (!form.subject.trim() || !form.batch.trim()) { setError('Subject and batch are required.'); return }
+    if (!isValidDateRange(form.effectiveFrom, form.effectiveTo)) { setError(DATE_RANGE_ERROR); return }
     setSaving(true)
     setError('')
     try {

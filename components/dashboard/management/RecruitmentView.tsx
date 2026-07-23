@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatDate, formatDateTime } from '@/lib/date'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
+import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
 import {
   Briefcase,
   Users,
@@ -247,6 +249,14 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
   // Handlers for Candidates
   const handleSaveCandidate = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isValidPhone(candForm.contactPhone)) {
+      alert(PHONE_FORMAT_ERROR)
+      return
+    }
+    if (!isValidEmail(candForm.contactEmail)) {
+      alert(EMAIL_FORMAT_ERROR)
+      return
+    }
     try {
       const url = '/api/recruitment/candidates'
       const method = editingCand ? 'PATCH' : 'POST'
@@ -1717,10 +1727,12 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Phone Number</label>
                     <input
-                      type="text"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
                       value={candForm.contactPhone}
-                      onChange={e => setCandForm({ ...candForm, contactPhone: e.target.value })}
-                      placeholder="+1 (555) 019-2834"
+                      onChange={e => setCandForm({ ...candForm, contactPhone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                      placeholder="9876543210"
                       className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                     />
                   </div>

@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { faculty, teacherSubjects, teacherBatches, teacherPrograms, users, type NewFaculty } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
+import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,6 +76,15 @@ export async function POST(req: NextRequest) {
   if (!data.name || !data.subject || !data.specialization) {
     return NextResponse.json({ error: 'name, subject, and specialization are required' }, { status: 400 })
   }
+  if (!isValidPhone(data.phone as string)) {
+    return NextResponse.json({ error: PHONE_FORMAT_ERROR }, { status: 400 })
+  }
+  if (!isValidPhone(data.altPhone as string)) {
+    return NextResponse.json({ error: 'Alt phone number must be exactly 10 digits' }, { status: 400 })
+  }
+  if (!isValidEmail(data.email as string)) {
+    return NextResponse.json({ error: EMAIL_FORMAT_ERROR }, { status: 400 })
+  }
 
   // Link to a user account by email when one exists (chart: user_id FK)
   let userId: string | null = null
@@ -119,6 +130,16 @@ export async function PATCH(req: NextRequest) {
 
   const data = pickFields(body)
   if (Object.keys(data).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+
+  if (data.phone !== undefined && !isValidPhone(data.phone as string)) {
+    return NextResponse.json({ error: PHONE_FORMAT_ERROR }, { status: 400 })
+  }
+  if (data.altPhone !== undefined && !isValidPhone(data.altPhone as string)) {
+    return NextResponse.json({ error: 'Alt phone number must be exactly 10 digits' }, { status: 400 })
+  }
+  if (data.email !== undefined && !isValidEmail(data.email as string)) {
+    return NextResponse.json({ error: EMAIL_FORMAT_ERROR }, { status: 400 })
+  }
 
   const condition = schoolId ? and(eq(faculty.id, id), eq(faculty.schoolId, schoolId)) : eq(faculty.id, id)
   try {

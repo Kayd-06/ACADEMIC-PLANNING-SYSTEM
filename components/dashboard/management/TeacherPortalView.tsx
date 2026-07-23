@@ -7,6 +7,8 @@ import FacultyProfileModal from './FacultyProfileModal'
 import FacultyCsvUploadModal from './FacultyCsvUploadModal'
 import Avatar from '../Avatar'
 import { getBlobUrl } from '@/lib/blob'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
+import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
 
 type FacultyMember = { _id: string; name: string; sub: string; spec: string; specTheme: string; batches: number; exp: string; status: string; initials: string; color: string; profileImgUrl?: string | null }
 type Material = { _id: string; title: string; type: string; fileUrl: string; spec: string; specTheme: string; author: string; time: string; iconColor: string; iconBg: string }
@@ -48,9 +50,9 @@ function FacultyFormFields({ form, setForm }: { form: typeof EMPTY_FACULTY_FORM;
         <div><label className={fieldLabel}>Email</label>
           <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={fieldInput} placeholder="john@school.edu" /></div>
         <div><label className={fieldLabel}>Phone</label>
-          <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className={fieldInput} placeholder="+91 98765 43210" /></div>
+          <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} className={fieldInput} placeholder="9876543210" maxLength={10} inputMode="numeric" /></div>
         <div><label className={fieldLabel}>Alt Phone</label>
-          <input value={form.altPhone} onChange={e => setForm({ ...form, altPhone: e.target.value })} className={fieldInput} /></div>
+          <input value={form.altPhone} onChange={e => setForm({ ...form, altPhone: e.target.value.replace(/\D/g, '').slice(0, 10) })} className={fieldInput} placeholder="Alternate phone" maxLength={10} inputMode="numeric" /></div>
         <div><label className={fieldLabel}>Address Line 1</label>
           <input value={form.addressLine1} onChange={e => setForm({ ...form, addressLine1: e.target.value })} className={fieldInput} /></div>
         <div><label className={fieldLabel}>City</label>
@@ -235,6 +237,9 @@ export default function TeacherPortalView() {
 
   const handleEditFaculty = async () => {
     if (!editFaculty) return
+    if (!isValidPhone(editForm.phone)) { showToast(PHONE_FORMAT_ERROR); return }
+    if (!isValidPhone(editForm.altPhone)) { showToast('Alt phone number must be exactly 10 digits'); return }
+    if (!isValidEmail(editForm.email)) { showToast(EMAIL_FORMAT_ERROR); return }
     setSavingEdit(true)
     try {
       const res = await fetch('/api/teacher-portal/faculty', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editFaculty._id, ...editForm, batches: Number(editForm.batches) }) })

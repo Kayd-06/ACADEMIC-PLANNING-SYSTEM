@@ -5,6 +5,8 @@ import { X, Save, Loader2 } from 'lucide-react'
 import { SelectBoard, MultiSelectPrograms, MultiSelectClasses } from './SchoolFormHelpers'
 import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
 import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
+import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
+import { isValidDateRange, DATE_RANGE_ERROR } from '@/lib/validation/date'
 
 interface SchoolData {
   board: string
@@ -41,6 +43,8 @@ export default function SchoolDetailsModal({
   async function handleSave() {
     if (!isValidGstPrefix(form.gstNo)) { setError(GST_FORMAT_ERROR); return }
     if (!isValidPhone(form.phone)) { setError(PHONE_FORMAT_ERROR); return }
+    if (!isValidEmail(form.email)) { setError(EMAIL_FORMAT_ERROR); return }
+    if (!isValidDateRange(form.mouStartDate, form.mouEndDate)) { setError(DATE_RANGE_ERROR); return }
     setError('')
     setLoading(true)
     await onSave(form)
@@ -97,6 +101,7 @@ export default function SchoolDetailsModal({
                   <input
                     type="date"
                     value={form.mouEndDate || ''}
+                    min={form.mouStartDate || undefined}
                     onChange={e => setForm({ ...form, mouEndDate: e.target.value })}
                     className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                   />

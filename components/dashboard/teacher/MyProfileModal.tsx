@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Loader2, Pencil, Save, ArrowLeft, Upload } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
 import Avatar from '@/components/dashboard/Avatar'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
 
 const GENDERS = ['', 'Male', 'Female', 'Other']
 const STREAMS = ['', 'Science', 'Mathematics', 'Commerce', 'Humanities', 'Languages', 'Computer Science', 'Arts', 'Physical Education']
@@ -84,7 +85,8 @@ export default function MyProfileModal({ isOpen, onClose, onSaved }: { isOpen: b
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    if (false) {}
+    if (!isValidPhone(form.phone)) { setError(PHONE_FORMAT_ERROR); return }
+    if (!isValidPhone(form.altPhone)) { setError('Alt phone number must be exactly 10 digits.'); return }
     setSaving(true)
     setError('')
     try {
@@ -159,8 +161,8 @@ export default function MyProfileModal({ isOpen, onClose, onSaved }: { isOpen: b
 
                   <p className={sectionClass}>Contact Information</p>
                   <div className="grid grid-cols-2 gap-3 mb-2">
-                    <div><label className={labelClass}>Phone</label><input value={form.phone} onChange={set('phone')} className={inputClass} /></div>
-                    <div><label className={labelClass}>Alt Phone</label><input value={form.altPhone} onChange={set('altPhone')} className={inputClass} /></div>
+                    <div><label className={labelClass}>Phone</label><input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} className={inputClass} maxLength={10} inputMode="numeric" placeholder="10-digit mobile number" /></div>
+                    <div><label className={labelClass}>Alt Phone</label><input value={form.altPhone} onChange={e => setForm(f => ({ ...f, altPhone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} className={inputClass} maxLength={10} inputMode="numeric" placeholder="Alternate phone" /></div>
                     <div><label className={labelClass}>Address Line 1</label><input value={form.addressLine1} onChange={set('addressLine1')} className={inputClass} /></div>
                     <div><label className={labelClass}>City</label><input value={form.city} onChange={set('city')} className={inputClass} /></div>
                     <div><label className={labelClass}>State</label><input value={form.state} onChange={set('state')} className={inputClass} /></div>

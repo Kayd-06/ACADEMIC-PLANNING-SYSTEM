@@ -1,6 +1,9 @@
 'use client'
 import { useState } from 'react'
 import { X, Loader2, Upload } from 'lucide-react'
+import { getBlobUrl } from '@/lib/blob'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
+import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
 
 interface StudentFormValues {
   // Identification
@@ -131,12 +134,16 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
       setError('Student name is required.')
       return
     }
-    if (form.phone.trim().length > 10) {
-      setError('Phone number cannot exceed 10 characters.')
+    if (!isValidPhone(form.phone)) {
+      setError('Phone number must be exactly 10 digits.')
       return
     }
-    if (form.parentContact.trim().length > 10) {
-      setError('Parent contact number cannot exceed 10 characters.')
+    if (!isValidPhone(form.parentContact)) {
+      setError('Parent contact number must be exactly 10 digits.')
+      return
+    }
+    if (!isValidEmail(form.email)) {
+      setError(EMAIL_FORMAT_ERROR)
       return
     }
     setSaving(true)

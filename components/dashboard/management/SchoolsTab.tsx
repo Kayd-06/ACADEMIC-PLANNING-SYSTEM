@@ -7,6 +7,8 @@ import ClearDataModal from './ClearDataModal'
 import { SelectBoard, MultiSelectPrograms, MultiSelectClasses, formatClasses, formatMouStatus } from './SchoolFormHelpers'
 import { isValidGstPrefix, GST_FORMAT_ERROR } from '@/lib/validation/gst'
 import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
+import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
+import { isValidDateRange, DATE_RANGE_ERROR } from '@/lib/validation/date'
 
 type SchoolEntry = {
   id: string; name: string; board: string; classes: string; programs: string
@@ -103,6 +105,8 @@ export default function SchoolsTab() {
     if (!createForm.name.trim()) { showMsg('School name is required', 'error'); return }
     if (!isValidGstPrefix(createForm.gstNo)) { showMsg(GST_FORMAT_ERROR, 'error'); return }
     if (!isValidPhone(createForm.phone)) { showMsg(PHONE_FORMAT_ERROR, 'error'); return }
+    if (!isValidEmail(createForm.email)) { showMsg(EMAIL_FORMAT_ERROR, 'error'); return }
+    if (!isValidDateRange(createForm.mouStartDate, createForm.mouEndDate)) { showMsg(DATE_RANGE_ERROR, 'error'); return }
     setCreating(true)
     try {
       const res = await fetch('/api/admin/schools', {
@@ -137,6 +141,8 @@ export default function SchoolsTab() {
     if (!editSchool) return
     if (!isValidGstPrefix(editForm.gstNo)) { showMsg(GST_FORMAT_ERROR, 'error'); return }
     if (!isValidPhone(editForm.phone)) { showMsg(PHONE_FORMAT_ERROR, 'error'); return }
+    if (!isValidEmail(editForm.email)) { showMsg(EMAIL_FORMAT_ERROR, 'error'); return }
+    if (!isValidDateRange(editForm.mouStartDate, editForm.mouEndDate)) { showMsg(DATE_RANGE_ERROR, 'error'); return }
     setSaving(true)
     try {
       const res = await fetch(`/api/admin/schools/${editSchool.id}`, {
@@ -217,7 +223,7 @@ export default function SchoolsTab() {
                   <div className="mt-1 grid grid-cols-2 gap-2">
                     <input type="date" value={createForm.mouStartDate} onChange={e => setCreateForm(f => ({ ...f, mouStartDate: e.target.value }))}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-                    <input type="date" value={createForm.mouEndDate} onChange={e => setCreateForm(f => ({ ...f, mouEndDate: e.target.value }))}
+                    <input type="date" value={createForm.mouEndDate} min={createForm.mouStartDate || undefined} onChange={e => setCreateForm(f => ({ ...f, mouEndDate: e.target.value }))}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1">Leave End Date blank for an ongoing MOU.</p>
@@ -332,7 +338,7 @@ export default function SchoolsTab() {
                   <div className="mt-1 grid grid-cols-2 gap-2">
                     <input type="date" value={editForm.mouStartDate} onChange={e => setEditForm(f => ({ ...f, mouStartDate: e.target.value }))}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-                    <input type="date" value={editForm.mouEndDate} onChange={e => setEditForm(f => ({ ...f, mouEndDate: e.target.value }))}
+                    <input type="date" value={editForm.mouEndDate} min={editForm.mouStartDate || undefined} onChange={e => setEditForm(f => ({ ...f, mouEndDate: e.target.value }))}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1">Leave End Date blank for an ongoing MOU.</p>

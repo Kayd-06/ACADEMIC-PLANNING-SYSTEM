@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { X, Plus, Pencil, Trash2, Loader2, Repeat, Sparkles, ToggleLeft, ToggleRight, Building2, Filter, GraduationCap, Users } from 'lucide-react'
 import { formatDate } from '@/lib/date'
+import { isValidDateRange, DATE_RANGE_ERROR } from '@/lib/validation/date'
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const SPECIAL_TYPES = ['Extra', 'Doubt', 'Revision', 'Makeup', 'Orientation']
@@ -308,6 +309,10 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
   async function saveSlot(form: typeof EMPTY_SLOT) {
     if (!form.teacherEmail.trim() || !form.subject.trim() || !form.batch.trim()) {
       setError('Teacher email, subject and batch are required.')
+      return
+    }
+    if (!isValidDateRange(form.effectiveFrom, form.effectiveTo)) {
+      setError(DATE_RANGE_ERROR)
       return
     }
     setSaving(true)

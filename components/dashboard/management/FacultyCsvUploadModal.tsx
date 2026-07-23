@@ -3,6 +3,8 @@ import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import * as XLSX from 'xlsx'
 import { X, Upload, Download, Loader2, AlertCircle, CheckCircle2, FileSpreadsheet } from 'lucide-react'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
+import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
 
 interface ParsedRow {
   name: string
@@ -92,11 +94,14 @@ export default function FacultyCsvUploadModal({ onClose, onImported }: FacultyCs
 
   // Local preview check — the server re-validates authoritatively regardless
   // of what this finds.
-  function rowValidation(row: ParsedRow): { name?: string; subject?: string; specialization?: string; batches?: string } {
-    const errors: { name?: string; subject?: string; specialization?: string; batches?: string } = {}
+  function rowValidation(row: ParsedRow): { name?: string; subject?: string; specialization?: string; batches?: string; phone?: string; altPhone?: string; email?: string } {
+    const errors: { name?: string; subject?: string; specialization?: string; batches?: string; phone?: string; altPhone?: string; email?: string } = {}
     if (!row.name) errors.name = 'Name is required.'
     if (!row.subject) errors.subject = 'Subject is required.'
     if (!row.specialization) errors.specialization = 'Specialization is required.'
+    if (row.phone && !isValidPhone(row.phone)) errors.phone = PHONE_FORMAT_ERROR
+    if (row.altPhone && !isValidPhone(row.altPhone)) errors.altPhone = 'Alt phone must be 10 digits.'
+    if (row.email && !isValidEmail(row.email)) errors.email = EMAIL_FORMAT_ERROR
     const requestedNames = row.batches.split(',').map((b) => b.trim()).filter(Boolean)
     const invalidNames = requestedNames.filter((b) => !batchNameSet.has(b.toLowerCase()))
     if (invalidNames.length > 0) {
@@ -107,7 +112,7 @@ export default function FacultyCsvUploadModal({ onClose, onImported }: FacultyCs
 
   const rowsWithErrors = parsedRows.filter((r) => {
     const v = rowValidation(r)
-    return !!(v.name || v.subject || v.specialization || v.batches)
+    return !!(v.name || v.subject || v.specialization || v.batches || v.phone || v.altPhone || v.email)
   }).length
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

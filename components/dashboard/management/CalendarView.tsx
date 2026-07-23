@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { isValidDateRange, DATE_RANGE_ERROR } from '@/lib/validation/date'
 import { 
   Calendar as CalendarIcon, 
   ChevronLeft, 
@@ -217,6 +218,10 @@ export default function CalendarView() {
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formTitle.trim() || !formDate || !formType || !formScope.trim()) return
+    if (!isValidDateRange(formDate, formEndDate)) {
+      setMessage({ type: 'error', text: DATE_RANGE_ERROR })
+      return
+    }
 
     setFormSubmitting(true)
     try {
@@ -252,6 +257,10 @@ export default function CalendarView() {
   const handleUpdateEvent = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedEvent || !formTitle.trim() || !formDate || !formType || !formScope.trim()) return
+    if (!isValidDateRange(formDate, formEndDate)) {
+      setMessage({ type: 'error', text: DATE_RANGE_ERROR })
+      return
+    }
 
     setFormSubmitting(true)
     try {

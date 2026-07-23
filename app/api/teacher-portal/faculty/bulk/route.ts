@@ -3,20 +3,22 @@ import { db } from '@/lib/db'
 import { faculty, teacherBatches, batches, type NewFaculty, type Faculty } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
+import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
 
 export const dynamic = 'force-dynamic'
 
 interface FieldError {
   row: string
-  field: 'name' | 'subject' | 'specialization' | 'batches' | 'general'
+  field: 'name' | 'subject' | 'specialization' | 'batches' | 'phone' | 'altPhone' | 'email' | 'general'
   value: string
   message: string
 }
 
 class ValidationError extends Error {
-  field: 'name' | 'subject' | 'specialization'
+  field: 'name' | 'subject' | 'specialization' | 'phone' | 'altPhone' | 'email'
   value: string
-  constructor(field: 'name' | 'subject' | 'specialization', value: string, message: string) {
+  constructor(field: 'name' | 'subject' | 'specialization' | 'phone' | 'altPhone' | 'email', value: string, message: string) {
     super(message)
     this.field = field
     this.value = value
@@ -65,6 +67,9 @@ export async function POST(req: NextRequest) {
         if (!name) throw new ValidationError('name', '', 'Name is required')
         if (!subject) throw new ValidationError('subject', '', 'Subject is required')
         if (!specialization) throw new ValidationError('specialization', '', 'Specialization is required')
+        if (r.phone && !isValidPhone(String(r.phone))) throw new ValidationError('phone', String(r.phone), PHONE_FORMAT_ERROR)
+        if (r.altPhone && !isValidPhone(String(r.altPhone))) throw new ValidationError('altPhone', String(r.altPhone), 'Alt phone number must be 10 digits')
+        if (r.email && !isValidEmail(String(r.email))) throw new ValidationError('email', String(r.email), EMAIL_FORMAT_ERROR)
 
         const employeeId = r.employeeId?.trim() || ''
         const email = r.email?.trim() || ''

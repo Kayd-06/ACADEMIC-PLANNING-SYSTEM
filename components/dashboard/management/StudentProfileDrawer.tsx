@@ -6,6 +6,8 @@ import { getBlobUrl } from '@/lib/blob'
 import { formatDate } from '@/lib/date'
 import Avatar from '@/components/dashboard/Avatar'
 import MessageParentModal from '@/components/dashboard/MessageParentModal'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
+import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
 
 const inputClass = 'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors'
 const labelClass = 'block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5'
@@ -219,10 +221,9 @@ export default function StudentProfileDrawer({ studentRow, onClose, onEdit, onDe
 
   async function saveGuardian(form: typeof EMPTY_GUARDIAN) {
     if (!form.name.trim()) { setGuardianError('Guardian name is required.'); return }
-    if (form.phone.trim() && !/^\d{10}$/.test(form.phone.trim())) {
-      setGuardianError('Phone number must be exactly 10 digits.')
-      return
-    }
+    if (!isValidPhone(form.phone)) { setGuardianError(PHONE_FORMAT_ERROR); return }
+    if (!isValidPhone(form.altPhone)) { setGuardianError('Alt phone number must be exactly 10 digits.'); return }
+    if (!isValidEmail(form.email)) { setGuardianError(EMAIL_FORMAT_ERROR); return }
     setGuardianSaving(true)
     setGuardianError('')
     try {

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { faculty, teacherSubjects, teacherBatches, type NewFaculty } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { findTeacherFaculty } from '@/lib/db/queries/faculty'
+import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
 
 
 export const dynamic = 'force-dynamic'
@@ -63,6 +64,13 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json()
   const data = pickSelfEditFields(body)
   if (Object.keys(data).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+
+  if (data.phone !== undefined && !isValidPhone(data.phone as string)) {
+    return NextResponse.json({ error: PHONE_FORMAT_ERROR }, { status: 400 })
+  }
+  if (data.altPhone !== undefined && !isValidPhone(data.altPhone as string)) {
+    return NextResponse.json({ error: 'Alt phone number must be 10 digits' }, { status: 400 })
+  }
 
   const [updated] = await db.update(faculty)
     .set({ ...data, userId: session.user.id!, updatedAt: new Date() })
