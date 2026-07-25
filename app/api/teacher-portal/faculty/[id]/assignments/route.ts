@@ -112,7 +112,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (deleted.length > 0) {
       // Auto-decrement batches count
       await db.update(faculty)
-        .set({ batches: sql`CASE WHEN COALESCE(${faculty.batches}, 0) > 0 THEN COALESCE(${faculty.batches}, 0) - 1 ELSE 0 END` })
+        .set({ batches: sql`CASE WHEN COALESCE(batches, 0) > 0 THEN COALESCE(batches, 0) - 1 ELSE 0 END` })
         .where(eq(faculty.id, g.id))
     }
   } else if (type === 'program') {
