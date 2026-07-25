@@ -44,10 +44,16 @@ async function syncBatches(schoolId: string | null) {
     .groupBy(students.batch)
   const countsByName = new Map(countsRows.filter(r => r.batch !== '').map(r => [r.batch, Number(r.value)]))
 
-  // Also collect batch names from teacherBatches so teacher assigned batches exist in main batches table
-  const teacherBatchRows = await db
-    .select({ batchName: teacherBatches.batchName })
-    .from(teacherBatches)
+  // Also collect batch names from teacherBatches belonging ONLY to this school
+  const teacherBatchRows = schoolId
+    ? await db
+        .select({ batchName: teacherBatches.batchName })
+        .from(teacherBatches)
+        .innerJoin(faculty, eq(teacherBatches.teacherId, faculty.id))
+        .where(eq(faculty.schoolId, schoolId))
+    : await db
+        .select({ batchName: teacherBatches.batchName })
+        .from(teacherBatches)
   const teacherBatchNames = new Set(teacherBatchRows.map(r => r.batchName).filter(Boolean))
 
   const existing = await db.select().from(batches).where(schoolCondition(schoolId))
