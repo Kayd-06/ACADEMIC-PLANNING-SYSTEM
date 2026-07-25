@@ -13,8 +13,9 @@ export async function GET(req: Request) {
     const schoolId = getSchoolId(session)
 
     const { searchParams } = new URL(req.url)
-    const className = searchParams.get('class') || 'Grade 11-A'
+    const className = searchParams.get('class')
     const subjectName = searchParams.get('subject') || 'Physics'
+    if (!className) return NextResponse.json([])
 
     // 1. Get or create Batch, scoped to this school — batch names are not
     // globally unique, so matching on name alone would silently merge every

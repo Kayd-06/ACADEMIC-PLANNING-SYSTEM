@@ -44,11 +44,18 @@ async function syncBatches(schoolId: string | null) {
     .groupBy(students.batch)
   const countsByName = new Map(countsRows.filter(r => r.batch !== '').map(r => [r.batch, Number(r.value)]))
 
+  // Also collect batch names from teacherBatches so teacher assigned batches exist in main batches table
+  const teacherBatchRows = await db
+    .select({ batchName: teacherBatches.batchName })
+    .from(teacherBatches)
+  const teacherBatchNames = new Set(teacherBatchRows.map(r => r.batchName).filter(Boolean))
+
   const existing = await db.select().from(batches).where(schoolCondition(schoolId))
   const existingNames = new Set(existing.map(b => b.name))
 
-  // New names discovered on students (e.g. CSV imports)
-  const missing = [...countsByName.keys()].filter(name => !existingNames.has(name))
+  const discoveredNames = new Set([...countsByName.keys(), ...teacherBatchNames])
+  const missing = [...discoveredNames].filter(name => name && !existingNames.has(name))
+
   if (missing.length > 0) {
     await db.insert(batches).values(missing.map(name => ({
       name,
@@ -63,11 +70,6 @@ async function syncBatches(schoolId: string | null) {
     if (actual !== b.enrolledCount) {
       await db.update(batches).set({ enrolledCount: actual, updatedAt: new Date() }).where(eq(batches.id, b.id))
     }
-  }
-
-  // Default batch so the switcher and roster always have something to attach to
-  if (existing.length === 0 && missing.length === 0) {
-    await db.insert(batches).values({ name: 'Batch 1', schoolId })
   }
 }
 

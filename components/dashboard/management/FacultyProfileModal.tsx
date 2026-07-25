@@ -33,7 +33,7 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
   // The school's actual programs & batches, for typo-proof dropdowns instead
   // of free-text assignment fields.
   const [programOptions, setProgramOptions] = useState<{ id: string; name: string }[]>([])
-  const [batchOptions, setBatchOptions] = useState<{ id: string; name: string; programName: string | null }[]>([])
+  const [batchOptions, setBatchOptions] = useState<{ id: string; name: string; programName: string | null; label?: string }[]>([])
 
   const [newSubject, setNewSubject] = useState({ subjectName: teacher.subject || '', programName: '', isPrimary: true })
   const [newBatch, setNewBatch] = useState({ batchName: '', subjectName: '', role: 'primary' })
@@ -53,13 +53,40 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
   useEffect(() => { refresh() }, [refresh])
 
   useEffect(() => {
-    fetch('/api/programs').then(r => r.ok ? r.json() : []).then(d => {
-      if (Array.isArray(d)) setProgramOptions(d.map((p: any) => ({ id: p._id, name: p.name })))
+    Promise.all([
+      fetch('/api/programs').then(r => r.ok ? r.json() : []),
+      fetch('/api/batches').then(r => r.ok ? r.json() : [])
+    ]).then(([pData, bData]) => {
+      const pList = Array.isArray(pData) ? pData : []
+      const bList = Array.isArray(bData) ? bData : []
+
+      setProgramOptions(pList.map((p: any) => ({ id: p._id || p.id, name: p.name })))
+
+      const options: { id: string; name: string; programName: string | null; label: string }[] = []
+
+      bList.forEach((b: any) => {
+        const pName = b.programName ?? null
+        const label = pName ? `${b.name} (${pName})` : b.name
+        options.push({ id: b._id || b.id, name: b.name, programName: pName, label })
+      })
+
+      const existingNames = new Set(options.map(o => o.name.toLowerCase()))
+      const currentTeacherBatches = teacher.batchAssignments ?? []
+      currentTeacherBatches.forEach((tb: any) => {
+        if (tb.batchName && !existingNames.has(tb.batchName.toLowerCase())) {
+          existingNames.add(tb.batchName.toLowerCase())
+          options.push({
+            id: `tb_${tb.id || tb.batchName}`,
+            name: tb.batchName,
+            programName: tb.programName ?? null,
+            label: tb.programName ? `${tb.batchName} (${tb.programName})` : tb.batchName,
+          })
+        }
+      })
+
+      setBatchOptions(options)
     }).catch(() => {})
-    fetch('/api/batches').then(r => r.ok ? r.json() : []).then(d => {
-      if (Array.isArray(d)) setBatchOptions(d.map((b: any) => ({ id: b._id, name: b.name, programName: b.programName ?? null })))
-    }).catch(() => {})
-  }, [])
+  }, [teacher.batchAssignments])
 
   async function addSubject() {
     if (!newSubject.subjectName.trim()) { showToast('Subject name is required'); return }
@@ -231,10 +258,6 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <input value={newSubject.subjectName} onChange={e => setNewSubject({ ...newSubject, subjectName: e.target.value })} placeholder="Subject name" className={inputClass + ' w-40'} />
-              <select value={newSubject.programName} onChange={e => setNewSubject({ ...newSubject, programName: e.target.value })} className={inputClass + ' w-40'}>
-                <option value="">Program (opt)</option>
-                {programOptions.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
-              </select>
               <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer">
                 <input type="checkbox" checked={newSubject.isPrimary} onChange={e => setNewSubject({ ...newSubject, isPrimary: e.target.checked })} className="accent-indigo-600" /> Primary
               </label>
@@ -253,24 +276,33 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
               <p className="text-xs text-slate-400 italic mb-3">No batches assigned.</p>
             ) : (
               <div className="space-y-2 mb-3">
-                {batches.map(b => (
-                  <div key={b.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5">
-                    <div>
-                      <p className="text-[13px] font-bold text-slate-900">{b.batchName}{b.subjectName ? ` · ${b.subjectName}` : ''}</p>
-                      <p className="text-[11px] text-slate-500">Assigned {b.assignedAt ? formatDate(b.assignedAt.replace(/ /g, '-')) : '—'}</p>
+                {batches.map(b => {
+                  const linkedProg = b.programName || linkedProgramForBatch(b.batchName)
+                  return (
+                    <div key={b.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5">
+                      <div>
+                        <p className="text-[13px] font-bold text-slate-900">
+                          {b.batchName}{linkedProg ? ` (${linkedProg})` : ''}{b.subjectName ? ` · ${b.subjectName}` : ''}
+                        </p>
+                        <p className="text-[11px] text-slate-500">Assigned {b.assignedAt ? formatDate(b.assignedAt.replace(/ /g, '-')) : '—'}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${ROLE_BADGE[b.role] ?? 'bg-slate-50 text-slate-600 border-slate-200'}`}>{b.role}</span>
+                        <button onClick={() => removeBatch(b)} className="p-1 text-slate-400 hover:text-rose-600 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${ROLE_BADGE[b.role] ?? 'bg-slate-50 text-slate-600 border-slate-200'}`}>{b.role}</span>
-                      <button onClick={() => removeBatch(b)} className="p-1 text-slate-400 hover:text-rose-600 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <select value={newBatch.batchName} onChange={e => setNewBatch({ ...newBatch, batchName: e.target.value })} className={inputClass + ' w-40'}>
+              <select value={newBatch.batchName} onChange={e => setNewBatch({ ...newBatch, batchName: e.target.value })} className={inputClass + ' min-w-[200px]'}>
                 <option value="">Select a batch…</option>
-                {batchOptions.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                {batchOptions.map(b => (
+                  <option key={b.id} value={b.name}>
+                    {b.label || (b.programName ? `${b.name} (${b.programName})` : b.name)}
+                  </option>
+                ))}
               </select>
               <select value={newBatch.role} onChange={e => setNewBatch({ ...newBatch, role: e.target.value })} className={inputClass}>
                 {BATCH_ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}

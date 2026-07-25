@@ -564,7 +564,6 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
                 {batches.map(b => (
                   <option key={b} value={b}>{b}</option>
                 ))}
-                {batches.length === 0 && <option value="Grade 11-A">Grade 11-A</option>}
               </select>
               <ChevronDown className="w-4 h-4 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -835,7 +834,6 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
                     className="w-full text-xs font-bold bg-white px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
                   >
                     {batches.map(b => <option key={b} value={b}>{b}</option>)}
-                    {batches.length === 0 && <option value="Grade 11-A">Grade 11-A</option>}
                   </select>
                 </div>
 
@@ -1091,7 +1089,6 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
                       className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-800"
                     >
                       {batches.map(b => <option key={b} value={b}>{b}</option>)}
-                      {batches.length === 0 && <option value="Grade 11-A">Grade 11-A</option>}
                     </select>
                   </div>
                   <div>

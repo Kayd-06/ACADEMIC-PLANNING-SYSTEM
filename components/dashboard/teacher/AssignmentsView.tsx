@@ -203,9 +203,6 @@ export default function AssignmentsView({ initialTab = 'assignments' }: Assignme
         const rosterBatches = data.map((s: any) => s.batch).filter(Boolean)
         uniqueBatches = Array.from(new Set([...uniqueBatches, ...rosterBatches, ...assignedBatches])) as string[]
         
-        if (uniqueBatches.length === 0) {
-          uniqueBatches = ['Batch 1']
-        }
         uniqueBatches.sort()
         setBatches(uniqueBatches)
         if (uniqueBatches.length > 0) {

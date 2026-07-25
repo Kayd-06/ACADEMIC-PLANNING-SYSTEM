@@ -6,18 +6,14 @@ export default function FacultyAcademicPlanningView() {
   const [batches, setBatches] = useState<string[]>([])
 
   useEffect(() => {
-    fetch('/api/daily-report', { method: 'PUT' })
-      .then(res => res.json())
+    fetch('/api/batches')
+      .then(res => res.ok ? res.json() : [])
       .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setBatches(data)
-        } else {
-          setBatches(['Grade 11-A', 'Grade 10-C'])
+        if (Array.isArray(data)) {
+          setBatches(data.map((b: any) => b.name).filter(Boolean))
         }
       })
-      .catch(() => {
-        setBatches(['Grade 11-A', 'Grade 10-C'])
-      })
+      .catch(() => setBatches([]))
   }, [])
 
   return (
