@@ -112,7 +112,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (deleted.length > 0) {
       // Auto-decrement batches count
       await db.update(faculty)
-        .set({ batches: sql`CASE WHEN COALESCE(batches, 0) > 0 THEN COALESCE(batches, 0) - 1 ELSE 0 END` })
+        .set({ batches: sql`CASE WHEN COALESCE(${faculty.batches}, 0) > 0 THEN COALESCE(${faculty.batches}, 0) - 1 ELSE 0 END` })
         .where(eq(faculty.id, g.id))
     }
   } else if (type === 'program') {
@@ -122,28 +122,3 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
   return NextResponse.json({ success: true })
 }
-
-// PATCH — update an assignment (e.g. update assignedAt date). Body: { type: 'batch', assignmentId: '...', assignedAt: '2026-07-25' }
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const g = await guard(req, params)
-  if ('error' in g) return g.error
-
-  const body = await req.json()
-  if (!body.assignmentId) return NextResponse.json({ error: 'assignmentId is required' }, { status: 400 })
-
-  if (body.type === 'batch') {
-    const updateData: Record<string, any> = {}
-    if (body.assignedAt !== undefined) updateData.assignedAt = body.assignedAt
-    if (body.role !== undefined) updateData.role = body.role
-    if (body.subjectName !== undefined) updateData.subjectName = body.subjectName
-
-    const [updated] = await db.update(teacherBatches)
-      .set(updateData)
-      .where(and(eq(teacherBatches.id, body.assignmentId), eq(teacherBatches.teacherId, g.id)))
-      .returning()
-    return NextResponse.json(updated || { success: true })
-  }
-
-  return NextResponse.json({ error: 'type must be "batch"' }, { status: 400 })
-}
-
