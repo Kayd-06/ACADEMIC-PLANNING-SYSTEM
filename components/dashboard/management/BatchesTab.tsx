@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Plus, Pencil, Trash2, Loader2, Users, GraduationCap, CalendarDays, UserCheck, AlertTriangle } from 'lucide-react'
 
-const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Dropper']
+const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Repeater']
 
 const EMPTY_FORM = {
   name: '', classLevel: '', capacity: '60',

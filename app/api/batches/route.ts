@@ -6,7 +6,7 @@ import { eq, and, asc, isNull, inArray, count } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
-const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Dropper']
+const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Repeater']
 const FIELDS = ['name', 'classLevel', 'capacity', 'startDate', 'endDate', 'teacherId', 'programId'] as const
 
 function pickFields(body: any): Partial<NewBatch> {
@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'End date cannot be before start date' }, { status: 400 })
     }
     if (data.classLevel && !CLASS_LEVELS.includes(data.classLevel)) {
-      return NextResponse.json({ error: 'Class level must be 9, 10, 11, 12 or Dropper' }, { status: 400 })
+      return NextResponse.json({ error: 'Class level must be 9, 10, 11, 12 or Repeater' }, { status: 400 })
     }
 
     const [duplicate] = await db.select({ id: batches.id }).from(batches)
@@ -204,7 +204,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'End date cannot be before start date' }, { status: 400 })
     }
     if (data.classLevel && !CLASS_LEVELS.includes(data.classLevel)) {
-      return NextResponse.json({ error: 'Class level must be 9, 10, 11, 12 or Dropper' }, { status: 400 })
+      return NextResponse.json({ error: 'Class level must be 9, 10, 11, 12 or Repeater' }, { status: 400 })
     }
 
     const updated = Object.keys(data).length > 0

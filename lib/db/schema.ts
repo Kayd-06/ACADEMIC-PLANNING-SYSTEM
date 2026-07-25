@@ -329,7 +329,7 @@ export const programs = pgTable('programs', {
 export type Program = typeof programs.$inferSelect
 export type NewProgram = typeof programs.$inferInsert
 
-// Specific student groups per year. Class levels: 9 | 10 | 11 | 12 | Dropper.
+// Specific student groups per year. Class levels: 9 | 10 | 11 | 12 | Repeater.
 // Students link to a batch by name (students.batch), so `name` is the join key.
 // One program spans many batches (e.g. JEE has a Morning and an Evening
 // batch); each batch belongs to at most one program.
