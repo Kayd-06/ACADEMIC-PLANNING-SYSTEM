@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { X, Plus, Trash2, Loader2, Mail, Phone, MapPin, GraduationCap, BookOpen, Users, Layers } from 'lucide-react'
+import { X, Plus, Trash2, Loader2, Mail, Phone, MapPin, GraduationCap, BookOpen, Users, Layers, Pencil, Check, Calendar } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
 import Avatar from '../Avatar'
 import { formatDate } from '@/lib/date'
@@ -39,6 +39,10 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
   const [newBatch, setNewBatch] = useState({ batchName: '', subjectName: '', role: 'primary' })
   const [savingSubject, setSavingSubject] = useState(false)
   const [savingBatch, setSavingBatch] = useState(false)
+
+  const [editingBatchId, setEditingBatchId] = useState<string | null>(null)
+  const [editingAssignedAt, setEditingAssignedAt] = useState<string>('')
+  const [updatingDate, setUpdatingDate] = useState(false)
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/teacher-portal/faculty/${teacher.id}/assignments`)
@@ -168,6 +172,28 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
     refresh()
   }
 
+  async function handleUpdateBatchDate(batchId: string, newDate: string) {
+    if (!newDate) return
+    setUpdatingDate(true)
+    try {
+      const res = await fetch(`/api/teacher-portal/faculty/${teacher.id}/assignments`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'batch', assignmentId: batchId, assignedAt: newDate }),
+      })
+      if (res.ok) {
+        setEditingBatchId(null)
+        refresh()
+      } else {
+        showToast('Failed to update assigned date')
+      }
+    } catch {
+      showToast('Failed to update assigned date')
+    } finally {
+      setUpdatingDate(false)
+    }
+  }
+
   const t = teacher
   const inputClass = 'px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
 
@@ -278,13 +304,54 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
               <div className="space-y-2 mb-3">
                 {batches.map(b => {
                   const linkedProg = b.programName || linkedProgramForBatch(b.batchName)
+                  const isEditingThis = editingBatchId === b.id
                   return (
                     <div key={b.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5">
                       <div>
                         <p className="text-[13px] font-bold text-slate-900">
                           {b.batchName}{linkedProg ? ` (${linkedProg})` : ''}{b.subjectName ? ` · ${b.subjectName}` : ''}
                         </p>
-                        <p className="text-[11px] text-slate-500">Assigned {b.assignedAt ? formatDate(b.assignedAt.replace(/ /g, '-')) : '—'}</p>
+                        {isEditingThis ? (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <input
+                              type="date"
+                              value={editingAssignedAt}
+                              onChange={e => setEditingAssignedAt(e.target.value)}
+                              className="px-2 py-0.5 border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                            />
+                            <button
+                              onClick={() => handleUpdateBatchDate(b.id, editingAssignedAt)}
+                              disabled={updatingDate}
+                              className="p-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                              title="Save assigned date"
+                            >
+                              {updatingDate ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            </button>
+                            <button
+                              onClick={() => setEditingBatchId(null)}
+                              className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors"
+                              title="Cancel"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <p className="text-[11px] text-slate-500">
+                              Assigned {b.assignedAt ? formatDate(b.assignedAt.replace(/ /g, '-')) : '—'}
+                            </p>
+                            <button
+                              onClick={() => {
+                                setEditingBatchId(b.id)
+                                setEditingAssignedAt(b.assignedAt || new Date().toISOString().split('T')[0])
+                              }}
+                              className="p-0.5 text-slate-400 hover:text-indigo-600 rounded transition-colors inline-flex items-center gap-0.5 text-[10px] font-medium"
+                              title="Edit assign date"
+                            >
+                              <Pencil className="w-3 h-3 text-slate-400 hover:text-indigo-600" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${ROLE_BADGE[b.role] ?? 'bg-slate-50 text-slate-600 border-slate-200'}`}>{b.role}</span>
