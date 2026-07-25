@@ -35,7 +35,7 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
   const [programOptions, setProgramOptions] = useState<{ id: string; name: string }[]>([])
   const [batchOptions, setBatchOptions] = useState<{ id: string; name: string; programName: string | null }[]>([])
 
-  const [newSubject, setNewSubject] = useState({ subjectName: '', programName: '', isPrimary: true })
+  const [newSubject, setNewSubject] = useState({ subjectName: teacher.subject || '', programName: '', isPrimary: true })
   const [newBatch, setNewBatch] = useState({ batchName: '', subjectName: '', role: 'primary' })
   const [savingSubject, setSavingSubject] = useState(false)
   const [savingBatch, setSavingBatch] = useState(false)
@@ -69,7 +69,7 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'subject', ...newSubject }),
       })
-      if (res.ok) { setNewSubject({ subjectName: '', programName: '', isPrimary: true }); refresh() }
+      if (res.ok) { setNewSubject({ subjectName: teacher.subject || '', programName: '', isPrimary: true }); refresh() }
       else showToast('Failed to add subject')
     } finally { setSavingSubject(false) }
   }
@@ -257,7 +257,7 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
                   <div key={b.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5">
                     <div>
                       <p className="text-[13px] font-bold text-slate-900">{b.batchName}{b.subjectName ? ` · ${b.subjectName}` : ''}</p>
-                      <p className="text-[11px] text-slate-500">Assigned {b.assignedAt || '—'}</p>
+                      <p className="text-[11px] text-slate-500">Assigned {b.assignedAt ? formatDate(b.assignedAt.replace(/ /g, '-')) : '—'}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${ROLE_BADGE[b.role] ?? 'bg-slate-50 text-slate-600 border-slate-200'}`}>{b.role}</span>
@@ -272,7 +272,6 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
                 <option value="">Select a batch…</option>
                 {batchOptions.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
               </select>
-              <input value={newBatch.subjectName} onChange={e => setNewBatch({ ...newBatch, subjectName: e.target.value })} placeholder="Subject (opt)" className={inputClass + ' w-36'} />
               <select value={newBatch.role} onChange={e => setNewBatch({ ...newBatch, role: e.target.value })} className={inputClass}>
                 {BATCH_ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
               </select>

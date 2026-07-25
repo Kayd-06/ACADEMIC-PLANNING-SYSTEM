@@ -10,7 +10,7 @@ import { getBlobUrl } from '@/lib/blob'
 import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
 import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
 
-type FacultyMember = { _id: string; name: string; sub: string; spec: string; specTheme: string; batches: number; exp: string; status: string; initials: string; color: string; profileImgUrl?: string | null }
+type FacultyMember = { _id: string; name: string; sub: string; spec: string; specTheme: string; batches: number; exp: string; status: string; initials: string; color: string; profileImgUrl?: string | null; phone?: string; joiningDate?: string; batchList?: string[] }
 type Material = { _id: string; title: string; type: string; fileUrl: string; spec: string; specTheme: string; author: string; time: string; iconColor: string; iconBg: string }
 type CounselingLog = { _id: string; student: string; teacher: string; date: string; rawDate?: string; notes?: string; status?: string; type?: string; counselor?: string; time?: string; duration?: string; flagged?: boolean }
 
@@ -173,6 +173,9 @@ export default function TeacherPortalView() {
   const [editCounseling, setEditCounseling] = useState<CounselingLog | null>(null)
   const [counselingForm, setCounselingForm] = useState({ notes: '', status: '', date: '', time: '', duration: '' })
   const [savingCounseling, setSavingCounseling] = useState(false)
+
+  // Batches preview modal
+  const [previewBatches, setPreviewBatches] = useState<FacultyMember | null>(null)
 
   useEffect(() => { fetchData() }, [])
 
@@ -466,6 +469,32 @@ export default function TeacherPortalView() {
         )}
       </AnimatePresence>
 
+      {/* Batches Preview Modal */}
+      <AnimatePresence>
+        {previewBatches && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 relative">
+              <button onClick={() => setPreviewBatches(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">{previewBatches.name}'s Batches</h3>
+              <p className="text-xs text-slate-500 mb-4">{previewBatches.batches} active {previewBatches.batches === 1 ? 'batch' : 'batches'}</p>
+              
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                {previewBatches.batchList && previewBatches.batchList.length > 0 ? (
+                  previewBatches.batchList.map((batchName, i) => (
+                    <div key={i} className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
+                      <GraduationCap className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm font-semibold text-slate-700">{batchName}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-slate-400 text-sm">No batches found.</div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -539,7 +568,7 @@ export default function TeacherPortalView() {
                 <table className="w-full">
                   <thead>
                     <tr className="bg-slate-50/50 border-b border-slate-100">
-                      {['Faculty Name', 'Specialization', 'Batches', 'Experience', 'Status', ''].map(h => (
+                      {['Faculty Name', 'Date of Joining', 'Batches', 'Phone', 'Status', ''].map(h => (
                         <th key={h} className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">{h}</th>
                       ))}
                     </tr>
@@ -555,16 +584,18 @@ export default function TeacherPortalView() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          {fac.spec ? (
-                            <span className={`px-2.5 py-1 text-[10px] font-bold rounded border uppercase tracking-wider ${fac.specTheme === 'green' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : fac.specTheme === 'purple' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{fac.spec}</span>
+                          {fac.joiningDate && fac.joiningDate !== 'N/A' ? (
+                            <span className="text-[13px] font-medium text-slate-600">{fac.joiningDate}</span>
                           ) : (
                             <span className="text-[12px] text-slate-300">—</span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[11px] font-bold mx-auto">{fac.batches}</div>
+                          <button onClick={() => setPreviewBatches(fac)} className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[11px] font-bold mx-auto hover:bg-slate-200 hover:text-slate-900 transition-colors">
+                            {fac.batches}
+                          </button>
                         </td>
-                        <td className="px-6 py-4 text-[13px] font-medium text-slate-600">{fac.exp}</td>
+                        <td className="px-6 py-4 text-[13px] font-medium text-slate-600">{fac.phone || '—'}</td>
                         <td className="px-6 py-4">
                           <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full border uppercase tracking-wider ${fac.status === 'ACTIVE' ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : fac.status === 'ON_LEAVE' ? 'border-amber-200 text-amber-700 bg-amber-50' : 'border-slate-200 text-slate-700 bg-slate-50'}`}>{fac.status}</span>
                         </td>

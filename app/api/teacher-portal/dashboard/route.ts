@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { counselingSessions, faculty, studyMaterials } from '@/lib/db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { counselingSessions, faculty, studyMaterials, teacherBatches } from '@/lib/db/schema'
+import { eq, desc, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { formatDate } from '@/lib/date'
 
@@ -33,6 +33,11 @@ export async function GET() {
       ? await db.select().from(studyMaterials).where(eq(studyMaterials.schoolId, schoolId))
       : await db.select().from(studyMaterials)
 
+    const facultyIds = facultyList.map(f => f.id)
+    const teacherBatchesList = facultyIds.length > 0
+      ? await db.select().from(teacherBatches).where(inArray(teacherBatches.teacherId, facultyIds))
+      : []
+
     const kpis = {
       totalFaculty: facultyList.length,
       activeBatches: totalBatches,
@@ -48,7 +53,25 @@ export async function GET() {
       let specTheme = 'blue'
       if (fac.specialization.toLowerCase().includes('neet')) specTheme = 'green'
       if (fac.specialization.toLowerCase().includes('found')) specTheme = 'purple'
-      return { _id: fac.id, name: fac.name, sub: fac.subject, spec: fac.specialization, specTheme, batches: fac.batches, exp: fac.experience, status: fac.status, initials, color, profileImgUrl: fac.profileImgUrl }
+      
+      const facBatches = teacherBatchesList.filter(tb => tb.teacherId === fac.id).map(tb => tb.batchName)
+
+      return { 
+        _id: fac.id, 
+        name: fac.name, 
+        sub: fac.subject, 
+        spec: fac.specialization, 
+        specTheme, 
+        batches: fac.batches, 
+        exp: fac.experience, 
+        status: fac.status, 
+        initials, 
+        color, 
+        profileImgUrl: fac.profileImgUrl,
+        phone: fac.phone || 'N/A',
+        joiningDate: fac.joiningDate || 'N/A',
+        batchList: facBatches
+      }
     })
 
     const mappedMaterials = materials.map(mat => {
