@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertical, FileIcon, MessageCircle, Loader2, X, ExternalLink, Edit2, Save, Pencil, Trash2, ChevronDown, Download, Upload } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -128,6 +129,7 @@ function formFromFaculty(f: any): typeof EMPTY_FACULTY_FORM {
 }
 
 export default function TeacherPortalView() {
+  const router = useRouter()
   const [data, setData] = useState<{ kpis: any; faculty: FacultyMember[]; materials: Material[]; counseling: CounselingLog[] } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
@@ -481,10 +483,10 @@ export default function TeacherPortalView() {
               <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
                 {previewBatches.batchList && previewBatches.batchList.length > 0 ? (
                   previewBatches.batchList.map((batchName, i) => (
-                    <div key={i} className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
-                      <GraduationCap className="w-4 h-4 text-slate-400" />
-                      <span className="text-sm font-semibold text-slate-700">{batchName}</span>
-                    </div>
+                    <button key={i} onClick={() => router.push('/management/academic-planning?tab=Batches')} className="w-full text-left px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors cursor-pointer group">
+                      <GraduationCap className="w-4 h-4 text-slate-400 group-hover:text-indigo-500" />
+                      <span className="text-sm font-semibold text-slate-700 group-hover:text-indigo-700">{batchName}</span>
+                    </button>
                   ))
                 ) : (
                   <div className="text-center py-6 text-slate-400 text-sm">No batches found.</div>

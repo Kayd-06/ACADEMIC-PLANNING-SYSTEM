@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Plus, MoreVertical, X, Loader2, CheckCircle, Pencil, Trash2 } from 'lucide-react'
 import SchoolsTab from './SchoolsTab'
 import BatchesTab from './BatchesTab'
@@ -101,7 +102,8 @@ function ProgramFormModal({ initial, isEdit, submitting, onSubmit, onClose }: {
 }
 
 export default function AcademicPlanningView() {
-  const [activeTab, setActiveTab] = useState('Schools')
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'Schools')
   const [programs, setPrograms] = useState<ProgramData[]>([])
   const [loading, setLoading] = useState(true)
 

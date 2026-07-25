@@ -33,7 +33,7 @@ const EMPTY_FORM = {
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <button onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+    <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
       className="flex items-center gap-1 px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold transition-all">
       {copied ? <><Check className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
     </button>
@@ -419,8 +419,9 @@ export default function SchoolsTab() {
             const isActive = school.id === activeSchoolId
             return (
               <motion.div key={school.id} layout
-                className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-shadow hover:shadow-md ${isActive ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-200'}`}>
-                <div className={`h-1.5 w-full ${isActive ? 'bg-indigo-600' : 'bg-slate-200'}`} />
+                onClick={() => { if (!isActive) switchSchool(school.id) }}
+                className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all relative ${!isActive ? 'cursor-pointer hover:shadow-md hover:border-indigo-200 group' : 'border-indigo-300 ring-2 ring-indigo-100'} ${switching === school.id ? 'opacity-70 pointer-events-none' : ''}`}>
+                <div className={`h-1.5 w-full ${isActive ? 'bg-indigo-600' : 'bg-slate-200 group-hover:bg-indigo-400 transition-colors'}`} />
                 <div className="p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1 min-w-0">
@@ -461,15 +462,14 @@ export default function SchoolsTab() {
                   )}
 
                   <div className="flex gap-2">
-                    {!isActive && (
-                      <button onClick={() => switchSchool(school.id)} disabled={switching === school.id}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50">
-                        {switching === school.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
-                        Switch
-                      </button>
+                    {switching === school.id && (
+                      <div className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold transition-all">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Switching...
+                      </div>
                     )}
                     {school.role === 'owner' && (
-                      <button onClick={() => {
+                      <button onClick={(e) => {
+                        e.stopPropagation();
                         setEditSchool(school);
                         setEditForm({
                           name: school.name,
@@ -489,15 +489,15 @@ export default function SchoolsTab() {
                         <Pencil className="w-3.5 h-3.5" /> Edit
                       </button>
                     )}
-                    <button onClick={() => deleteOrLeave(school)}
-                      className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-bold transition-all border ${school.role === 'owner' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                    <button onClick={(e) => { e.stopPropagation(); deleteOrLeave(school); }}
+                      className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-bold transition-all border ${school.role === 'owner' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
                       {school.role === 'owner' ? <Trash2 className="w-3.5 h-3.5" /> : <LogOut className="w-3.5 h-3.5" />}
                       {school.role === 'owner' ? 'Delete' : 'Leave'}
                     </button>
                   </div>
 
                   {isActive && school.role === 'owner' && (
-                    <button onClick={() => setClearDataSchool(school)}
+                    <button onClick={(e) => { e.stopPropagation(); setClearDataSchool(school); }}
                       className="w-full mt-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-100 transition-all">
                       <AlertTriangle className="w-3.5 h-3.5" /> Clear All Data
                     </button>
