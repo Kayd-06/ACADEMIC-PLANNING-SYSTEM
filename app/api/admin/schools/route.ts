@@ -39,10 +39,13 @@ export async function POST(req: NextRequest) {
   if ((session.user as any).role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { name, board, classes, programs, mouStartDate, mouEndDate, contactPerson, phone, email, address, gstNo } = body
+  const { name, board, classes, programs, mouStartDate, mouEndDate, contactPerson, phone, email, address, gstNo, academicYearStartMonth } = body
   if (!name?.trim()) return NextResponse.json({ error: 'School name is required' }, { status: 400 })
   if (!isValidGstPrefix(gstNo)) return NextResponse.json({ error: GST_FORMAT_ERROR }, { status: 400 })
   if (!isValidPhone(phone)) return NextResponse.json({ error: PHONE_FORMAT_ERROR }, { status: 400 })
+  if (academicYearStartMonth !== undefined && (!Number.isInteger(academicYearStartMonth) || academicYearStartMonth < 1 || academicYearStartMonth > 12)) {
+    return NextResponse.json({ error: 'Academic year start month must be an integer 1-12' }, { status: 400 })
+  }
 
   let joinCode = generateJoinCode()
   let tries = 0
@@ -67,6 +70,7 @@ export async function POST(req: NextRequest) {
     email: email || '',
     address: address || '',
     gstNo: gstNo || '',
+    academicYearStartMonth: academicYearStartMonth ?? 4,
     isActive: true,
   }).returning()
 

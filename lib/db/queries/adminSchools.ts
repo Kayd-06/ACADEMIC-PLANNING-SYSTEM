@@ -18,6 +18,7 @@ export async function getAdminSchools(userId: string) {
       address: schools.address,
       gstNo: schools.gstNo,
       joinCode: schools.joinCode,
+      academicYearStartMonth: schools.academicYearStartMonth,
       isActive: schools.isActive,
       role: adminSchools.role,
       joinedAt: adminSchools.createdAt,

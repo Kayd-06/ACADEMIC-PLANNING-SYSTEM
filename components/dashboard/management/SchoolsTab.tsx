@@ -14,7 +14,10 @@ type SchoolEntry = {
   id: string; name: string; board: string; classes: string; programs: string
   mouStartDate: string | null; mouEndDate: string | null; joinCode: string | null; isActive: boolean; role: 'owner' | 'member'
   contactPerson?: string; phone?: string; email?: string; address?: string; gstNo?: string
+  academicYearStartMonth: number
 }
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 const EMPTY_FORM = {
   name: '',
@@ -27,7 +30,8 @@ const EMPTY_FORM = {
   phone: '',
   email: '',
   address: '',
-  gstNo: ''
+  gstNo: '',
+  academicYearStartMonth: 4,
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -211,6 +215,13 @@ export default function SchoolsTab() {
                   <SelectBoard value={createForm.board} onChange={val => setCreateForm(f => ({ ...f, board: val }))} />
                 </div>
                 <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Academic Year Start Month</label>
+                  <select value={createForm.academicYearStartMonth} onChange={e => setCreateForm(f => ({ ...f, academicYearStartMonth: Number(e.target.value) }))}
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+                    {MONTH_NAMES.map((name, i) => <option key={i} value={i + 1}>{name}</option>)}
+                  </select>
+                </div>
+                <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Classes Offered</label>
                   <MultiSelectClasses value={createForm.classes} onChange={val => setCreateForm(f => ({ ...f, classes: val }))} />
                 </div>
@@ -324,6 +335,13 @@ export default function SchoolsTab() {
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Board Affiliation</label>
                   <SelectBoard value={editForm.board} onChange={val => setEditForm(f => ({ ...f, board: val }))} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Academic Year Start Month</label>
+                  <select value={editForm.academicYearStartMonth} onChange={e => setEditForm(f => ({ ...f, academicYearStartMonth: Number(e.target.value) }))}
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+                    {MONTH_NAMES.map((name, i) => <option key={i} value={i + 1}>{name}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Classes Offered</label>
@@ -482,7 +500,8 @@ export default function SchoolsTab() {
                           phone: school.phone || '',
                           email: school.email || '',
                           address: school.address || '',
-                          gstNo: school.gstNo || ''
+                          gstNo: school.gstNo || '',
+                          academicYearStartMonth: school.academicYearStartMonth ?? 4
                         })
                       }}
                         className="flex items-center justify-center gap-1 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-bold transition-all">
