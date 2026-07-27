@@ -1,5 +1,5 @@
 // Database schema definitions - updated with dailyReports and progressReports
-import { pgTable, uuid, text, varchar, timestamp, pgEnum, boolean, uniqueIndex, integer } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, varchar, timestamp, pgEnum, boolean, uniqueIndex, integer, jsonb } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 export const userRoleEnum = pgEnum('user_role', ['teacher', 'management'])
@@ -72,6 +72,7 @@ export const schools = pgTable('schools', {
   gstNo: varchar('gst_no', { length: 50 }).default(''),
   phone: varchar('phone', { length: 10 }).default(''),
   isActive: boolean('is_active').notNull().default(true),
+  academicYearStartMonth: integer('academic_year_start_month').notNull().default(4),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
@@ -365,6 +366,42 @@ export const subjects = pgTable('subjects', {
 
 export type Subject = typeof subjects.$inferSelect
 export type NewSubject = typeof subjects.$inferInsert
+
+// One row per detected academic-year boundary for a school. The unique
+// index on (schoolId, academicYear) is the idempotency guard that stops the
+// daily cron from creating duplicate runs for a boundary already detected.
+export const classPromotionRuns = pgTable('class_promotion_runs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  academicYear: varchar('academic_year', { length: 255 }).notNull(),
+  boundaryDate: varchar('boundary_date', { length: 10 }).notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('pending'), // pending | confirmed | dismissed
+  previewCounts: jsonb('preview_counts').$type<Record<string, Record<string, number>>>().notNull().default({}),
+  excludedNewAdmissionCount: integer('excluded_new_admission_count').notNull().default(0),
+  excludedTerminalCount: integer('excluded_terminal_count').notNull().default(0),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  confirmedBy: uuid('confirmed_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schoolYearUnique: uniqueIndex('class_promotion_runs_school_year_unique').on(table.schoolId, table.academicYear),
+}))
+
+export type ClassPromotionRun = typeof classPromotionRuns.$inferSelect
+export type NewClassPromotionRun = typeof classPromotionRuns.$inferInsert
+
+// One row per student actually promoted when a run is confirmed — the audit trail.
+export const classPromotionLog = pgTable('class_promotion_log', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  runId: uuid('run_id').notNull().references(() => classPromotionRuns.id, { onDelete: 'cascade' }),
+  studentId: uuid('student_id').notNull().references(() => students.id, { onDelete: 'cascade' }),
+  fromClass: varchar('from_class', { length: 255 }).notNull(),
+  toClass: varchar('to_class', { length: 255 }).notNull(),
+  previousBatch: varchar('previous_batch', { length: 255 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type ClassPromotionLog = typeof classPromotionLog.$inferSelect
+export type NewClassPromotionLog = typeof classPromotionLog.$inferInsert
 
 // Program -> Subject mapping
 export const programSubjects = pgTable('program_subjects', {

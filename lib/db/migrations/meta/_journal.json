@@ -134,6 +134,13 @@
       "when": 1784955500000,
       "tag": "0032_school_phone",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784955600000,
+      "tag": "0033_class_promotion",
+      "breakpoints": true
     }
   ]
 }
