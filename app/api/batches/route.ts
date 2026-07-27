@@ -9,6 +9,14 @@ export const dynamic = 'force-dynamic'
 const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Repeater']
 const FIELDS = ['name', 'classLevel', 'capacity', 'startDate', 'endDate', 'teacherId', 'programId'] as const
 
+// Postgres unique_violation — the batches_school_name_unique index is the
+// source of truth; the app-level pre-checks below are a UX nicety, this
+// catch is what actually stops a concurrent duplicate insert/rename.
+const UNIQUE_VIOLATION = '23505'
+function isDuplicateNameError(error: any): boolean {
+  return error?.cause?.code === UNIQUE_VIOLATION || error?.code === UNIQUE_VIOLATION
+}
+
 function pickFields(body: any): Partial<NewBatch> {
   const data: Record<string, any> = {}
   for (const f of FIELDS) {
@@ -176,6 +184,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ...created, _id: created.id }, { status: 201 })
   } catch (error: any) {
+    if (isDuplicateNameError(error)) {
+      return NextResponse.json({ error: 'A batch with that name already exists' }, { status: 409 })
+    }
     // Drizzle wraps DB errors in a generic "Failed query: ..." message that
     // hides the actual Postgres reason (e.g. a constraint violation) — surface
     // the underlying cause when present so the real error is diagnosable.
@@ -215,6 +226,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Class level must be 9, 10, 11, 12 or Repeater' }, { status: 400 })
     }
 
+    if (data.name && data.name !== existing.name) {
+      const [duplicate] = await db.select({ id: batches.id }).from(batches)
+        .where(and(schoolCondition(schoolId), eq(batches.name, data.name)))
+      if (duplicate) return NextResponse.json({ error: 'A batch with that name already exists' }, { status: 409 })
+    }
+
     const updated = Object.keys(data).length > 0
       ? (await db.update(batches).set({ ...data, updatedAt: new Date() }).where(eq(batches.id, id)).returning())[0]
       : existing
@@ -231,6 +248,9 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ ...updated, _id: updated.id })
   } catch (error: any) {
+    if (isDuplicateNameError(error)) {
+      return NextResponse.json({ error: 'A batch with that name already exists' }, { status: 409 })
+    }
     // Drizzle wraps DB errors in a generic "Failed query: ..." message that
     // hides the actual Postgres reason (e.g. a constraint violation) — surface
     // the underlying cause when present so the real error is diagnosable.

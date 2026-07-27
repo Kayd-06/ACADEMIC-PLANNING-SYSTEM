@@ -141,6 +141,13 @@
       "when": 1784955600000,
       "tag": "0033_class_promotion",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785042000000,
+      "tag": "0034_batch_name_unique",
+      "breakpoints": true
     }
   ]
 }

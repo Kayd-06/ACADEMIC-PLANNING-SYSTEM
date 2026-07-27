@@ -350,7 +350,9 @@ export const batches = pgTable('batches', {
   teacherId: uuid('teacher_id').references(() => faculty.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table) => ({
+  schoolNameUnique: uniqueIndex('batches_school_name_unique').on(table.schoolId, table.name),
+}))
 
 export type Batch = typeof batches.$inferSelect
 export type NewBatch = typeof batches.$inferInsert
