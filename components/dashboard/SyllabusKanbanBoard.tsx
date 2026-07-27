@@ -3,9 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Plus, X, Loader2, ChevronDown, Clock, CheckCircle, Upload, Download, FileText, FileSpreadsheet, Image as ImageIcon, FileCode, Trash2, Check, AlertCircle, Building2, BookOpen, Layers, Book } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
-const SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'History', 'Geography', 'Computer Science']
-const DEFAULT_PROGRAMS = ['JEE 2-Year Integrated', 'NEET Foundation', 'Foundational 1-Year', 'CBSE Class 11-12']
-const DEFAULT_SCHOOLS = ['vpsss', 'Main Branch', 'North Campus', 'West Wing']
+const DEFAULT_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology']
 
 interface ParsedChapter {
   id: string
@@ -22,12 +20,13 @@ interface ParsedChapter {
 
 export default function SyllabusKanbanBoard({ batches }: { batches: string[] }) {
   const [selectedBatch, setSelectedBatch] = useState('')
-  const [selectedSubject, setSelectedSubject] = useState('Physics')
-  const [selectedSchool, setSelectedSchool] = useState('vpsss')
-  const [selectedProgram, setSelectedProgram] = useState('JEE 2-Year Integrated')
+  const [selectedSubject, setSelectedSubject] = useState('')
+  const [selectedSchool, setSelectedSchool] = useState('')
+  const [selectedProgram, setSelectedProgram] = useState('')
 
-  const [programsList, setProgramsList] = useState<string[]>(DEFAULT_PROGRAMS)
-  const [schoolsList, setSchoolsList] = useState<string[]>(DEFAULT_SCHOOLS)
+  const [subjectsList, setSubjectsList] = useState<string[]>(DEFAULT_SUBJECTS)
+  const [programsList, setProgramsList] = useState<string[]>([])
+  const [schoolsList, setSchoolsList] = useState<string[]>([])
 
   const [chapters, setChapters] = useState<any[]>([])
   const [chaptersLoading, setChaptersLoading] = useState(false)
@@ -36,22 +35,22 @@ export default function SyllabusKanbanBoard({ batches }: { batches: string[] }) 
   // Context fields inside Add/Edit Chapter Modal
   const [chapterForm, setChapterForm] = useState({
     title: '',
-    estHours: '12 hrs est.',
-    dates: 'Aug 15 - Aug 28',
+    estHours: '',
+    dates: '',
     notes: '',
     status: 'NOT STARTED',
-    school: 'vpsss',
-    program: 'JEE 2-Year Integrated',
+    school: '',
+    program: '',
     batch: '',
-    subject: 'Physics'
+    subject: ''
   })
 
   // Syllabus Upload Modal States
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
-  const [uploadSchool, setUploadSchool] = useState('vpsss')
-  const [uploadProgram, setUploadProgram] = useState('JEE 2-Year Integrated')
+  const [uploadSchool, setUploadSchool] = useState('')
+  const [uploadProgram, setUploadProgram] = useState('')
   const [uploadBatch, setUploadBatch] = useState('')
-  const [uploadSubject, setUploadSubject] = useState('Physics')
+  const [uploadSubject, setUploadSubject] = useState('')
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [parsedChapters, setParsedChapters] = useState<ParsedChapter[]>([])
@@ -74,29 +73,70 @@ export default function SyllabusKanbanBoard({ batches }: { batches: string[] }) 
   }, [batches])
 
   useEffect(() => {
-    if (selectedBatch) fetchChapters(selectedBatch, selectedSubject)
+    if (selectedBatch && selectedSubject) fetchChapters(selectedBatch, selectedSubject)
   }, [selectedBatch, selectedSubject])
+
+  const fetchSchoolsData = async (): Promise<string[]> => {
+    try {
+      const adminRes = await fetch('/api/admin/schools')
+      if (adminRes.ok) {
+        const adminData = await adminRes.json()
+        if (Array.isArray(adminData) && adminData.length > 0) {
+          return adminData.map((s: any) => s.name).filter(Boolean)
+        }
+      }
+    } catch (err) {}
+
+    try {
+      const schoolRes = await fetch('/api/school')
+      if (schoolRes.ok) {
+        const schoolData = await schoolRes.json()
+        if (schoolData && schoolData.name) {
+          return [schoolData.name]
+        }
+      }
+    } catch (err) {}
+
+    return []
+  }
 
   const fetchData = async () => {
     try {
-      const [pRes, sRes] = await Promise.all([
+      const [pRes, sNames, subRes] = await Promise.all([
         fetch('/api/programs'),
-        fetch('/api/schools')
+        fetchSchoolsData(),
+        fetch('/api/subjects')
       ])
-      const pData = await pRes.json()
-      const sData = await sRes.json()
 
+      const pData = pRes.ok ? await pRes.json() : []
       if (Array.isArray(pData) && pData.length > 0) {
-        const names = pData.map((p: any) => p.name || p.title)
+        const names = pData.map((p: any) => p.name || p.title).filter(Boolean)
         setProgramsList(names)
-        setSelectedProgram(names[0])
-        setUploadProgram(names[0])
+        setSelectedProgram(prev => prev || names[0])
+        setUploadProgram(prev => prev || names[0])
+      } else {
+        setProgramsList([])
       }
-      if (Array.isArray(sData) && sData.length > 0) {
-        const names = sData.map((s: any) => s.name || s.schoolName)
-        setSchoolsList(names)
-        setSelectedSchool(names[0])
-        setUploadSchool(names[0])
+
+      if (Array.isArray(sNames) && sNames.length > 0) {
+        setSchoolsList(sNames)
+        setSelectedSchool(prev => prev || sNames[0])
+        setUploadSchool(prev => prev || sNames[0])
+      } else {
+        setSchoolsList([])
+      }
+
+      const subData = subRes.ok ? await subRes.json() : []
+      if (Array.isArray(subData) && subData.length > 0) {
+        const subNames = subData.map((s: any) => s.name || s.title || s).filter(Boolean)
+        const uniqueSubs = Array.from(new Set(subNames)) as string[]
+        setSubjectsList(uniqueSubs)
+        setSelectedSubject(prev => prev || uniqueSubs[0])
+        setUploadSubject(prev => prev || uniqueSubs[0])
+      } else {
+        setSubjectsList(DEFAULT_SUBJECTS)
+        setSelectedSubject(prev => prev || DEFAULT_SUBJECTS[0])
+        setUploadSubject(prev => prev || DEFAULT_SUBJECTS[0])
       }
     } catch (err) {
       console.error('Error loading context lists', err)
@@ -205,14 +245,14 @@ export default function SyllabusKanbanBoard({ batches }: { batches: string[] }) 
   function openAddModal() {
     setChapterForm({
       title: '',
-      estHours: '10 hrs est.',
-      dates: 'Oct 01 - Oct 15',
+      estHours: '',
+      dates: '',
       notes: '',
       status: 'NOT STARTED',
-      school: selectedSchool,
-      program: selectedProgram,
-      batch: selectedBatch || (batches[0] || 'Grade 11-A'),
-      subject: selectedSubject
+      school: selectedSchool || schoolsList[0] || '',
+      program: selectedProgram || programsList[0] || '',
+      batch: selectedBatch || (batches[0] || ''),
+      subject: selectedSubject || subjectsList[0] || ''
     })
     setChapterModal({ mode: 'add' })
   }
@@ -234,11 +274,16 @@ export default function SyllabusKanbanBoard({ batches }: { batches: string[] }) 
 
   // Sample CSV format download
   const handleDownloadSample = () => {
+    const sSch = uploadSchool || schoolsList[0] || 'School'
+    const sProg = uploadProgram || programsList[0] || 'Program'
+    const sBat = uploadBatch || batches[0] || 'Batch 1'
+    const sSub = uploadSubject || subjectsList[0] || 'Subject'
+
     const csvContent =
 `School,Program,Batch,Subject,Chapter Title,Estimated Hours,Target Dates,Status,Teacher Remarks & Notes
-vpsss,JEE 1A,Batch 1,Physics,Chapter 01: Physical World,10 hrs est.,Oct 01 - Oct 15,NOT STARTED,Introductory concepts clear. Ready for test.
-vpsss,JEE 1A,Batch 1,Physics,Chapter 02: Units and Measurements,12 hrs est.,Oct 16 - Oct 30,IN PROGRESS,Focus on dimensional analysis.
-vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,Nov 01 - Nov 15,COMPLETED,Problem solving and numericals completed.`
+${sSch},${sProg},${sBat},${sSub},Chapter 01: Physical World,10 hrs est.,Oct 01 - Oct 15,NOT STARTED,Introductory concepts clear. Ready for test.
+${sSch},${sProg},${sBat},${sSub},Chapter 02: Units and Measurements,12 hrs est.,Oct 16 - Oct 30,IN PROGRESS,Focus on dimensional analysis.
+${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs est.,Nov 01 - Nov 15,COMPLETED,Problem solving and numericals completed.`
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -279,9 +324,9 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
   const processFile = (file: File) => {
     setParseError(null)
 
-    // Detect subject from file name (e.g. Chemistry_Syllabus.xlsx -> Chemistry)
+    // Detect subject from file name
     let fileSubject = ''
-    for (const sub of SUBJECTS) {
+    for (const sub of subjectsList) {
       if (file.name.toLowerCase().includes(sub.toLowerCase())) {
         fileSubject = sub
         break
@@ -394,12 +439,12 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
 
       if (!title) return
 
-      let rowSchool = getVal(colSchool, 0) || uploadSchool || 'vpsss'
-      let rowProgram = getVal(colProgram, 1) || uploadProgram || 'JEE 1A'
-      let rowBatch = getVal(colBatch, 2) || uploadBatch || 'Batch 1'
-      let rowSub = getVal(colSubject, 3) || detectedSub || uploadSubject || 'Physics'
-      let hours = getVal(colHours, 5) || '10 hrs est.'
-      let dates = getVal(colDates, 6) || 'Oct 01 - Oct 15'
+      let rowSchool = getVal(colSchool, 0) || uploadSchool || (schoolsList[0] || '')
+      let rowProgram = getVal(colProgram, 1) || uploadProgram || (programsList[0] || '')
+      let rowBatch = getVal(colBatch, 2) || uploadBatch || (batches[0] || '')
+      let rowSub = getVal(colSubject, 3) || detectedSub || uploadSubject || (subjectsList[0] || '')
+      let hours = getVal(colHours, 5)
+      let dates = getVal(colDates, 6)
       let rawStatus = getVal(colStatus, 7)
       let notes = getVal(colNotes, 8) || ''
 
@@ -416,7 +461,7 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
       }
 
       if (!detectedSub && rowSub) {
-        const foundSubject = SUBJECTS.find(s => s.toLowerCase() === rowSub.toLowerCase())
+        const foundSubject = subjectsList.find(s => s.toLowerCase() === rowSub.toLowerCase())
         if (foundSubject) {
           detectedSub = foundSubject
           rowSub = foundSubject
@@ -454,13 +499,13 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
       ...prev,
       {
         id: String(Date.now()),
-        school: uploadSchool || 'vpsss',
-        program: uploadProgram || 'JEE 1A',
-        batch: uploadBatch || 'Batch 1',
-        subject: uploadSubject || 'Physics',
-        title: `Chapter 0${prev.length + 1}: New Topic`,
-        estHours: '10 hrs est.',
-        dates: 'Oct 01 - Oct 15',
+        school: uploadSchool || (schoolsList[0] || ''),
+        program: uploadProgram || (programsList[0] || ''),
+        batch: uploadBatch || (batches[0] || ''),
+        subject: uploadSubject || (subjectsList[0] || ''),
+        title: `Chapter 0${prev.length + 1}: `,
+        estHours: '',
+        dates: '',
         status: 'NOT STARTED',
         notes: ''
       }
@@ -577,7 +622,7 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
                 onChange={e => setSelectedSubject(e.target.value)}
                 className="w-full text-sm font-bold bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-xl pl-3 pr-8 py-2 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer transition-all"
               >
-                {SUBJECTS.map(sub => (
+                {subjectsList.map(sub => (
                   <option key={sub} value={sub}>{sub}</option>
                 ))}
               </select>
@@ -589,7 +634,7 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
         <div className="flex items-center gap-3 sm:self-end">
           <button
             onClick={() => {
-              setUploadBatch(selectedBatch || batches[0] || 'Grade 11-A')
+              setUploadBatch(selectedBatch || (batches[0] || ''))
               setUploadSubject(selectedSubject)
               setUploadSchool(selectedSchool)
               setUploadProgram(selectedProgram)
@@ -766,10 +811,10 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 text-slate-300">
                     <tr>
-                      <td className="p-1.5">vpsss</td>
-                      <td className="p-1.5">JEE 1A</td>
-                      <td className="p-1.5">Batch 1</td>
-                      <td className="p-1.5">Chemistry</td>
+                      <td className="p-1.5">{uploadSchool || schoolsList[0] || 'School'}</td>
+                      <td className="p-1.5">{uploadProgram || programsList[0] || 'Program'}</td>
+                      <td className="p-1.5">{uploadBatch || batches[0] || 'Batch 1'}</td>
+                      <td className="p-1.5">{uploadSubject || subjectsList[0] || 'Subject'}</td>
                       <td className="p-1.5">Chapter 01: Physical World</td>
                       <td className="p-1.5">10 hrs est.</td>
                       <td className="p-1.5">Oct 01 - Oct 15</td>
@@ -777,10 +822,10 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
                       <td className="p-1.5 text-slate-400">Introductory concepts clear</td>
                     </tr>
                     <tr>
-                      <td className="p-1.5">vpsss</td>
-                      <td className="p-1.5">JEE 1A</td>
-                      <td className="p-1.5">Batch 1</td>
-                      <td className="p-1.5">Chemistry</td>
+                      <td className="p-1.5">{uploadSchool || schoolsList[0] || 'School'}</td>
+                      <td className="p-1.5">{uploadProgram || programsList[0] || 'Program'}</td>
+                      <td className="p-1.5">{uploadBatch || batches[0] || 'Batch 1'}</td>
+                      <td className="p-1.5">{uploadSubject || subjectsList[0] || 'Subject'}</td>
                       <td className="p-1.5">Chapter 02: Units & Measurements</td>
                       <td className="p-1.5">12 hrs est.</td>
                       <td className="p-1.5">Oct 16 - Oct 30</td>
@@ -846,7 +891,7 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
                     onChange={e => handleUploadSubjectChange(e.target.value)}
                     className="w-full text-xs font-bold bg-white px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
                   >
-                    {SUBJECTS.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                    {subjectsList.map(sub => <option key={sub} value={sub}>{sub}</option>)}
                   </select>
                 </div>
               </div>
@@ -1098,7 +1143,7 @@ vpsss,JEE 1A,Batch 1,Physics,Chapter 03: Motion in a Straight Line,14 hrs est.,N
                       onChange={e => setChapterForm({ ...chapterForm, subject: e.target.value })}
                       className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-800"
                     >
-                      {SUBJECTS.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                      {subjectsList.map(sub => <option key={sub} value={sub}>{sub}</option>)}
                     </select>
                   </div>
                 </div>
