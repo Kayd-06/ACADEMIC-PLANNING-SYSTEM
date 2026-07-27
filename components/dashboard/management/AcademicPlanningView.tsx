@@ -1,11 +1,13 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { Plus, MoreVertical, X, Loader2, CheckCircle, Pencil, Trash2 } from 'lucide-react'
 import SchoolsTab from './SchoolsTab'
 import BatchesTab from './BatchesTab'
 import FacultyTab from './FacultyTab'
 import SyllabusKanbanBoard from '../SyllabusKanbanBoard'
+import PromotionTab from './PromotionTab'
 import { MultiSelectTargetExam } from './SchoolFormHelpers'
 
 interface ProgramData {
@@ -104,6 +106,8 @@ function ProgramFormModal({ initial, isEdit, submitting, onSubmit, onClose }: {
 export default function AcademicPlanningView() {
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'Schools')
+  const { data: session } = useSession()
+  const role = (session?.user as any)?.role as string | undefined
   const [programs, setPrograms] = useState<ProgramData[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -237,7 +241,10 @@ export default function AcademicPlanningView() {
       {/* Tabs */}
       <div className="border-b border-slate-200 mb-8">
         <div className="flex gap-8">
-          {['Schools', 'Programs', 'Batches', 'Syllabus Tracker', 'Faculty'].map((tab) => (
+          {(role === 'management'
+            ? ['Schools', 'Programs', 'Batches', 'Syllabus Tracker', 'Faculty', 'Promotion']
+            : ['Schools', 'Programs', 'Batches', 'Syllabus Tracker', 'Faculty']
+          ).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -356,6 +363,8 @@ export default function AcademicPlanningView() {
       {activeTab === 'Schools' && <SchoolsTab />}
 
       {activeTab === 'Faculty' && <FacultyTab />}
+
+      {activeTab === 'Promotion' && role === 'management' && <PromotionTab />}
     </div>
   )
 }
