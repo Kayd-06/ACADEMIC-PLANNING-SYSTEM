@@ -1,27 +1,57 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-export async function downloadFacultyCvPDF(teacher: any) {
+export async function downloadFacultyCvPDF(teacher: any, defaultSchoolName?: string) {
   const { jsPDF } = await import('jspdf')
   const autoTableModule = await import('jspdf-autotable')
   const autoTable = autoTableModule.default
 
-  // Fetch complete details if missing
   let fullTeacher = { ...teacher }
-  if (teacher._id || teacher.id) {
+  
+  // 1. Fetch complete faculty record from API to get all fields (employeeId, dob, gender, bio, email, etc.)
+  const teacherId = teacher._id || teacher.id
+  if (teacherId) {
     try {
-      const teacherId = teacher._id || teacher.id
-      const res = await fetch(`/api/teacher-portal/faculty/${teacherId}/assignments`)
+      const res = await fetch('/api/teacher-portal/faculty')
       if (res.ok) {
-        const details = await res.json()
-        fullTeacher.subjects = details.subjects || fullTeacher.subjects || []
-        fullTeacher.batchAssignments = details.batches || fullTeacher.batchAssignments || []
-        fullTeacher.programAssignments = details.programs || fullTeacher.programAssignments || []
+        const list = await res.json()
+        const found = Array.isArray(list) ? list.find((f: any) => f.id === teacherId || f._id === teacherId) : null
+        if (found) {
+          fullTeacher = { ...found, ...teacher, ...found }
+        }
       }
     } catch (e) {
-      // Fallback to existing fields
+      console.error('Failed to fetch full faculty record', e)
     }
   }
+
+  // Ensure subject & specialization fields are mapped properly
+  if (!fullTeacher.subject && fullTeacher.sub) {
+    fullTeacher.subject = fullTeacher.sub
+  }
+  if (!fullTeacher.specialization && fullTeacher.spec) {
+    fullTeacher.specialization = fullTeacher.spec
+  }
+  if (!fullTeacher.experienceYears && fullTeacher.exp) {
+    fullTeacher.experienceYears = fullTeacher.exp
+  }
+
+  // 2. Resolve School Name
+  let schoolName = defaultSchoolName || fullTeacher.schoolName || ''
+  if (!schoolName) {
+    try {
+      const sRes = await fetch('/api/admin/schools')
+      if (sRes.ok) {
+        const sList = await sRes.json()
+        if (Array.isArray(sList)) {
+          const matched = sList.find((s: any) => s.id === fullTeacher.schoolId || s._id === fullTeacher.schoolId)
+          if (matched) schoolName = matched.name
+          else if (sList.length > 0) schoolName = sList[0].name
+        }
+      }
+    } catch (e) {}
+  }
+  if (!schoolName) schoolName = 'Academic Planning System'
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -33,7 +63,7 @@ export async function downloadFacultyCvPDF(teacher: any) {
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 16
 
-  // Recruiter Palette (Monochrome & Executive Dark Slate)
+  // Palette (Professional Corporate Charcoal & Dark Slate)
   const charcoalDark: [number, number, number] = [17, 24, 39] // #111827
   const slateDark: [number, number, number] = [55, 65, 81] // #374151
   const slateMuted: [number, number, number] = [107, 114, 128] // #6b7280
@@ -43,14 +73,13 @@ export async function downloadFacultyCvPDF(teacher: any) {
 
   // Helper for Section Headings
   const addSectionHeader = (title: string) => {
-    // Check page space
     if (startY + 25 > pageHeight) {
       doc.addPage()
       startY = 18
     }
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10.5)
+    doc.setFontSize(10)
     doc.setTextColor(...charcoalDark)
     doc.text(title.toUpperCase(), margin, startY)
 
@@ -62,36 +91,39 @@ export async function downloadFacultyCvPDF(teacher: any) {
     startY += 5.5
   }
 
-  // 1. CANDIDATE HEADER (Classic Recruiter Resume Style)
+  // 1. CANDIDATE HEADER
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(22)
   doc.setTextColor(...charcoalDark)
   doc.text(fullTeacher.name || 'Faculty Member', margin, startY)
 
-  startY += 7
+  startY += 6.5
 
-  // Subtitle / Designation
-  const specText = fullTeacher.specialization ? ` — ${fullTeacher.specialization}` : ''
-  const subText = `${fullTeacher.subject || 'Faculty Member'}${specText}`
+  // School Name & Subject Subtitle
+  const specText = fullTeacher.specialization ? ` (Specialization: ${fullTeacher.specialization})` : ''
+  const subjectStr = fullTeacher.subject ? `Subject: ${fullTeacher.subject}${specText}` : 'Faculty Member'
+  const subText = `School / Institution: ${schoolName}   •   ${subjectStr}`
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
+  doc.setFontSize(10)
   doc.setTextColor(...slateDark)
   doc.text(subText, margin, startY)
 
   startY += 6
 
-  // Contact Info Line
+  // Contact Info Line (Phone, Email, Employee ID, DOB, Gender)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(8.5)
   doc.setTextColor(...slateMuted)
 
   const contactItems = []
+  if (fullTeacher.employeeId) contactItems.push(`Emp ID: ${fullTeacher.employeeId}`)
   if (fullTeacher.phone) contactItems.push(`Phone: ${fullTeacher.phone}`)
   if (fullTeacher.email) contactItems.push(`Email: ${fullTeacher.email}`)
-  if (fullTeacher.employeeId) contactItems.push(`Emp ID: ${fullTeacher.employeeId}`)
+  if (fullTeacher.dob) contactItems.push(`DOB: ${fullTeacher.dob}`)
+  if (fullTeacher.gender) contactItems.push(`Gender: ${fullTeacher.gender}`)
   if (fullTeacher.joiningDate) contactItems.push(`Joined: ${fullTeacher.joiningDate}`)
 
-  const contactLine = contactItems.join('   |   ') || 'Academic Planning System'
+  const contactLine = contactItems.join('   |   ') || `Institution: ${schoolName}`
   doc.text(contactLine, margin, startY)
 
   startY += 4
@@ -99,23 +131,23 @@ export async function downloadFacultyCvPDF(teacher: any) {
   doc.setLineWidth(0.4)
   doc.line(margin, startY, pageWidth - margin, startY)
 
-  startY += 9
+  startY += 8.5
 
-  // 2. PROFESSIONAL SUMMARY
+  // 2. PROFESSIONAL BIOGRAPHY / STATEMENT
   if (fullTeacher.bio) {
     addSectionHeader('Professional Summary')
 
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9.5)
+    doc.setFontSize(9)
     doc.setTextColor(...slateDark)
 
     const splitBio = doc.splitTextToSize(fullTeacher.bio, pageWidth - margin * 2)
     doc.text(splitBio, margin, startY)
 
-    startY += splitBio.length * 4.5 + 5
+    startY += splitBio.length * 4.5 + 4
   }
 
-  // 3. CORE COMPETENCIES & SUMMARY GRID
+  // 3. EXECUTIVE OVERVIEW & TEACHING PROFILE
   addSectionHeader('Executive Overview & Teaching Profile')
 
   const expYears = fullTeacher.experienceYears || fullTeacher.experience || '—'
@@ -124,8 +156,9 @@ export async function downloadFacultyCvPDF(teacher: any) {
   const batchesCount = Array.isArray(fullTeacher.batchAssignments) ? fullTeacher.batchAssignments.length : (fullTeacher.batches || 0)
 
   const overviewRows = [
-    ['Primary Subject', fullTeacher.subject || '—', 'Highest Qualification', qualLabel],
-    ['Specialization', fullTeacher.specialization || '—', 'Teaching Experience', expLabel],
+    ['School / Institution', schoolName, 'Employee ID', fullTeacher.employeeId || '—'],
+    ['Primary Subject', fullTeacher.subject || '—', 'Specialization', fullTeacher.specialization || '—'],
+    ['Highest Qualification', qualLabel, 'Teaching Experience', expLabel],
     ['Primary Academic Stream', fullTeacher.primaryStream || '—', 'Active Batches Assigned', `${batchesCount} Batches`],
     ['Employee Status', fullTeacher.status || 'ACTIVE', 'Date of Joining', fullTeacher.joiningDate || '—'],
   ]
@@ -136,9 +169,9 @@ export async function downloadFacultyCvPDF(teacher: any) {
     body: overviewRows,
     theme: 'plain',
     bodyStyles: {
-      fontSize: 9,
+      fontSize: 8.5,
       textColor: [55, 65, 81],
-      cellPadding: 2.2,
+      cellPadding: 2,
     },
     columnStyles: {
       0: { cellWidth: 42, fontStyle: 'bold', textColor: [17, 24, 39] },
@@ -147,7 +180,6 @@ export async function downloadFacultyCvPDF(teacher: any) {
       3: { cellWidth: 'auto' },
     },
     didDrawCell: (data) => {
-      // Draw subtle bottom line under rows
       if (data.section === 'body') {
         doc.setDrawColor(243, 244, 246)
         doc.setLineWidth(0.2)
@@ -157,23 +189,24 @@ export async function downloadFacultyCvPDF(teacher: any) {
   })
 
   // @ts-ignore
-  startY = doc.lastAutoTable.finalY + 8
+  startY = doc.lastAutoTable.finalY + 7
 
-  // 4. ACADEMIC & PERSONAL CREDENTIALS TABLE
+  // 4. ACADEMIC & PERSONAL CREDENTIALS TABLE (ALL DETAILS FROM EDIT MODAL)
   addSectionHeader('Academic & Personal Details')
 
   const credRows = [
     ['Full Name', fullTeacher.name || '—', 'Employee ID', fullTeacher.employeeId || '—'],
-    ['Primary Subject', fullTeacher.subject || '—', 'Specialization', fullTeacher.specialization || '—'],
-    ['Highest Qualification', fullTeacher.qualification || '—', 'Teaching Experience', expLabel],
-    ['Primary Stream', fullTeacher.primaryStream || '—', 'Date of Joining', fullTeacher.joiningDate || '—'],
+    ['School Name', schoolName, 'Date of Birth', fullTeacher.dob || '—'],
+    ['Gender', fullTeacher.gender || '—', 'Primary Subject', fullTeacher.subject || '—'],
+    ['Specialization', fullTeacher.specialization || '—', 'Highest Qualification', qualLabel],
+    ['Teaching Experience', expLabel, 'Primary Stream', fullTeacher.primaryStream || '—'],
+    ['Date of Joining', fullTeacher.joiningDate || '—', 'Employee Status', fullTeacher.status || 'ACTIVE'],
     ['Email Address', fullTeacher.email || '—', 'Phone Number', fullTeacher.phone || '—'],
-    ['Gender', fullTeacher.gender || '—', 'Date of Birth', fullTeacher.dob || '—'],
   ]
 
-  if (fullTeacher.addressLine1 || fullTeacher.city || fullTeacher.state || fullTeacher.pincode) {
+  if (fullTeacher.addressLine1 || fullTeacher.city || fullTeacher.state || fullTeacher.pincode || fullTeacher.altPhone) {
     const fullAddr = [fullTeacher.addressLine1, fullTeacher.city, fullTeacher.state, fullTeacher.pincode].filter(Boolean).join(', ')
-    credRows.push(['Residential Address', fullAddr, 'Alternate Phone', fullTeacher.altPhone || '—'])
+    credRows.push(['Residential Address', fullAddr || '—', 'Alternate Phone', fullTeacher.altPhone || '—'])
   }
 
   autoTable(doc, {
@@ -190,7 +223,7 @@ export async function downloadFacultyCvPDF(teacher: any) {
     bodyStyles: {
       fontSize: 8.5,
       textColor: [55, 65, 81],
-      cellPadding: 2.8,
+      cellPadding: 2.5,
     },
     columnStyles: {
       0: { cellWidth: 42, fontStyle: 'bold', fillColor: [249, 250, 251], textColor: [17, 24, 39] },
@@ -201,13 +234,13 @@ export async function downloadFacultyCvPDF(teacher: any) {
   })
 
   // @ts-ignore
-  startY = doc.lastAutoTable.finalY + 8
+  startY = doc.lastAutoTable.finalY + 7
 
-  // 5. TEACHING ASSIGNMENTS & BATCH PORTFOLIO
+  // 5. SUBJECTS TAUGHT & BATCH ASSIGNMENTS
   const subAssignments = fullTeacher.subjects || []
   const batchAssignments = fullTeacher.batchAssignments || []
 
-  if (subAssignments.length > 0 || batchAssignments.length > 0) {
+  if (subAssignments.length > 0 || batchAssignments.length > 0 || fullTeacher.subject) {
     addSectionHeader('Teaching Portfolio & Active Assignments')
 
     const portfolioRows: string[][] = []
@@ -221,6 +254,13 @@ export async function downloadFacultyCvPDF(teacher: any) {
           s.isPrimary ? 'Primary Faculty' : 'Faculty'
         ])
       })
+    } else if (fullTeacher.subject) {
+      portfolioRows.push([
+        'Primary Subject',
+        fullTeacher.subject,
+        fullTeacher.specialization ? `Specialization: ${fullTeacher.specialization}` : 'General',
+        'Primary Faculty'
+      ])
     }
 
     if (batchAssignments.length > 0) {
@@ -245,12 +285,12 @@ export async function downloadFacultyCvPDF(teacher: any) {
         textColor: [17, 24, 39],
         fontSize: 8,
         fontStyle: 'bold',
-        cellPadding: 2.8,
+        cellPadding: 2.5,
       },
       bodyStyles: {
         fontSize: 8.5,
         textColor: [55, 65, 81],
-        cellPadding: 2.8,
+        cellPadding: 2.5,
       },
       columnStyles: {
         0: { cellWidth: 42, fontStyle: 'bold', textColor: [17, 24, 39] },
@@ -264,7 +304,7 @@ export async function downloadFacultyCvPDF(teacher: any) {
     })
 
     // @ts-ignore
-    startY = doc.lastAutoTable.finalY + 8
+    startY = doc.lastAutoTable.finalY + 7
   }
 
   // FOOTER & PAGE NUMBERING
@@ -279,7 +319,7 @@ export async function downloadFacultyCvPDF(teacher: any) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(...slateMuted)
-    doc.text('Academic Planning System • Official Faculty Resume', margin, pageHeight - 7)
+    doc.text(`Academic Planning System • Official Faculty Resume — ${schoolName}`, margin, pageHeight - 7)
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 7, { align: 'right' })
   }
 
