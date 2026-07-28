@@ -14,7 +14,8 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const className = searchParams.get('class')
-    const subjectName = searchParams.get('subject') || 'Physics'
+    const subjectParam = searchParams.get('subject')
+    const subjectName = subjectParam || 'Physics'
     if (!className) return NextResponse.json([])
 
     // 1. Get or create Batch, scoped to this school — batch names are not
@@ -30,6 +31,53 @@ export async function GET(req: Request) {
         schoolId,
       }).returning()
       batchRow = newBatch
+    }
+
+    // Support subject=all to get all chapters across all subjects for a batch
+    if (subjectParam && subjectParam.toLowerCase() === 'all') {
+      const joinCond = schoolId ? and(eq(batchSyllabus.batchId, batchRow.id), eq(chapters.schoolId, schoolId)) : eq(batchSyllabus.batchId, batchRow.id)
+      const dbResult = await db
+        .select({
+          syllabusId: batchSyllabus.id,
+          chapterId: chapters.id,
+          title: chapters.name,
+          subjectName: subjects.name,
+          estHours: chapters.expectedHours,
+          targetStartDate: batchSyllabus.targetStartDate,
+          targetEndDate: batchSyllabus.targetEndDate,
+          status: batchSyllabus.status,
+          notes: chapters.description,
+          order: chapters.orderIndex
+        })
+        .from(batchSyllabus)
+        .innerJoin(chapters, eq(batchSyllabus.chapterId, chapters.id))
+        .innerJoin(subjects, eq(chapters.subjectId, subjects.id))
+        .where(joinCond)
+        .orderBy(asc(subjects.name), asc(chapters.orderIndex))
+
+      const formatted = dbResult.map(c => {
+        let datesStr = ''
+        if (c.targetStartDate && c.targetEndDate) {
+          datesStr = `${c.targetStartDate} - ${c.targetEndDate}`
+        } else if (c.targetStartDate || c.targetEndDate) {
+          datesStr = c.targetStartDate || c.targetEndDate || ''
+        }
+        return {
+          _id: c.syllabusId,
+          title: c.title,
+          subject: c.subjectName,
+          estHours: c.estHours ? `${c.estHours} hrs est.` : '10 hrs est.',
+          dates: datesStr,
+          status: (c.status || 'Not Started').toUpperCase(),
+          notes: c.notes || '',
+          order: c.order || 0
+        }
+      })
+
+      return NextResponse.json({
+        chapters: formatted,
+        totalChapters: formatted.length
+      })
     }
 
     // 2. Get or create Subject, scoped to this school for the same reason.
@@ -59,8 +107,8 @@ export async function GET(req: Request) {
         const seedSyllabus = missingChapters.map(c => ({
           batchId: batchRow!.id,
           chapterId: c.id,
-          targetStartDate: 'Aug 15',
-          targetEndDate: 'Aug 28',
+          targetStartDate: null,
+          targetEndDate: null,
           status: 'Not Started'
         }))
         await db.insert(batchSyllabus).values(seedSyllabus)
@@ -87,15 +135,23 @@ export async function GET(req: Request) {
       .orderBy(asc(chapters.orderIndex))
 
     // Format for React UI
-    const formatted = dbResult.map(c => ({
-      _id: c.syllabusId,
-      title: c.title,
-      estHours: c.estHours ? `${c.estHours} hrs est.` : '10 hrs est.',
-      dates: `${c.targetStartDate || 'Aug 15'} - ${c.targetEndDate || 'Aug 28'}`,
-      status: (c.status || 'Not Started').toUpperCase(),
-      notes: c.notes || '',
-      order: c.order || 0
-    }))
+    const formatted = dbResult.map(c => {
+      let datesStr = ''
+      if (c.targetStartDate && c.targetEndDate) {
+        datesStr = `${c.targetStartDate} - ${c.targetEndDate}`
+      } else if (c.targetStartDate || c.targetEndDate) {
+        datesStr = c.targetStartDate || c.targetEndDate || ''
+      }
+      return {
+        _id: c.syllabusId,
+        title: c.title,
+        estHours: c.estHours ? `${c.estHours} hrs est.` : '10 hrs est.',
+        dates: datesStr,
+        status: (c.status || 'Not Started').toUpperCase(),
+        notes: c.notes || '',
+        order: c.order || 0
+      }
+    })
 
     return NextResponse.json({
       chapters: formatted,
@@ -144,10 +200,15 @@ export async function PATCH(req: Request) {
         sbUpdates.actualEndDate = new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit' })
       }
     }
-    if (dates) {
-      const parts = dates.split(' - ')
-      sbUpdates.targetStartDate = parts[0] || 'Aug 15'
-      sbUpdates.targetEndDate = parts[1] || 'Aug 28'
+    if (dates !== undefined) {
+      if (dates) {
+        const parts = dates.split(' - ')
+        sbUpdates.targetStartDate = parts[0] || null
+        sbUpdates.targetEndDate = parts[1] || null
+      } else {
+        sbUpdates.targetStartDate = null
+        sbUpdates.targetEndDate = null
+      }
     }
 
     if (Object.keys(sbUpdates).length > 0) {
@@ -260,9 +321,9 @@ export async function POST(req: Request) {
         const normalizedStatus = item.status === 'NOT STARTED' ? 'Not Started' :
                                  item.status === 'IN PROGRESS' ? 'In Progress' :
                                  item.status === 'COMPLETED' ? 'Completed' : 'Not Started'
-        const parts = (item.dates || 'Aug 15 - Aug 28').split(' - ')
-        const targetStart = parts[0] || 'Aug 15'
-        const targetEnd = parts[1] || 'Aug 28'
+        const parts = (item.dates || '').split(' - ')
+        const targetStart = parts[0] || null
+        const targetEnd = parts[1] || null
 
         const [newSyllabus] = await db.insert(batchSyllabus).values({
           batchId: bRow.id,
@@ -276,7 +337,7 @@ export async function POST(req: Request) {
           _id: newSyllabus.id,
           title: newChap.name,
           estHours: `${newChap.expectedHours} hrs est.`,
-          dates: `${newSyllabus.targetStartDate} - ${newSyllabus.targetEndDate}`,
+          dates: [newSyllabus.targetStartDate, newSyllabus.targetEndDate].filter(Boolean).join(' - '),
           status: newSyllabus.status.toUpperCase(),
           notes: newChap.description,
           order: newChap.orderIndex,
@@ -333,9 +394,9 @@ export async function POST(req: Request) {
     const normalizedStatus = status === 'NOT STARTED' ? 'Not Started' :
                              status === 'IN PROGRESS' ? 'In Progress' :
                              status === 'COMPLETED' ? 'Completed' : 'Not Started'
-    const parts = (dates || 'Aug 15 - Aug 28').split(' - ')
-    const targetStart = parts[0] || 'Aug 15'
-    const targetEnd = parts[1] || 'Aug 28'
+    const parts = (dates || '').split(' - ')
+    const targetStart = parts[0] || null
+    const targetEnd = parts[1] || null
 
     const [newSyllabus] = await db.insert(batchSyllabus).values({
       batchId: batchRow.id,
@@ -351,7 +412,7 @@ export async function POST(req: Request) {
         _id: newSyllabus.id,
         title: newChap.name,
         estHours: `${newChap.expectedHours} hrs est.`,
-        dates: `${newSyllabus.targetStartDate} - ${newSyllabus.targetEndDate}`,
+        dates: [newSyllabus.targetStartDate, newSyllabus.targetEndDate].filter(Boolean).join(' - '),
         status: newSyllabus.status.toUpperCase(),
         notes: newChap.description,
         order: newChap.orderIndex

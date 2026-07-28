@@ -5,6 +5,52 @@ import * as XLSX from 'xlsx'
 
 const DEFAULT_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology']
 
+export function formatDisplayDate(val: string | number | null | undefined): string {
+  if (!val) return ''
+  const str = String(val).trim()
+  if (!str) return ''
+
+  const formatToken = (token: string): string => {
+    token = token.trim()
+    if (!token) return ''
+
+    // Filter out dummy hardcoded fallbacks
+    if (/^aug(ust)?[- ]?(15|28)$/i.test(token)) {
+      return ''
+    }
+
+    // Check for Excel date serial number (e.g. 46303)
+    if (/^\d{4,6}(\.\d+)?$/.test(token)) {
+      const num = parseFloat(token)
+      if (num > 30000 && num < 70000) {
+        const jsDate = new Date(Math.round((num - 25569) * 86400 * 1000))
+        if (!isNaN(jsDate.getTime())) {
+          return jsDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        }
+      }
+    }
+
+    // Check for ISO / standard date string
+    if (/^\d{4}-\d{2}-\d{2}/.test(token)) {
+      const jsDate = new Date(token)
+      if (!isNaN(jsDate.getTime())) {
+        return jsDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      }
+    }
+
+    return token
+  }
+
+  if (str.includes(' - ')) {
+    const parts = str.split(' - ').map(formatToken).filter(Boolean)
+    if (parts.length === 0) return ''
+    if (parts.length === 1) return parts[0]
+    return `${parts[0]} - ${parts[1]}`
+  }
+
+  return formatToken(str)
+}
+
 interface ParsedChapter {
   id: string
   school: string
@@ -16,6 +62,269 @@ interface ParsedChapter {
   dates: string
   status: string
   notes: string
+}
+
+async function downloadColorfulSyllabusPDF({
+  batchName,
+  subjectScope,
+  chapters,
+}: {
+  batchName: string
+  subjectScope: string
+  chapters: any[]
+}) {
+  const { jsPDF } = await import('jspdf')
+  const autoTableModule = await import('jspdf-autotable')
+  const autoTable = autoTableModule.default
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  })
+
+  const total = chapters.length
+  const completed = chapters.filter(c => c.status === 'COMPLETED').length
+  const inProgress = chapters.filter(c => c.status === 'IN PROGRESS').length
+  const notStarted = chapters.filter(c => c.status === 'NOT STARTED').length
+
+  const completedPct = total > 0 ? Math.round((completed / total) * 100) : 0
+  const inProgressPct = total > 0 ? Math.round((inProgress / total) * 100) : 0
+  const notStartedPct = total > 0 ? Math.round((notStarted / total) * 100) : 0
+
+  const todayStr = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+
+  // Page dimensions
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+
+  // Theme Palette
+  const darkNavy: [number, number, number] = [15, 23, 42] // #0f172a
+  const indigoDark: [number, number, number] = [30, 27, 75] // #1e1b4b
+  const emeraldGreen: [number, number, number] = [16, 185, 129] // #10b981
+  const blueProgress: [number, number, number] = [59, 130, 246] // #3b82f6
+  const slateNotStarted: [number, number, number] = [100, 116, 139] // #64748b
+  const purpleTotal: [number, number, number] = [139, 92, 246] // #8b5cf6
+
+  let startY = 12
+
+  // 1. Executive Header Banner
+  doc.setFillColor(...indigoDark)
+  doc.roundedRect(12, startY, pageWidth - 24, 24, 3, 3, 'F')
+
+  // Banner Title & Subtitle
+  doc.setTextColor(255, 255, 255)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(15)
+  doc.text('Syllabus Coverage Report', 18, startY + 10)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(199, 210, 254)
+  doc.text('Academic Planning System • Comprehensive Progress Summary', 18, startY + 17)
+
+  // Batch Badge & Date
+  doc.setFillColor(255, 255, 255)
+  doc.roundedRect(pageWidth - 58, startY + 5, 42, 7, 3.5, 3.5, 'F')
+  doc.setTextColor(30, 27, 75)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8.5)
+  doc.text(`Batch: ${batchName}`, pageWidth - 37, startY + 9.8, { align: 'center' })
+
+  doc.setTextColor(165, 180, 252)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.text(`Date: ${todayStr}`, pageWidth - 37, startY + 17.5, { align: 'center' })
+
+  startY += 29
+
+  // 2. KPI Cards (4 columns)
+  const cardWidth = (pageWidth - 24 - 9) / 4
+  const cardHeight = 17
+
+  const cards = [
+    { label: 'TOTAL CHAPTERS', val: `${total}`, accent: purpleTotal, bg: [245, 243, 255] as [number, number, number] },
+    { label: 'COMPLETED', val: `${completed} (${completedPct}%)`, accent: emeraldGreen, bg: [240, 253, 244] as [number, number, number] },
+    { label: 'IN PROGRESS', val: `${inProgress} (${inProgressPct}%)`, accent: blueProgress, bg: [239, 246, 255] as [number, number, number] },
+    { label: 'NOT STARTED', val: `${notStarted} (${notStartedPct}%)`, accent: slateNotStarted, bg: [248, 250, 252] as [number, number, number] },
+  ]
+
+  cards.forEach((card, idx) => {
+    const cardX = 12 + idx * (cardWidth + 3)
+    
+    // Background
+    doc.setFillColor(...card.bg)
+    doc.roundedRect(cardX, startY, cardWidth, cardHeight, 2, 2, 'F')
+
+    // Accent line on left
+    doc.setFillColor(...card.accent)
+    doc.rect(cardX, startY, 1.5, cardHeight, 'F')
+
+    // Border
+    doc.setDrawColor(226, 232, 240)
+    doc.roundedRect(cardX, startY, cardWidth, cardHeight, 2, 2, 'D')
+
+    // Label
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6.5)
+    doc.setTextColor(100, 116, 139)
+    doc.text(card.label, cardX + 4.5, startY + 5.5)
+
+    // Value
+    doc.setFontSize(10.5)
+    doc.setTextColor(card.accent[0], card.accent[1], card.accent[2])
+    doc.text(card.val, cardX + 4.5, startY + 12.5)
+  })
+
+  startY += 21
+
+  // 3. Progress Bar Section
+  doc.setFillColor(255, 255, 255)
+  doc.setDrawColor(226, 232, 240)
+  doc.roundedRect(12, startY, pageWidth - 24, 14, 2, 2, 'FD')
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8.5)
+  doc.setTextColor(51, 65, 85)
+  doc.text('Syllabus Completion Overview', 16, startY + 5.5)
+
+  doc.setTextColor(16, 185, 129)
+  doc.text(`${completedPct}% Complete`, pageWidth - 16, startY + 5.5, { align: 'right' })
+
+  // Progress Bar Track
+  const barX = 16
+  const barY = startY + 7.5
+  const barWidth = pageWidth - 32
+  const barHeight = 3.5
+
+  doc.setFillColor(226, 232, 240)
+  doc.roundedRect(barX, barY, barWidth, barHeight, 1.5, 1.5, 'F')
+
+  let currentBarX = barX
+  if (completedPct > 0) {
+    const compW = (barWidth * completedPct) / 100
+    doc.setFillColor(...emeraldGreen)
+    doc.rect(currentBarX, barY, compW, barHeight, 'F')
+    currentBarX += compW
+  }
+  if (inProgressPct > 0) {
+    const progW = (barWidth * inProgressPct) / 100
+    doc.setFillColor(...blueProgress)
+    doc.rect(currentBarX, barY, progW, barHeight, 'F')
+    currentBarX += progW
+  }
+
+  startY += 19
+
+  // 4. Group Chapters by Subject & Render Tables
+  const subjectsMap: { [key: string]: any[] } = {}
+  chapters.forEach(c => {
+    const subName = c.subject || subjectScope || 'General'
+    if (!subjectsMap[subName]) subjectsMap[subName] = []
+    subjectsMap[subName].push(c)
+  })
+
+  Object.keys(subjectsMap).forEach((subName) => {
+    const subChapters = subjectsMap[subName]
+    const subCompleted = subChapters.filter(c => c.status === 'COMPLETED').length
+    const subTotal = subChapters.length
+
+    // Check vertical space on current page
+    if (startY + 30 > pageHeight) {
+      doc.addPage()
+      startY = 14
+    }
+
+    // Subject Header Card
+    doc.setFillColor(...darkNavy)
+    doc.roundedRect(12, startY, pageWidth - 24, 7.5, 2, 2, 'F')
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(255, 255, 255)
+    doc.text(`Subject: ${subName}`, 16, startY + 5.2)
+
+    doc.setFontSize(7.5)
+    doc.setTextColor(203, 213, 225)
+    doc.text(`${subCompleted} of ${subTotal} Completed (${subTotal > 0 ? Math.round((subCompleted / subTotal) * 100) : 0}%)`, pageWidth - 16, startY + 5.2, { align: 'right' })
+
+    startY += 7.5
+
+    // AutoTable for Subject
+    const tableBody = subChapters.map((c, idx) => {
+      const displayDate = formatDisplayDate(c.dates) || 'Not set'
+      return [
+        `${idx + 1}`,
+        c.title + (c.notes ? `\nRemarks: ${c.notes}` : ''),
+        c.estHours || '—',
+        displayDate,
+        c.status || 'NOT STARTED'
+      ]
+    })
+
+    autoTable(doc, {
+      startY: startY,
+      margin: { left: 12, right: 12 },
+      head: [['#', 'CHAPTER TITLE', 'EST. HOURS', 'TARGET DATES', 'STATUS']],
+      body: tableBody,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [241, 245, 249],
+        textColor: [71, 85, 105],
+        fontSize: 7,
+        fontStyle: 'bold',
+        cellPadding: 2,
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        textColor: [30, 41, 59],
+        cellPadding: 2,
+      },
+      columnStyles: {
+        0: { cellWidth: 10, fontStyle: 'bold', halign: 'center' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 26 },
+        3: { cellWidth: 32 },
+        4: { cellWidth: 28, fontStyle: 'bold', halign: 'center' },
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 4) {
+          const val = String(data.cell.raw)
+          if (val === 'COMPLETED') {
+            data.cell.styles.textColor = [6, 95, 70]
+            data.cell.styles.fillColor = [209, 250, 229]
+          } else if (val === 'IN PROGRESS') {
+            data.cell.styles.textColor = [30, 64, 175]
+            data.cell.styles.fillColor = [219, 234, 254]
+          } else {
+            data.cell.styles.textColor = [71, 85, 105]
+            data.cell.styles.fillColor = [241, 245, 249]
+          }
+        }
+      },
+    })
+
+    // @ts-ignore
+    startY = doc.lastAutoTable.finalY + 6
+  })
+
+  // Footer on all pages
+  const pageCount = doc.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(148, 163, 184)
+    doc.text('Academic Planning System • Official Syllabus Coverage Record', 12, pageHeight - 6)
+    doc.text(`Page ${i} of ${pageCount}`, pageWidth - 12, pageHeight - 6, { align: 'right' })
+  }
+
+  // Save PDF Directly (NO window.open, NO new tab, NO blank page!)
+  const fileName = `Syllabus_Coverage_${batchName.replace(/\s+/g, '_')}_${subjectScope.replace(/\s+/g, '_')}.pdf`
+  doc.save(fileName)
 }
 
 export default function SyllabusKanbanBoard({ batches }: { batches: string[] }) {
@@ -60,6 +369,80 @@ export default function SyllabusKanbanBoard({ batches }: { batches: string[] }) 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [toast, setToast] = useState<string | null>(null)
+
+  // Export Modal States
+  const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [exportBatch, setExportBatch] = useState('ALL')
+  const [exportSubject, setExportSubject] = useState('ALL')
+  const [exportFormat, setExportFormat] = useState<'PDF' | 'CSV'>('PDF')
+  const [isExporting, setIsExporting] = useState(false)
+
+  const openExportModal = () => {
+    setExportBatch(selectedBatch || (batches[0] || 'ALL'))
+    setExportSubject('ALL')
+    setExportFormat('PDF')
+    setExportModalOpen(true)
+  }
+
+  const handleExecuteExport = async () => {
+    setIsExporting(true)
+    try {
+      const targetBatch = exportBatch === 'ALL' ? (selectedBatch || batches[0] || '') : exportBatch
+      const isAllSubjects = exportSubject === 'ALL'
+
+      let chaptersData: any[] = []
+      if (isAllSubjects) {
+        const res = await fetch(`/api/teacher-portal/academic-planning/chapters?class=${encodeURIComponent(targetBatch)}&subject=all`)
+        const d = await res.json()
+        chaptersData = Array.isArray(d.chapters) ? d.chapters : []
+      } else {
+        const res = await fetch(`/api/teacher-portal/academic-planning/chapters?class=${encodeURIComponent(targetBatch)}&subject=${encodeURIComponent(exportSubject)}`)
+        const d = await res.json()
+        chaptersData = Array.isArray(d.chapters) ? d.chapters : []
+      }
+
+      if (chaptersData.length === 0) {
+        showToast('No syllabus chapters found to export for this selection.')
+        setIsExporting(false)
+        return
+      }
+
+      if (exportFormat === 'CSV') {
+        const exportRows = chaptersData.map((c, i) => ({
+          '#': i + 1,
+          'Batch': targetBatch,
+          'Subject': c.subject || (isAllSubjects ? 'General' : exportSubject),
+          'Chapter Title': c.title,
+          'Estimated Hours': c.estHours || '',
+          'Target Dates': formatDisplayDate(c.dates) || 'Not set',
+          'Status': c.status || 'NOT STARTED',
+          'Teacher Notes / Remarks': c.notes || ''
+        }))
+
+        const ws = XLSX.utils.json_to_sheet(exportRows)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, 'Syllabus Coverage')
+        
+        const fileName = `Syllabus_Coverage_${targetBatch}_${isAllSubjects ? 'AllSubjects' : exportSubject}.csv`
+        XLSX.writeFile(wb, fileName)
+        showToast(`Exported ${exportRows.length} chapters to CSV successfully!`)
+        setExportModalOpen(false)
+      } else {
+        await downloadColorfulSyllabusPDF({
+          batchName: targetBatch,
+          subjectScope: isAllSubjects ? 'All Subjects' : exportSubject,
+          chapters: chaptersData,
+        })
+        showToast('Downloaded PDF report successfully!')
+        setExportModalOpen(false)
+      }
+    } catch (err) {
+      console.error('Export error:', err)
+      showToast('Failed to generate export file.')
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   useEffect(() => {
     fetchData()
@@ -344,7 +727,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
         try {
           const buffer = event.target?.result as ArrayBuffer
           const data = new Uint8Array(buffer)
-          const workbook = XLSX.read(data, { type: 'array' })
+          const workbook = XLSX.read(data, { type: 'array', cellDates: true })
           const sheetName = workbook.SheetNames[0]
 
           if (!sheetName) {
@@ -444,7 +827,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
       let rowBatch = getVal(colBatch, 2) || uploadBatch || (batches[0] || '')
       let rowSub = getVal(colSubject, 3) || detectedSub || uploadSubject || (subjectsList[0] || '')
       let hours = getVal(colHours, 5)
-      let dates = getVal(colDates, 6)
+      let dates = formatDisplayDate(getVal(colDates, 6))
       let rawStatus = getVal(colStatus, 7)
       let notes = getVal(colNotes, 8) || ''
 
@@ -633,6 +1016,13 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
 
         <div className="flex items-center gap-3 sm:self-end">
           <button
+            onClick={openExportModal}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md cursor-pointer transition-all transform active:scale-95"
+          >
+            <Download className="w-4 h-4" /> Export Data
+          </button>
+
+          <button
             onClick={() => {
               setUploadBatch(selectedBatch || (batches[0] || ''))
               setUploadSubject(selectedSubject)
@@ -693,7 +1083,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                           <h4 className={`font-bold text-xs text-slate-800 group-hover:text-indigo-600 transition-colors line-clamp-2 ${col.key === 'COMPLETED' ? 'line-through decoration-slate-300' : ''}`}>
                             {chap.title}
                           </h4>
-                          <p className="text-[10px] text-slate-500 mt-1 font-medium">Target: {chap.dates}</p>
+                          <p className="text-[10px] text-slate-500 mt-1 font-medium">Target: {formatDisplayDate(chap.dates) || 'Not set'}</p>
                         </div>
                         <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500 border-t border-slate-100 pt-2.5">
                           <span className="flex items-center gap-1">
@@ -1180,7 +1570,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                     required
                     value={chapterForm.dates}
                     onChange={e => setChapterForm({ ...chapterForm, dates: e.target.value })}
-                    placeholder="e.g. Aug 15 - Aug 28"
+                    placeholder="e.g. Oct 15 - Nov 15"
                     className="w-full px-3.5 py-2 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-medium transition-all"
                   />
                 </div>
@@ -1242,6 +1632,105 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* EXPORT MODAL */}
+      {exportModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white w-full max-w-lg rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-start pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <Download className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Export Syllabus Data</h3>
+                  <p className="text-xs text-slate-500">Download batch-wise subject coverage in PDF or CSV format</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setExportModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Batch Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Select Batch</label>
+                <select
+                  value={exportBatch}
+                  onChange={e => setExportBatch(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  {batches.map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Subject Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Select Subject</label>
+                <select
+                  value={exportSubject}
+                  onChange={e => setExportSubject(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="ALL">All Subjects (Batch-Wise)</option>
+                  {subjectsList.map(sub => (
+                    <option key={sub} value={sub}>{sub}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Format Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Export Format</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setExportFormat('PDF')}
+                    className={`p-3.5 rounded-2xl border flex flex-col items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${exportFormat === 'PDF' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-xs' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    <FileText className="w-5 h-5 text-emerald-600" />
+                    <span>Colorful PDF Report</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExportFormat('CSV')}
+                    className={`p-3.5 rounded-2xl border flex flex-col items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${exportFormat === 'CSV' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-xs' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    <FileSpreadsheet className="w-5 h-5 text-indigo-600" />
+                    <span>CSV Spreadsheet</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setExportModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm font-semibold cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isExporting}
+                onClick={handleExecuteExport}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-md cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                <span>{exportFormat === 'PDF' ? 'Generate & Export PDF' : 'Download CSV'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

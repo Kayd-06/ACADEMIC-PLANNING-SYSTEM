@@ -483,7 +483,18 @@ export default function TeacherPortalView() {
               <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
                 {previewBatches.batchList && previewBatches.batchList.length > 0 ? (
                   previewBatches.batchList.map((batchName, i) => (
-                    <button key={i} onClick={() => router.push('/management/academic-planning?tab=Batches')} className="w-full text-left px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors cursor-pointer group">
+                    <button
+                      key={i}
+                      onClick={() => {
+                        localStorage.setItem('selectedBatch', batchName)
+                        localStorage.setItem('teacherSelectedBatch', batchName)
+                        window.dispatchEvent(new Event('batchChanged'))
+                        window.dispatchEvent(new Event('teacherBatchChanged'))
+                        setPreviewBatches(null)
+                        router.push('/management/students')
+                      }}
+                      className="w-full text-left px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors cursor-pointer group"
+                    >
                       <GraduationCap className="w-4 h-4 text-slate-400 group-hover:text-indigo-500" />
                       <span className="text-sm font-semibold text-slate-700 group-hover:text-indigo-700">{batchName}</span>
                     </button>
