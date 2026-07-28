@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Upload, Loader2, Trash2 } from 'lucide-react'
+import { Download, Upload, Loader2, Trash2 } from 'lucide-react'
+import { downloadFacultyCvPDF } from '@/lib/pdf/facultyCvGenerator'
 import FacultyCsvUploadModal from './FacultyCsvUploadModal'
 import Avatar from '../Avatar'
 
@@ -70,12 +71,23 @@ export default function FacultyTab() {
         </p>
         <div className="flex items-center gap-3">
           {selectedIds.size > 0 && (
-            <button
-              onClick={() => setShowConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-all shadow-sm active:scale-95"
-            >
-              <Trash2 className="w-4 h-4" /> Delete ({selectedIds.size})
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  const selectedList = facultyList.filter(f => selectedIds.has(f.id))
+                  selectedList.forEach(f => downloadFacultyCvPDF(f))
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-all shadow-sm active:scale-95 cursor-pointer"
+              >
+                <Download className="w-4 h-4" /> Download CV ({selectedIds.size})
+              </button>
+              <button
+                onClick={() => setShowConfirm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-all shadow-sm active:scale-95"
+              >
+                <Trash2 className="w-4 h-4" /> Delete ({selectedIds.size})
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowImport(true)}

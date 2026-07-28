@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { X, Plus, Trash2, Loader2, Mail, Phone, MapPin, GraduationCap, BookOpen, Users, Layers } from 'lucide-react'
+import { Download, X, Plus, Trash2, Loader2, Mail, Phone, MapPin, GraduationCap, BookOpen, Users, Layers } from 'lucide-react'
+import { downloadFacultyCvPDF } from '@/lib/pdf/facultyCvGenerator'
 import { getBlobUrl } from '@/lib/blob'
 import Avatar from '../Avatar'
 import { formatDate } from '@/lib/date'
@@ -188,7 +189,15 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => downloadFacultyCvPDF({ ...t, subjects, batchAssignments: batches, programAssignments: programs })}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" /> Export CV
+            </button>
+            <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer"><X className="w-5 h-5" /></button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-7">

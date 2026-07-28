@@ -6,6 +6,7 @@ import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertica
 import { motion, AnimatePresence } from 'framer-motion'
 import FacultyProfileModal from './FacultyProfileModal'
 import FacultyCsvUploadModal from './FacultyCsvUploadModal'
+import { downloadFacultyCvPDF } from '@/lib/pdf/facultyCvGenerator'
 import Avatar from '../Avatar'
 import { getBlobUrl } from '@/lib/blob'
 import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
@@ -640,6 +641,9 @@ export default function TeacherPortalView() {
                     className="w-32 bg-white rounded-xl shadow-lg border border-slate-200 z-[999] py-1 overflow-hidden">
                     <button onClick={() => { openProfile(activeFac); setOpenMenuId(null); setMenuPos(null) }} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
                       <User className="w-3.5 h-3.5" /> Profile
+                    </button>
+                    <button onClick={() => { downloadFacultyCvPDF(activeFac); setOpenMenuId(null); setMenuPos(null) }} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors">
+                      <Download className="w-3.5 h-3.5" /> Download CV
                     </button>
                     <button onClick={() => { openEditFaculty(activeFac); setOpenMenuId(null); setMenuPos(null) }} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
                       <Pencil className="w-3.5 h-3.5" /> Edit
