@@ -114,7 +114,7 @@ export default function FacultyTab() {
                   />
                 </th>
                 <th className="px-6 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[10px] w-14">Avatar</th>
-                {['Name', 'Employee ID', 'Subject / Specialization', 'Batches', 'Status'].map((h) => (
+                {['Name', 'Phone Number', 'Subject / Specialization', 'Batches', 'Status'].map((h) => (
                   <th key={h} className="px-6 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[10px]">{h}</th>
                 ))}
               </tr>
@@ -134,7 +134,7 @@ export default function FacultyTab() {
                     <Avatar src={f.profileImgUrl} name={f.name} size="w-8 h-8" />
                   </td>
                   <td className="px-6 py-4 font-bold text-slate-900">{f.name}</td>
-                  <td className="px-6 py-4 text-slate-500">{f.employeeId || '—'}</td>
+                  <td className="px-6 py-4 text-slate-500">{f.phone || '—'}</td>
                   <td className="px-6 py-4 text-slate-600">{f.subject}{f.specialization ? ` — ${f.specialization}` : ''}</td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-1.5">
