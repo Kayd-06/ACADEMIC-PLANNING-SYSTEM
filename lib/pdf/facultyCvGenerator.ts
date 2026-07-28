@@ -6,7 +6,7 @@ export async function downloadFacultyCvPDF(teacher: any) {
   const autoTableModule = await import('jspdf-autotable')
   const autoTable = autoTableModule.default
 
-  // Fetch full details if available
+  // Fetch complete details if missing
   let fullTeacher = { ...teacher }
   if (teacher._id || teacher.id) {
     try {
@@ -31,128 +31,136 @@ export async function downloadFacultyCvPDF(teacher: any) {
 
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 16
 
-  // Palette
-  const darkNavy: [number, number, number] = [15, 23, 42] // #0f172a
-  const indigoDark: [number, number, number] = [30, 27, 75] // #1e1b4b
-  const accentIndigo: [number, number, number] = [99, 102, 241] // #6366f1
+  // Recruiter Palette (Monochrome & Executive Dark Slate)
+  const charcoalDark: [number, number, number] = [17, 24, 39] // #111827
+  const slateDark: [number, number, number] = [55, 65, 81] // #374151
+  const slateMuted: [number, number, number] = [107, 114, 128] // #6b7280
+  const dividerLine: [number, number, number] = [209, 213, 219] // #d1d5db
 
-  let startY = 12
+  let startY = 18
 
-  // 1. Executive Header Banner
-  doc.setFillColor(...indigoDark)
-  doc.roundedRect(12, startY, pageWidth - 24, 34, 3, 3, 'F')
+  // Helper for Section Headings
+  const addSectionHeader = (title: string) => {
+    // Check page space
+    if (startY + 25 > pageHeight) {
+      doc.addPage()
+      startY = 18
+    }
 
-  // Faculty Name
-  doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10.5)
+    doc.setTextColor(...charcoalDark)
+    doc.text(title.toUpperCase(), margin, startY)
+
+    startY += 2.5
+    doc.setDrawColor(...charcoalDark)
+    doc.setLineWidth(0.6)
+    doc.line(margin, startY, pageWidth - margin, startY)
+
+    startY += 5.5
+  }
+
+  // 1. CANDIDATE HEADER (Classic Recruiter Resume Style)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.text(fullTeacher.name || 'Faculty Curriculum Vitae', 18, startY + 12)
+  doc.setFontSize(22)
+  doc.setTextColor(...charcoalDark)
+  doc.text(fullTeacher.name || 'Faculty Member', margin, startY)
+
+  startY += 7
 
   // Subtitle / Designation
   const specText = fullTeacher.specialization ? ` — ${fullTeacher.specialization}` : ''
-  const subText = `${fullTeacher.subject || 'Faculty Member'}${specText} ${fullTeacher.primaryStream ? `• ${fullTeacher.primaryStream}` : ''}`
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(199, 210, 254)
-  doc.text(subText, 18, startY + 19)
-
-  // Badge on Header Right (ID / Status)
-  const empIdStr = fullTeacher.employeeId ? `ID: ${fullTeacher.employeeId}` : 'FACULTY CV'
-  doc.setFillColor(255, 255, 255)
-  doc.roundedRect(pageWidth - 58, startY + 7, 42, 8, 4, 4, 'F')
-  doc.setTextColor(30, 27, 75)
+  const subText = `${fullTeacher.subject || 'Faculty Member'}${specText}`
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.text(empIdStr, pageWidth - 37, startY + 12.2, { align: 'center' })
+  doc.setFontSize(11)
+  doc.setTextColor(...slateDark)
+  doc.text(subText, margin, startY)
 
-  // Contact Pills below header
-  doc.setFontSize(8)
-  doc.setTextColor(165, 180, 252)
-  const emailStr = fullTeacher.email ? `Email: ${fullTeacher.email}` : ''
-  const phoneStr = fullTeacher.phone ? `Phone: ${fullTeacher.phone}` : ''
-  const contactLine = [emailStr, phoneStr].filter(Boolean).join('   |   ')
-  if (contactLine) {
-    doc.text(contactLine, 18, startY + 27)
+  startY += 6
+
+  // Contact Info Line
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...slateMuted)
+
+  const contactItems = []
+  if (fullTeacher.phone) contactItems.push(`Phone: ${fullTeacher.phone}`)
+  if (fullTeacher.email) contactItems.push(`Email: ${fullTeacher.email}`)
+  if (fullTeacher.employeeId) contactItems.push(`Emp ID: ${fullTeacher.employeeId}`)
+  if (fullTeacher.joiningDate) contactItems.push(`Joined: ${fullTeacher.joiningDate}`)
+
+  const contactLine = contactItems.join('   |   ') || 'Academic Planning System'
+  doc.text(contactLine, margin, startY)
+
+  startY += 4
+  doc.setDrawColor(...dividerLine)
+  doc.setLineWidth(0.4)
+  doc.line(margin, startY, pageWidth - margin, startY)
+
+  startY += 9
+
+  // 2. PROFESSIONAL SUMMARY
+  if (fullTeacher.bio) {
+    addSectionHeader('Professional Summary')
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9.5)
+    doc.setTextColor(...slateDark)
+
+    const splitBio = doc.splitTextToSize(fullTeacher.bio, pageWidth - margin * 2)
+    doc.text(splitBio, margin, startY)
+
+    startY += splitBio.length * 4.5 + 5
   }
 
-  startY += 40
-
-  // 2. Executive Quick Stats Bar (4 cards)
-  const cardWidth = (pageWidth - 24 - 9) / 4
-  const cardHeight = 16
+  // 3. CORE COMPETENCIES & SUMMARY GRID
+  addSectionHeader('Executive Overview & Teaching Profile')
 
   const expYears = fullTeacher.experienceYears || fullTeacher.experience || '—'
   const expLabel = typeof expYears === 'number' ? `${expYears} Years` : String(expYears).includes('year') ? String(expYears) : `${expYears}`
   const qualLabel = fullTeacher.qualification || 'Higher Education'
   const batchesCount = Array.isArray(fullTeacher.batchAssignments) ? fullTeacher.batchAssignments.length : (fullTeacher.batches || 0)
-  const joiningDateLabel = fullTeacher.joiningDate || '—'
 
-  const stats = [
-    { label: 'EXPERIENCE', val: expLabel, accent: [139, 92, 246] as [number, number, number], bg: [245, 243, 255] as [number, number, number] },
-    { label: 'QUALIFICATION', val: qualLabel, accent: [16, 185, 129] as [number, number, number], bg: [240, 253, 244] as [number, number, number] },
-    { label: 'BATCHES ASSIGNED', val: `${batchesCount} Batches`, accent: [59, 130, 246] as [number, number, number], bg: [239, 246, 255] as [number, number, number] },
-    { label: 'JOINING DATE', val: joiningDateLabel, accent: [100, 116, 139] as [number, number, number], bg: [248, 250, 252] as [number, number, number] },
+  const overviewRows = [
+    ['Primary Subject', fullTeacher.subject || '—', 'Highest Qualification', qualLabel],
+    ['Specialization', fullTeacher.specialization || '—', 'Teaching Experience', expLabel],
+    ['Primary Academic Stream', fullTeacher.primaryStream || '—', 'Active Batches Assigned', `${batchesCount} Batches`],
+    ['Employee Status', fullTeacher.status || 'ACTIVE', 'Date of Joining', fullTeacher.joiningDate || '—'],
   ]
 
-  stats.forEach((st, idx) => {
-    const cardX = 12 + idx * (cardWidth + 3)
-    
-    doc.setFillColor(...st.bg)
-    doc.roundedRect(cardX, startY, cardWidth, cardHeight, 2, 2, 'F')
-
-    doc.setFillColor(...st.accent)
-    doc.rect(cardX, startY, 1.5, cardHeight, 'F')
-
-    doc.setDrawColor(226, 232, 240)
-    doc.roundedRect(cardX, startY, cardWidth, cardHeight, 2, 2, 'D')
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6.5)
-    doc.setTextColor(100, 116, 139)
-    doc.text(st.label, cardX + 4.5, startY + 5.5)
-
-    doc.setFontSize(9.5)
-    doc.setTextColor(st.accent[0], st.accent[1], st.accent[2])
-    doc.text(st.val, cardX + 4.5, startY + 12)
+  autoTable(doc, {
+    startY: startY,
+    margin: { left: margin, right: margin },
+    body: overviewRows,
+    theme: 'plain',
+    bodyStyles: {
+      fontSize: 9,
+      textColor: [55, 65, 81],
+      cellPadding: 2.2,
+    },
+    columnStyles: {
+      0: { cellWidth: 42, fontStyle: 'bold', textColor: [17, 24, 39] },
+      1: { cellWidth: 'auto' },
+      2: { cellWidth: 42, fontStyle: 'bold', textColor: [17, 24, 39] },
+      3: { cellWidth: 'auto' },
+    },
+    didDrawCell: (data) => {
+      // Draw subtle bottom line under rows
+      if (data.section === 'body') {
+        doc.setDrawColor(243, 244, 246)
+        doc.setLineWidth(0.2)
+        doc.line(data.cell.x, data.cell.y + data.cell.height, data.cell.x + data.cell.width, data.cell.y + data.cell.height)
+      }
+    }
   })
 
-  startY += 21
+  // @ts-ignore
+  startY = doc.lastAutoTable.finalY + 8
 
-  // 3. Professional Biography & Statement
-  if (fullTeacher.bio) {
-    doc.setFillColor(248, 250, 252)
-    doc.setDrawColor(226, 232, 240)
-    
-    const splitBio = doc.splitTextToSize(fullTeacher.bio, pageWidth - 36)
-    const bioHeight = Math.max(16, splitBio.length * 4.5 + 10)
-
-    doc.roundedRect(12, startY, pageWidth - 24, bioHeight, 2, 2, 'FD')
-    doc.setFillColor(...accentIndigo)
-    doc.rect(12, startY, 1.5, bioHeight, 'F')
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(30, 41, 59)
-    doc.text('PROFESSIONAL STATEMENT & BIOGRAPHY', 17, startY + 6.5)
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(71, 85, 105)
-    doc.text(splitBio, 17, startY + 12)
-
-    startY += bioHeight + 6
-  }
-
-  // 4. Personal & Academic Credentials Table
-  doc.setFillColor(...darkNavy)
-  doc.roundedRect(12, startY, pageWidth - 24, 7, 2, 2, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(255, 255, 255)
-  doc.text('ACADEMIC & PROFESSIONAL CREDENTIALS', 16, startY + 4.8)
-
-  startY += 7
+  // 4. ACADEMIC & PERSONAL CREDENTIALS TABLE
+  addSectionHeader('Academic & Personal Details')
 
   const credRows = [
     ['Full Name', fullTeacher.name || '—', 'Employee ID', fullTeacher.employeeId || '—'],
@@ -165,43 +173,42 @@ export async function downloadFacultyCvPDF(teacher: any) {
 
   if (fullTeacher.addressLine1 || fullTeacher.city || fullTeacher.state || fullTeacher.pincode) {
     const fullAddr = [fullTeacher.addressLine1, fullTeacher.city, fullTeacher.state, fullTeacher.pincode].filter(Boolean).join(', ')
-    credRows.push(['Address', fullAddr, 'Alt Phone', fullTeacher.altPhone || '—'])
+    credRows.push(['Residential Address', fullAddr, 'Alternate Phone', fullTeacher.altPhone || '—'])
   }
 
   autoTable(doc, {
     startY: startY,
-    margin: { left: 12, right: 12 },
+    margin: { left: margin, right: margin },
     body: credRows,
     theme: 'grid',
+    headStyles: {
+      fillColor: [243, 244, 246],
+      textColor: [17, 24, 39],
+      fontSize: 8.5,
+      fontStyle: 'bold',
+    },
     bodyStyles: {
-      fontSize: 8,
-      textColor: [30, 41, 59],
-      cellPadding: 2.5,
+      fontSize: 8.5,
+      textColor: [55, 65, 81],
+      cellPadding: 2.8,
     },
     columnStyles: {
-      0: { cellWidth: 38, fontStyle: 'bold', fillColor: [241, 245, 249], textColor: [71, 85, 105] },
+      0: { cellWidth: 42, fontStyle: 'bold', fillColor: [249, 250, 251], textColor: [17, 24, 39] },
       1: { cellWidth: 'auto' },
-      2: { cellWidth: 38, fontStyle: 'bold', fillColor: [241, 245, 249], textColor: [71, 85, 105] },
+      2: { cellWidth: 42, fontStyle: 'bold', fillColor: [249, 250, 251], textColor: [17, 24, 39] },
       3: { cellWidth: 'auto' },
     },
   })
 
   // @ts-ignore
-  startY = doc.lastAutoTable.finalY + 7
+  startY = doc.lastAutoTable.finalY + 8
 
-  // 5. Subject & Program Teaching Assignments
+  // 5. TEACHING ASSIGNMENTS & BATCH PORTFOLIO
   const subAssignments = fullTeacher.subjects || []
   const batchAssignments = fullTeacher.batchAssignments || []
 
   if (subAssignments.length > 0 || batchAssignments.length > 0) {
-    doc.setFillColor(...darkNavy)
-    doc.roundedRect(12, startY, pageWidth - 24, 7, 2, 2, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(255, 255, 255)
-    doc.text('TEACHING ASSIGNMENTS & BATCH PORTFOLIO', 16, startY + 4.8)
-
-    startY += 7
+    addSectionHeader('Teaching Portfolio & Active Assignments')
 
     const portfolioRows: string[][] = []
     
@@ -210,8 +217,8 @@ export async function downloadFacultyCvPDF(teacher: any) {
         portfolioRows.push([
           'Subject Assignment',
           s.subjectName || s.name || fullTeacher.subject || '—',
-          s.programName ? `Program: ${s.programName}` : 'All Programs',
-          s.isPrimary ? 'PRIMARY FACULTY' : 'FACULTY'
+          s.programName ? `Program: ${s.programName}` : 'All Academic Programs',
+          s.isPrimary ? 'Primary Faculty' : 'Faculty'
         ])
       })
     }
@@ -222,55 +229,60 @@ export async function downloadFacultyCvPDF(teacher: any) {
           'Batch Coverage',
           b.batchName || b.name || '—',
           b.subjectName ? `Subject: ${b.subjectName}` : (fullTeacher.subject || '—'),
-          (b.role || 'Primary').toUpperCase()
+          String(b.role || 'Primary').charAt(0).toUpperCase() + String(b.role || 'Primary').slice(1)
         ])
       })
     }
 
     autoTable(doc, {
       startY: startY,
-      margin: { left: 12, right: 12 },
-      head: [['TYPE', 'ASSIGNMENT / BATCH', 'SCOPE / DETAILS', 'FACULTY ROLE']],
+      margin: { left: margin, right: margin },
+      head: [['ASSIGNMENT TYPE', 'SUBJECT / BATCH NAME', 'SCOPE & PROGRAM DETAILS', 'FACULTY ROLE']],
       body: portfolioRows,
       theme: 'grid',
       headStyles: {
-        fillColor: [241, 245, 249],
-        textColor: [71, 85, 105],
-        fontSize: 7.5,
+        fillColor: [243, 244, 246],
+        textColor: [17, 24, 39],
+        fontSize: 8,
         fontStyle: 'bold',
-        cellPadding: 2.5,
+        cellPadding: 2.8,
       },
       bodyStyles: {
-        fontSize: 7.5,
-        textColor: [30, 41, 59],
-        cellPadding: 2.5,
+        fontSize: 8.5,
+        textColor: [55, 65, 81],
+        cellPadding: 2.8,
       },
       columnStyles: {
-        0: { cellWidth: 38, fontStyle: 'bold', textColor: [99, 102, 241] },
+        0: { cellWidth: 42, fontStyle: 'bold', textColor: [17, 24, 39] },
         1: { cellWidth: 'auto', fontStyle: 'bold' },
-        2: { cellWidth: 50 },
+        2: { cellWidth: 55 },
         3: { cellWidth: 32, fontStyle: 'bold', halign: 'center' },
       },
       alternateRowStyles: {
-        fillColor: [248, 250, 252],
+        fillColor: [249, 250, 251],
       },
     })
 
     // @ts-ignore
-    startY = doc.lastAutoTable.finalY + 7
+    startY = doc.lastAutoTable.finalY + 8
   }
 
-  // Footer & Page Numbers
+  // FOOTER & PAGE NUMBERING
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
+
+    doc.setDrawColor(...dividerLine)
+    doc.setLineWidth(0.4)
+    doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12)
+
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(148, 163, 184)
-    doc.text('Academic Planning System • Official Faculty Curriculum Vitae', 12, pageHeight - 6)
-    doc.text(`Page ${i} of ${pageCount}`, pageWidth - 12, pageHeight - 6, { align: 'right' })
+    doc.setFontSize(8)
+    doc.setTextColor(...slateMuted)
+    doc.text('Academic Planning System • Official Faculty Resume', margin, pageHeight - 7)
+    doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 7, { align: 'right' })
   }
 
   const cleanName = (fullTeacher.name || 'Faculty').replace(/\s+/g, '_')
-  doc.save(`Faculty_CV_${cleanName}.pdf`)
+  doc.save(`Faculty_Resume_${cleanName}.pdf`)
 }
