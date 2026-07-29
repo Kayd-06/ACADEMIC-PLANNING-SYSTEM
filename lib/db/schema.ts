@@ -510,6 +510,7 @@ export type StudentReportEntry = typeof studentReportEntries.$inferSelect
 export type NewStudentReportEntry = typeof studentReportEntries.$inferInsert
 
 export const facultyStatusEnum = pgEnum('faculty_status', ['ACTIVE', 'ON_LEAVE', 'INACTIVE'])
+export const facultyRoleEnum = pgEnum('faculty_role', ['TEACHER', 'COORDINATOR'])
 
 // The chart's "teachers" table — extended in place
 export const faculty = pgTable('faculty', {
@@ -544,6 +545,7 @@ export const faculty = pgTable('faculty', {
   batches: integer('batches').notNull().default(0),
   experience: varchar('experience', { length: 255 }).notNull().default(''),
   status: facultyStatusEnum('status').notNull().default('ACTIVE'),
+  role: facultyRoleEnum('role').notNull().default('TEACHER'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({

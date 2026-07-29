@@ -36,6 +36,9 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
   const [programOptions, setProgramOptions] = useState<{ id: string; name: string }[]>([])
   const [batchOptions, setBatchOptions] = useState<{ id: string; name: string; programName: string | null; label?: string }[]>([])
 
+  const [role, setRole] = useState<string>(teacher.role || 'TEACHER')
+  const [savingRole, setSavingRole] = useState(false)
+
   const [newSubject, setNewSubject] = useState({ subjectName: teacher.subject || '', programName: '', isPrimary: true })
   const [newBatch, setNewBatch] = useState({ batchName: '', subjectName: '', role: 'primary' })
   const [savingSubject, setSavingSubject] = useState(false)
@@ -88,6 +91,19 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
       setBatchOptions(options)
     }).catch(() => {})
   }, [teacher.batchAssignments])
+
+  async function updateRole(newRole: string) {
+    const prev = role
+    setRole(newRole)
+    setSavingRole(true)
+    try {
+      const res = await fetch('/api/teacher-portal/faculty', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: teacher.id, role: newRole }),
+      })
+      if (!res.ok) { setRole(prev); showToast('Failed to update role') }
+    } finally { setSavingRole(false) }
+  }
 
   async function addSubject() {
     if (!newSubject.subjectName.trim()) { showToast('Subject name is required'); return }
@@ -187,6 +203,15 @@ export default function FacultyProfileModal({ teacher, onClose, showToast }: {
                   {t.isActive ? 'ACTIVE' : 'INACTIVE'}
                 </span>
               </p>
+              <select
+                value={role}
+                disabled={savingRole}
+                onChange={(e) => updateRole(e.target.value)}
+                className="mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border-0 focus:outline-none focus:ring-2 focus:ring-purple-200 cursor-pointer disabled:opacity-50"
+              >
+                <option value="TEACHER">Teacher</option>
+                <option value="COORDINATOR">Coordinator</option>
+              </select>
             </div>
           </div>
           <div className="flex items-center gap-2">

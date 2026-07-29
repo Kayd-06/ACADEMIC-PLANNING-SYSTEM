@@ -14,7 +14,7 @@ const FIELDS = [
   'name', 'dob', 'gender', 'bio', 'profileImgUrl',
   'email', 'phone', 'altPhone', 'addressLine1', 'city', 'state', 'pincode',
   'qualification', 'experienceYears', 'primaryStream', 'joiningDate', 'isActive',
-  'subject', 'specialization', 'batches', 'experience', 'status',
+  'subject', 'specialization', 'batches', 'experience', 'status', 'role',
 ] as const
 
 function pickFields(body: any): Partial<NewFaculty> {
