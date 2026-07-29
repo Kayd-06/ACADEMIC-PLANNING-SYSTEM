@@ -6,9 +6,9 @@ Designed specifically for educational institutions, the platform hosts two disti
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
-### 🏢 Management Portal (Admin & Coordinator Access)
+### Management Portal (Admin & Coordinator Access)
 * **Institutional Dashboard**: High-level metrics, enrollment charts, calendar overview, active school counts.
 * **School Management**: Setup and configuration of schools (board affiliation, classes, programs, MOU start/end dates, join codes, and localized academic start months).
 * **Program & Batch Creation**: Custom programs (JEE, NEET, Foundational, etc.) mapped to specific batches, class levels, teachers, calendar timelines, and student capacities.
@@ -23,7 +23,7 @@ Designed specifically for educational institutions, the platform hosts two disti
 * **Student Performance & Grading**: Term-based subject grade books and progress report card generation.
 * **Standardized Question Bank**: Creation, filtering, and assembly of question papers; exports to PDF or Excel formats.
 
-### 👩‍🏫 Teacher Portal (Faculty Access)
+### Teacher Portal (Faculty Access)
 * **Live Timetable & Doubt Classes**: Weekly recurring schedules and scheduled one-off classes (doubt clearing, extra classes).
 * **Interactive Attendance Marking**: Session-based student attendance records (Present, Absent, Late, Excused).
 * **Daily Class Reporting**: Fast filing of topics covered, homework assigned, absent counts, and class observations.
@@ -35,7 +35,7 @@ Designed specifically for educational institutions, the platform hosts two disti
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 - **Framework**: [Next.js 16 (App Router)](https://nextjs.org/) + [React 19](https://react.dev/)
 - **Database**: [PostgreSQL (Neon Serverless)](https://neon.tech/) & [MongoDB](https://www.mongodb.com/)
@@ -49,7 +49,7 @@ Designed specifically for educational institutions, the platform hosts two disti
 
 ---
 
-## ⚙️ Getting Started
+## Getting Started
 
 ### 1. Prerequisites
 Ensure you have the following installed on your system:
@@ -99,6 +99,6 @@ npm run test
 
 ---
 
-## 📄 Documentation & Feature Specs
+## Documentation & Feature Specs
 
 For deeper insights into recent enhancements, review the design files and implementation plans located inside the project documentation folders (such as the Automated Class Promotion Spec, Chapter & Batch Deadlines Spec, and Faculty Import Spec).
