@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import { Download, Search, AlertTriangle, ChevronRight, Award, CheckCircle, Loader2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import ReportDetailModal from '@/components/dashboard/ReportDetailModal'
+import ExportFormatModal from '@/components/dashboard/ExportFormatModal'
+import { downloadTabularReportPDF } from '@/lib/pdf/reportPdfGenerator'
 
 interface PerformanceTrend {
   _id: string
@@ -65,6 +67,7 @@ export default function StudentReportsView() {
   const [selectedSubject, setSelectedSubject] = useState('All Subjects')
 
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
+  const [showExportModal, setShowExportModal] = useState(false)
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -106,15 +109,30 @@ export default function StudentReportsView() {
   const totalPages = Math.max(1, Math.ceil(filteredReports.length / itemsPerPage))
   const paginatedReports = filteredReports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
-  const handleExport = () => {
+  const handleExport = async (format: 'PDF' | 'CSV') => {
     if (filteredReports.length === 0) { showToast('No reports to export'); return }
     const headers = ['Teacher', 'Class', 'Subject', 'Term', 'Date', 'Students']
-    const rows = filteredReports.map(r => [r.name, r.className, r.subject, r.term, r.date, r.students])
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
-    ws['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 10 }]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Reports')
-    XLSX.writeFile(wb, 'uploaded_reports_export.xlsx')
+
+    if (format === 'CSV') {
+      const rows = filteredReports.map(r => [r.name, r.className, r.subject, r.term, r.date, r.students])
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+      ws['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 10 }]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Reports')
+      XLSX.writeFile(wb, 'uploaded_reports_export.xlsx')
+      showToast('Downloaded CSV export successfully!')
+      return
+    }
+
+    const rows = filteredReports.map((r, idx) => [idx + 1, r.name, r.className, r.subject, r.term, r.date, r.students])
+    await downloadTabularReportPDF({
+      title: 'Student Reports Summary',
+      subtitle: 'EduAdmin Pro • Uploaded Grade Reports',
+      columns: ['#', ...headers],
+      rows,
+      fileName: `student_reports_${new Date().toISOString().split('T')[0]}.pdf`,
+    })
+    showToast('Downloaded PDF report successfully!')
   }
 
   if (loading) {
@@ -156,10 +174,18 @@ export default function StudentReportsView() {
             {filterOptions.subjects.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        <button onClick={handleExport} className="flex items-center gap-2 px-5 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm active:scale-95">
+        <button onClick={() => setShowExportModal(true)} className="flex items-center gap-2 px-5 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm active:scale-95">
           <Download className="w-4 h-4" /> Export
         </button>
       </div>
+
+      {showExportModal && (
+        <ExportFormatModal
+          title="Export Student Reports"
+          onClose={() => setShowExportModal(false)}
+          onExport={async (format) => { await handleExport(format); setShowExportModal(false) }}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 

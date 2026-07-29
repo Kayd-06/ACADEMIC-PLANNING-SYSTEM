@@ -1,8 +1,11 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { CalendarDays, Users, BookOpen, ClipboardList, CheckCircle2, Flag, Loader2, RefreshCw, TrendingUp, Pencil, Trash2, X } from 'lucide-react'
+import { CalendarDays, Users, BookOpen, ClipboardList, CheckCircle2, Flag, Loader2, RefreshCw, TrendingUp, Pencil, Trash2, X, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { formatDateWithWeekday } from '@/lib/date'
+import ExportFormatModal from '@/components/dashboard/ExportFormatModal'
+import { downloadTabularReportPDF } from '@/lib/pdf/reportPdfGenerator'
 
 const EMPTY_EDIT = { subject: '', chapter: '', topicsCovered: '', presentCount: 0, absentCount: 0, homeworkGiven: '', observations: '' }
 
@@ -119,6 +122,7 @@ export default function DailyReportsViewer() {
   const [editingReport, setEditingReport] = useState<DailyReport | null>(null)
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState('')
+  const [showExportModal, setShowExportModal] = useState(false)
 
   async function saveEdit(form: typeof EMPTY_EDIT) {
     if (!editingReport) return
@@ -144,6 +148,35 @@ export default function DailyReportsViewer() {
     if (!confirm(`Delete ${report.teacherName}'s report for ${report.batch} · ${report.subject}?`)) return
     const res = await fetch(`/api/daily-report?id=${report.id}`, { method: 'DELETE' })
     if (res.ok) fetchReports(selectedDate)
+  }
+
+  async function handleExport(format: 'PDF' | 'CSV') {
+    const headers = ['Teacher', 'Batch', 'Subject', 'Chapter', 'Present', 'Absent', 'Status']
+    const dataRows = filtered.map(r => [r.teacherName, r.batch, r.subject, r.chapter || '—', r.presentCount, r.absentCount, r.isLate ? 'Late' : 'On Time'])
+
+    if (format === 'CSV') {
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows])
+      ws['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Daily Reports')
+      XLSX.writeFile(wb, `daily_reports_${selectedDate}.csv`)
+      return
+    }
+
+    const rows = filtered.map((r, idx) => [idx + 1, r.teacherName, r.batch, r.subject, r.chapter || '—', r.presentCount, r.absentCount, r.isLate ? 'Late' : 'On Time'])
+    await downloadTabularReportPDF({
+      title: 'Daily Teacher Reports',
+      subtitle: `EduAdmin Pro • ${formatDisplayDate(selectedDate)}`,
+      kpis: [
+        { label: 'Reports Submitted', value: reports.length.toString() },
+        { label: 'Teachers Reported', value: uniqueTeachers.toString() },
+        { label: 'Classes Logged', value: uniqueBatches.toString() },
+        { label: 'Students Reached', value: totalStudents.toString() },
+      ],
+      columns: ['#', ...headers],
+      rows,
+      fileName: `daily_reports_${selectedDate}.pdf`,
+    })
   }
 
   const fetchReports = useCallback(async (date: string) => {
@@ -174,6 +207,13 @@ export default function DailyReportsViewer() {
           <p className="text-gray-500 mt-1 text-sm">Monitor what teachers accomplished each day across the institution.</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowExportModal(true)}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl shadow-sm hover:bg-gray-50 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-3.5 h-3.5" /> Export
+          </button>
           <button onClick={() => fetchReports(selectedDate)} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl shadow-sm hover:bg-gray-50 font-semibold">
             <RefreshCw className="w-3.5 h-3.5" /> Refresh
           </button>
@@ -306,6 +346,17 @@ export default function DailyReportsViewer() {
           error={editError}
           onSubmit={saveEdit}
           onClose={() => setEditingReport(null)}
+        />
+      )}
+
+      {showExportModal && (
+        <ExportFormatModal
+          title="Export Daily Reports"
+          onClose={() => setShowExportModal(false)}
+          onExport={async (format) => {
+            await handleExport(format)
+            setShowExportModal(false)
+          }}
         />
       )}
     </div>

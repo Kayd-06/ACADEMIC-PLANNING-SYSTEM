@@ -6,7 +6,9 @@ import { Plus, User, GraduationCap, FileText, MessageSquare, Filter, MoreVertica
 import { motion, AnimatePresence } from 'framer-motion'
 import FacultyProfileModal from './FacultyProfileModal'
 import FacultyCsvUploadModal from './FacultyCsvUploadModal'
+import ExportFormatModal from '../ExportFormatModal'
 import { downloadFacultyCvPDF } from '@/lib/pdf/facultyCvGenerator'
+import { downloadTabularReportPDF } from '@/lib/pdf/reportPdfGenerator'
 import Avatar from '../Avatar'
 import { getBlobUrl } from '@/lib/blob'
 import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
@@ -163,6 +165,7 @@ export default function TeacherPortalView() {
 
   // Import Faculty modal
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
 
   // Edit Faculty modal
   const [editFaculty, setEditFaculty] = useState<FacultyMember | null>(null)
@@ -292,12 +295,12 @@ export default function TeacherPortalView() {
     { label: 'Counseling Sessions Logged', value: data.kpis.counselingSessions.toString(), icon: MessageSquare },
   ] : []
 
-  const handleExport = async () => {
+  const handleExport = async (format: 'PDF' | 'CSV') => {
     if (!data?.faculty || data.faculty.length === 0) {
       showToast('No faculty data to export')
       return
     }
-    
+
     const exportData = filteredFaculty
     if (exportData.length === 0) {
       showToast('No faculty match the current filter')
@@ -312,6 +315,33 @@ export default function TeacherPortalView() {
         return
       }
       const fullFacultyList = await res.json()
+
+      if (format === 'PDF') {
+        const rows = exportData.map((listFac, idx) => {
+          const fullFac = fullFacultyList.find((f: any) => f.id === listFac._id) || {}
+          const subject = fullFac.subject || listFac.sub || ''
+          const specialization = fullFac.specialization || listFac.spec || ''
+          return [
+            idx + 1,
+            fullFac.name || listFac.name,
+            fullFac.employeeId || '—',
+            specialization ? `${subject} — ${specialization}` : subject,
+            fullFac.phone || '—',
+            fullFac.batches ?? listFac.batches ?? 0,
+            fullFac.status || listFac.status || '—',
+          ]
+        })
+        await downloadTabularReportPDF({
+          title: 'Faculty Directory Report',
+          subtitle: 'EduAdmin Pro • Teacher Portal Overview',
+          kpis: KPIS.map(k => ({ label: k.label, value: k.value })),
+          columns: ['#', 'Name', 'Employee ID', 'Subject / Specialization', 'Phone', 'Batches', 'Status'],
+          rows,
+          fileName: `faculty_directory_${new Date().toISOString().split('T')[0]}.pdf`,
+        })
+        showToast('Downloaded PDF report successfully!')
+        return
+      }
 
       const headers = [
         'Full Name', 'Employee ID', 'Date of Birth', 'Gender', 'Bio', 'Profile Image URL',
@@ -358,6 +388,7 @@ export default function TeacherPortalView() {
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
+      showToast('Downloaded CSV export successfully!')
     } catch (e) {
       showToast('Error generating export')
     }
@@ -390,6 +421,14 @@ export default function TeacherPortalView() {
           />
         )}
       </AnimatePresence>
+
+      {showExportModal && (
+        <ExportFormatModal
+          title="Export Faculty Directory"
+          onClose={() => setShowExportModal(false)}
+          onExport={async (format) => { await handleExport(format); setShowExportModal(false) }}
+        />
+      )}
 
       {/* Edit Faculty Modal */}
       <AnimatePresence>
@@ -536,7 +575,7 @@ export default function TeacherPortalView() {
               <div className="flex items-center gap-3 text-slate-400">
 
                 {/* Export button */}
-                <button onClick={handleExport} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+                <button onClick={() => setShowExportModal(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors">
                   <Download className="w-3.5 h-3.5" />
                   <span>Export</span>
                 </button>
