@@ -2,8 +2,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Plus, Pencil, Trash2, Loader2, Users, GraduationCap, CalendarDays, UserCheck, AlertTriangle } from 'lucide-react'
+import { parseTargetDate, getUrgency, type UrgencyLevel } from '@/lib/date'
 
 const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Repeater']
+
+const URGENCY_BADGE_CLASS: Record<UrgencyLevel, string> = {
+  safe: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  warning: 'bg-amber-50 text-amber-700 border-amber-100',
+  critical: 'bg-rose-50 text-rose-700 border-rose-100',
+  overdue: 'bg-red-100 text-red-800 border-red-200',
+  done: 'bg-slate-100 text-slate-500 border-slate-200',
+  none: '',
+}
 
 const EMPTY_FORM = {
   name: '', classLevel: '', capacity: '60',
@@ -203,6 +213,7 @@ export default function BatchesTab({ programFilter, onClearProgramFilter }: {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {batches.map(b => {
             const pct = b.capacity > 0 ? Math.min(100, Math.round((b.enrolledCount / b.capacity) * 100)) : 0
+            const urgency = getUrgency(parseTargetDate(b.endDate), false)
             return (
               <div key={b._id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                 <div className={`h-1.5 w-full ${pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-400' : 'bg-indigo-600'}`} />
@@ -259,6 +270,12 @@ export default function BatchesTab({ programFilter, onClearProgramFilter }: {
                       <span className="truncate">{b.startDate || '—'} → {b.endDate || '—'}</span>
                     </div>
                   </div>
+
+                  {urgency.level !== 'none' && (
+                    <span className={`inline-block mt-2.5 px-2 py-0.5 rounded-md text-[10px] font-bold border ${URGENCY_BADGE_CLASS[urgency.level]}`}>
+                      {urgency.label}
+                    </span>
+                  )}
 
                   <button onClick={() => viewStudents(b)}
                     className="w-full mt-4 py-2 border border-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2">

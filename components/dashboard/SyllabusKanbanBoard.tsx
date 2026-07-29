@@ -2,8 +2,27 @@
 import { useState, useEffect, useRef } from 'react'
 import { Plus, X, Loader2, ChevronDown, Clock, CheckCircle, Upload, Download, FileText, FileSpreadsheet, Image as ImageIcon, FileCode, Trash2, Check, AlertCircle, Building2, BookOpen, Layers, Book } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { parseTargetDate, getUrgency, type UrgencyLevel } from '@/lib/date'
 
 const DEFAULT_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology']
+
+const URGENCY_BAR_CLASS: Record<UrgencyLevel, string> = {
+  safe: 'bg-emerald-500',
+  warning: 'bg-amber-400',
+  critical: 'bg-rose-500',
+  overdue: 'bg-red-800',
+  done: 'bg-emerald-600',
+  none: 'bg-slate-200',
+}
+
+const URGENCY_BADGE_CLASS: Record<UrgencyLevel, string> = {
+  safe: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  warning: 'bg-amber-50 text-amber-700 border-amber-100',
+  critical: 'bg-rose-50 text-rose-700 border-rose-100',
+  overdue: 'bg-red-100 text-red-800 border-red-200',
+  done: 'bg-slate-100 text-slate-500 border-slate-200',
+  none: '',
+}
 
 export function formatDisplayDate(val: string | number | null | undefined): string {
   if (!val) return ''
@@ -1067,12 +1086,16 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                       <p className="text-xs font-semibold text-slate-400">No chapters in this stage</p>
                     </div>
                   ) : (
-                    colChapters.map(chap => (
+                    colChapters.map(chap => {
+                      const urgency = getUrgency(parseTargetDate(chap.dates), chap.status === 'COMPLETED')
+                      return (
                       <div
                         key={chap._id}
                         onClick={() => openEditModal(chap)}
-                        className={`bg-white p-4 rounded-xl border border-slate-200 shadow-xs hover:shadow-md hover:border-indigo-200 cursor-pointer transition-all group space-y-3 ${col.key === 'COMPLETED' ? 'opacity-90' : ''}`}
+                        className={`bg-white rounded-xl border border-slate-200 shadow-xs hover:shadow-md hover:border-indigo-200 cursor-pointer transition-all group overflow-hidden ${col.key === 'COMPLETED' ? 'opacity-90' : ''}`}
                       >
+                        <div className={`h-1 w-full ${URGENCY_BAR_CLASS[urgency.level]}`} />
+                        <div className="p-4 space-y-3">
                         <div className="flex items-start justify-between">
                           <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide rounded border ${col.tagClass}`}>
                             {selectedSubject}
@@ -1083,7 +1106,14 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                           <h4 className={`font-bold text-xs text-slate-800 group-hover:text-indigo-600 transition-colors line-clamp-2 ${col.key === 'COMPLETED' ? 'line-through decoration-slate-300' : ''}`}>
                             {chap.title}
                           </h4>
-                          <p className="text-[10px] text-slate-500 mt-1 font-medium">Target: {formatDisplayDate(chap.dates) || 'Not set'}</p>
+                          <p className="text-[10px] text-slate-500 mt-1 font-medium flex items-center gap-1.5 flex-wrap">
+                            Target: {formatDisplayDate(chap.dates) || 'Not set'}
+                            {urgency.label && (
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${URGENCY_BADGE_CLASS[urgency.level]}`}>
+                                {urgency.label}
+                              </span>
+                            )}
+                          </p>
                         </div>
                         <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500 border-t border-slate-100 pt-2.5">
                           <span className="flex items-center gap-1">
@@ -1105,8 +1135,10 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                             <ChevronDown className="w-3.5 h-3.5 text-slate-450 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
                         </div>
+                        </div>
                       </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               </div>
