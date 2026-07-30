@@ -17,13 +17,6 @@ import {
   AlertCircle,
   XCircle,
   Clock,
-  Sparkles,
-  Plus,
-  Trash2,
-  Copy,
-  Check,
-  Play,
-  ClipboardList,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { formatDate } from '@/lib/date'
@@ -46,117 +39,7 @@ const TYPE_BADGE: Record<string, string> = {
   'Management -> Teacher': 'bg-violet-50 text-violet-700 border-violet-100',
 }
 
-const DEFAULT_TASKS = [
-  { id: '1', text: 'Coordinate with Chemistry faculty to review Lab 3 smartboard configuration', done: false, category: 'Infrastructure' },
-  { id: '2', text: 'Contact transport supervisor regarding Route 4 school bus delays', done: false, category: 'Transport' },
-  { id: '3', text: 'Draft response template for parent general feedback submissions', done: true, category: 'Communication' },
-]
 
-const MOCK_TEMPLATES: Record<string, Array<{ content: string; rating: number; senderName: string; category: string }>> = {
-  'Student -> Teacher': [
-    { content: "The explanation of difficult topics is clear, and the practical examples really help.", rating: 5, senderName: "Aarav Sharma", category: "Academics" },
-    { content: "Please go a bit slower during complex derivations. Sometimes it is hard to copy and understand at the same time.", rating: 3, senderName: "Aditya Verma", category: "Academics" },
-    { content: "Appreciate the extra doubt clearing session held last Friday. It helped me clear my physics concepts.", rating: 5, senderName: "Neha Gupta", category: "Doubt clearing" },
-    { content: "The class notes provided are detailed, but having them in digital format beforehand would be great.", rating: 4, senderName: "Rohan Das", category: "Academics" },
-    { content: "Sir always makes sure to answer everyone's questions before moving to a new topic.", rating: 5, senderName: "Pooja Sen", category: "Doubt clearing" }
-  ],
-  'Parent -> School': [
-    { content: "Weekly academic progress sheets are detailed and give us a clear view of our child's standing.", rating: 5, senderName: "Parent of Rohan", category: "Communication" },
-    { content: "The school bus on Route 4 has been late by over 15 minutes twice this week. Kindly look into the transit schedule.", rating: 3, senderName: "Mr. Kapoor", category: "Transport" },
-    { content: "Great infrastructure. Smart classroom features are making learning very engaging for our children.", rating: 5, senderName: "Mrs. Mehra", category: "Infrastructure" },
-    { content: "Cafeteria food options are good, but introducing more healthy organic options would be appreciated.", rating: 4, senderName: "Parent of Sneha", category: "Cafeteria" },
-    { content: "Communication regarding PTM schedules is very smooth and well-managed through the portal.", rating: 5, senderName: "Dr. Singhal", category: "Communication" }
-  ],
-  'Teacher -> Management': [
-    { content: "The new audio-visual system in Lab 3 is working beautifully. Students are highly engaged.", rating: 5, senderName: "Mrs. Gupta", category: "Infrastructure" },
-    { content: "We need some hands-on orientation or a user manual for the new digital gradebook features.", rating: 4, senderName: "Mr. Sharma", category: "Training" },
-    { content: "Appreciate the quick response on repairing the air conditioning unit in the staff room.", rating: 5, senderName: "Ms. Nair", category: "Infrastructure" },
-    { content: "Could we streamline the permission process for field trips? It currently takes too long.", rating: 3, senderName: "Mr. Joshi", category: "Administration" }
-  ]
-}
-
-const getAIResponse = (query: string, feedbackList: any[], avgRating?: number) => {
-  const q = query.toLowerCase().trim()
-  if (!q) return { status: 'neutral', text: 'No query entered.', details: 'Please type a keyword.', action: 'N/A' }
-
-  // Check matching items in current list
-  const matches = feedbackList.filter(item => 
-    (item.content || '').toLowerCase().includes(q) || 
-    (item.category || '').toLowerCase().includes(q) ||
-    (item.subject || '').toLowerCase().includes(q)
-  )
-
-  if (matches.length > 0) {
-    const avg = (matches.reduce((s: number, i: any) => s + i.rating, 0) / matches.length).toFixed(1)
-    const count = matches.length
-    let summary = ""
-    let recommendation = ""
-
-    if (q.includes('physics') || q.includes('teacher') || q.includes('academic')) {
-      summary = `Students generally appreciate the clarity of concepts, especially in Physics. However, a few students noted that the pace of teaching could be slightly adjusted during complex derivations.`
-      recommendation = `Suggest the Physics faculty incorporate a 5-minute summary recap at the end of each session and share digital lecture notes via the student portal.`
-    } else if (q.includes('smart') || q.includes('board') || q.includes('lab') || q.includes('infrastructure')) {
-      summary = `Teachers are thrilled with the new smartboards in Lab 3, reporting extremely high student engagement. No negative complaints are registered.`
-      recommendation = `Plan to roll out smartboards to Labs 1 and 2 in the next budget cycle as this has proven to be highly effective.`
-    } else if (q.includes('transport') || q.includes('bus') || q.includes('delay')) {
-      summary = `Parents have highlighted minor issues (rating ~3.0) regarding morning transit delays on Route 4, causing occasional check-in delays.`
-      recommendation = `Coordinate with the transport supervisor to audit Route 4 congestion and adjust driver dispatch times by 10 minutes.`
-    } else if (q.includes('canteen') || q.includes('food') || q.includes('cafeteria')) {
-      summary = `Feedback on cafeteria menus is generally neutral (rating ~4.0). Users enjoy the variety but request more healthy/nutritious options.`
-      recommendation = `Collaborate with the canteen vendor to introduce fresh fruit bowls and high-protein snack choices.`
-    } else {
-      summary = `Found ${count} feedback entries mentioning '${q}'. The average rating is ${avg}/5. Most comments focus on ongoing improvements and student satisfaction.`
-      recommendation = `Continue monitoring '${q}' related reviews and mark outstanding items as 'Reviewed' or 'Actioned'.`
-    }
-
-    return {
-      status: 'success',
-      text: `Based on my analysis of ${count} matching feedback entries, the average rating is ${avg}/5 stars.`,
-      details: summary,
-      action: recommendation
-    }
-  }
-
-  // If no matching items in database, search standard keywords in general
-  if (q.includes('physics') || q.includes('teacher') || q.includes('academic')) {
-    return {
-      status: 'success',
-      text: `Historical Analysis: Academics is our highest rated category (4.3/5).`,
-      details: `Physics classes are highly rated for clarity, though pace is occasionally flagged as fast.`,
-      action: `Organize monthly teacher-student alignment reviews.`
-    }
-  } else if (q.includes('smart') || q.includes('board') || q.includes('lab') || q.includes('infrastructure')) {
-    return {
-      status: 'success',
-      text: `Historical Analysis: Lab 3 Smartboard installation is a success.`,
-      details: `Teachers report 100% functionality and great engagement levels.`,
-      action: `Maintain regular hardware checkups.`
-    }
-  } else if (q.includes('transport') || q.includes('bus') || q.includes('delay')) {
-    return {
-      status: 'warning',
-      text: `Historical Analysis: Transport has minor delay alerts on Route 4.`,
-      details: `Route 4 has recorded 3 parent reports about delays of 15+ minutes due to traffic.`,
-      action: `Liaise with transport manager to adjust the departure schedule.`
-    }
-  } else if (q.includes('canteen') || q.includes('food') || q.includes('cafeteria')) {
-    return {
-      status: 'success',
-      text: `Historical Analysis: Cafeteria menu satisfaction is average (4.0/5).`,
-      details: `Healthy snack suggestions are common in student and parent logs.`,
-      action: `Review school canteen menu weekly.`
-    }
-  }
-
-  // Fallback
-  const ratingStr = avgRating && avgRating > 0 ? `${avgRating}/5` : '—'
-  return {
-    status: 'neutral',
-    text: `No direct feedback found for '${q}' in the current database.`,
-    details: `Across all categories, the general institutional rating stands at ${ratingStr}.`,
-    action: `Create a new survey with the keyword '${q}' to target student feedback on this specific topic.`
-  }
-}
 
 export default function FeedbackManagementView() {
   const [data, setData] = useState<any>({ totalCount: 0, avgRating: 0, pendingCount: 0, actionedCount: 0, ratingDistribution: {}, feedbackList: [] })
@@ -184,43 +67,7 @@ export default function FeedbackManagementView() {
   const [uploadingBulk, setUploadingBulk] = useState(false)
   const [bulkError, setBulkError] = useState('')
 
-  // AI Sentiment Q&A State
-  const [aiQuery, setAiQuery] = useState('')
-  const [aiAnalysis, setAiAnalysis] = useState<any>(null)
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
 
-  // Action Tasks Checklist State
-  const [actionTasks, setActionTasks] = useState<any[]>([])
-  const [newTaskText, setNewTaskText] = useState('')
-  const [newTaskCategory, setNewTaskCategory] = useState('General')
-
-  useEffect(() => {
-    const saved = localStorage.getItem('feedback_action_tasks')
-    if (saved) {
-      try {
-        setActionTasks(JSON.parse(saved))
-      } catch (e) {
-        setActionTasks(DEFAULT_TASKS)
-      }
-    } else {
-      setActionTasks(DEFAULT_TASKS)
-    }
-  }, [])
-
-  const saveTasks = (tasks: any[]) => {
-    setActionTasks(tasks)
-    localStorage.setItem('feedback_action_tasks', JSON.stringify(tasks))
-  }
-
-  function handleAskAI(q: string) {
-    if (!q.trim()) return
-    setIsAnalyzing(true)
-    setTimeout(() => {
-      const resp = getAIResponse(q, data.feedbackList || [], data.avgRating)
-      setAiAnalysis(resp)
-      setIsAnalyzing(false)
-    }, 500)
-  }
 
   async function fetchFeedback() {
     setLoading(true)
@@ -530,481 +377,277 @@ export default function FeedbackManagementView() {
           </div>
         </div>
 
-        {/* Main grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Feed / Actioned table */}
+        <div className="space-y-6 mb-8">
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search feedback content, sender, subject, batch, category..."
+              className="w-full pl-10 pr-12 py-3 bg-white border border-slate-200/90 rounded-2xl text-xs font-semibold outline-none focus:border-slate-400 transition-all shadow-sm" />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold">Clear</button>
+            )}
+          </div>
 
-          {/* Feed / Actioned table (8 cols) */}
-          <div className="lg:col-span-8 space-y-6">
-            <div className="relative w-full">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search feedback content, sender, subject, batch, category..."
-                className="w-full pl-10 pr-12 py-3 bg-white border border-slate-200/90 rounded-2xl text-xs font-semibold outline-none focus:border-slate-400 transition-all shadow-sm" />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold">Clear</button>
+          {loading ? (
+            <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center shadow-sm">
+              <RefreshCw className="w-8 h-8 text-slate-400 animate-spin mx-auto mb-2" />
+              <span className="text-xs font-bold text-slate-400">Loading...</span>
+            </div>
+          ) : view === 'actioned' ? (
+            /* ── ACTIONED TABLE ── */
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Actioned Feedback</p>
+                  <p className="text-xs text-slate-400 mt-0.5">All investigated, reviewed, and dismissed entries</p>
+                </div>
+                <span className="text-xs font-bold text-slate-500">{filteredList.length} records</span>
+              </div>
+              {filteredList.length === 0 ? (
+                <div className="py-16 text-center text-xs font-bold text-slate-400">No actioned feedback yet.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left min-w-[700px]">
+                    <thead>
+                      <tr className="bg-slate-50/60 border-b border-slate-100">
+                        <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sender</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Feedback</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Type</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rating</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredList.map((item: any) => {
+                        const sm = STATUS_META[item.status] || STATUS_META.Submitted
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50/40 transition-colors">
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-2">
+                                {getProfileIcon(item.senderName, item.isAnonymous)}
+                                <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
+                                  {item.isAnonymous ? 'Anonymous' : item.senderName}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5 max-w-[240px]">
+                              <p className="text-xs text-slate-600 line-clamp-2 italic">"{item.content}"</p>
+                              {item.subject && <span className="text-[10px] text-slate-400 mt-0.5 block">{item.subject} · {item.batch}</span>}
+                              {!item.subject && item.batch && <span className="text-[10px] font-semibold text-indigo-600 mt-0.5 block">Target: {item.batch}</span>}
+                              {item.category && <span className="text-[10px] text-slate-400 mt-0.5 block">{item.category}</span>}
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border whitespace-nowrap ${TYPE_BADGE[item.type] ?? 'bg-slate-50 text-slate-600 border-slate-100'}`}>{item.type}</span>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-0.5">{renderStars(item.rating)}</div>
+                            </td>
+                            <td className="px-5 py-3.5 text-xs font-semibold text-slate-500 whitespace-nowrap">{formatShortDate(item.date)}</td>
+                            <td className="px-5 py-3.5">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${sm.color}`}>
+                                {sm.icon} {sm.label}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-2">
+                                {item.status !== 'Dismissed' && (
+                                  <button onClick={() => handleUpdateStatus(item.id, 'Dismissed')}
+                                    className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors whitespace-nowrap">
+                                    Dismiss
+                                  </button>
+                                )}
+                                {item.status === 'Dismissed' && (
+                                  <button onClick={() => handleUpdateStatus(item.id, 'Submitted')}
+                                    className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 transition-colors whitespace-nowrap">
+                                    Reopen
+                                  </button>
+                                )}
+                                <button onClick={() => handleDelete(item.id)}
+                                  className="text-[10px] font-bold text-slate-300 hover:text-rose-600 transition-colors whitespace-nowrap">
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
-
-            {loading ? (
-              <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center shadow-sm">
-                <RefreshCw className="w-8 h-8 text-slate-400 animate-spin mx-auto mb-2" />
-                <span className="text-xs font-bold text-slate-400">Loading...</span>
-              </div>
-            ) : view === 'actioned' ? (
-              /* ── ACTIONED TABLE ── */
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">Actioned Feedback</p>
-                    <p className="text-xs text-slate-400 mt-0.5">All investigated, reviewed, and dismissed entries</p>
-                  </div>
-                  <span className="text-xs font-bold text-slate-500">{filteredList.length} records</span>
-                </div>
-                {filteredList.length === 0 ? (
-                  <div className="py-16 text-center text-xs font-bold text-slate-400">No actioned feedback yet.</div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left min-w-[700px]">
-                      <thead>
-                        <tr className="bg-slate-50/60 border-b border-slate-100">
-                          <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sender</th>
-                          <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Feedback</th>
-                          <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Type</th>
-                          <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rating</th>
-                          <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</th>
-                          <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
-                          <th className="px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {filteredList.map((item: any) => {
-                          const sm = STATUS_META[item.status] || STATUS_META.Submitted
-                          return (
-                            <tr key={item.id} className="hover:bg-slate-50/40 transition-colors">
-                              <td className="px-5 py-3.5">
-                                <div className="flex items-center gap-2">
-                                  {getProfileIcon(item.senderName, item.isAnonymous)}
-                                  <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
-                                    {item.isAnonymous ? 'Anonymous' : item.senderName}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-5 py-3.5 max-w-[240px]">
-                                <p className="text-xs text-slate-600 line-clamp-2 italic">"{item.content}"</p>
-                                {item.subject && <span className="text-[10px] text-slate-400 mt-0.5 block">{item.subject} · {item.batch}</span>}
-                                {!item.subject && item.batch && <span className="text-[10px] font-semibold text-indigo-600 mt-0.5 block">Target: {item.batch}</span>}
-                                {item.category && <span className="text-[10px] text-slate-400 mt-0.5 block">{item.category}</span>}
-                              </td>
-                              <td className="px-5 py-3.5">
-                                <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border whitespace-nowrap ${TYPE_BADGE[item.type] ?? 'bg-slate-50 text-slate-600 border-slate-100'}`}>{item.type}</span>
-                              </td>
-                              <td className="px-5 py-3.5">
-                                <div className="flex items-center gap-0.5">{renderStars(item.rating)}</div>
-                              </td>
-                              <td className="px-5 py-3.5 text-xs font-semibold text-slate-500 whitespace-nowrap">{formatShortDate(item.date)}</td>
-                              <td className="px-5 py-3.5">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${sm.color}`}>
-                                  {sm.icon} {sm.label}
-                                </span>
-                              </td>
-                              <td className="px-5 py-3.5">
-                                <div className="flex items-center gap-2">
-                                  {item.status !== 'Dismissed' && (
-                                    <button onClick={() => handleUpdateStatus(item.id, 'Dismissed')}
-                                      className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors whitespace-nowrap">
-                                      Dismiss
-                                    </button>
-                                  )}
-                                  {item.status === 'Dismissed' && (
-                                    <button onClick={() => handleUpdateStatus(item.id, 'Submitted')}
-                                      className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 transition-colors whitespace-nowrap">
-                                      Reopen
-                                    </button>
-                                  )}
-                                  <button onClick={() => handleDelete(item.id)}
-                                    className="text-[10px] font-bold text-slate-300 hover:text-rose-600 transition-colors whitespace-nowrap">
-                                    Delete
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            ) : (
-              /* ── PENDING CARDS ── */
-              filteredList.length > 0 ? filteredList.map((item: any) => (
-                <div key={item.id} className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[220px]">
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        {getProfileIcon(item.senderName, item.isAnonymous)}
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[13px] font-bold text-slate-800">{item.isAnonymous ? 'Anonymous' : item.senderName}</span>
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${TYPE_BADGE[item.type] ?? 'bg-slate-50 text-slate-600 border-slate-100'}`}>{item.type}</span>
-                          </div>
-                          <div className="flex items-center gap-0.5 mt-1">{renderStars(item.rating)}</div>
+          ) : (
+            /* ── PENDING CARDS ── */
+            filteredList.length > 0 ? filteredList.map((item: any) => (
+              <div key={item.id} className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[220px]">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      {getProfileIcon(item.senderName, item.isAnonymous)}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-bold text-slate-800">{item.isAnonymous ? 'Anonymous' : item.senderName}</span>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${TYPE_BADGE[item.type] ?? 'bg-slate-50 text-slate-600 border-slate-100'}`}>{item.type}</span>
                         </div>
+                        <div className="flex items-center gap-0.5 mt-1">{renderStars(item.rating)}</div>
                       </div>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${STATUS_META[item.status]?.color || ''}`}>
-                        {STATUS_META[item.status]?.label || item.status}
-                      </span>
                     </div>
-                    <p className="text-xs font-medium text-slate-600 leading-relaxed italic mb-5 pl-0.5">"{item.content}"</p>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${STATUS_META[item.status]?.color || ''}`}>
+                      {STATUS_META[item.status]?.label || item.status}
+                    </span>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-50">
-                    <div className="flex flex-wrap items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      {item.type === 'Student -> Teacher' ? (
-                        <>
-                          <span className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-slate-500 font-semibold">
-                            <BookOpen className="w-3.5 h-3.5 text-slate-400" /> Subject: {item.subject}
+                  <p className="text-xs font-medium text-slate-600 leading-relaxed italic mb-5 pl-0.5">"{item.content}"</p>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-50">
+                  <div className="flex flex-wrap items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    {item.type === 'Student -> Teacher' ? (
+                      <>
+                        <span className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-slate-500 font-semibold">
+                          <BookOpen className="w-3.5 h-3.5 text-slate-400" /> Subject: {item.subject}
+                        </span>
+                        <span className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-slate-500 font-semibold">
+                          <Users className="w-3.5 h-3.5 text-slate-400" /> Batch: {item.batch}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-slate-500 font-semibold">
+                          <Folder className="w-3.5 h-3.5 text-slate-400" /> Category: {item.category}
+                        </span>
+                        {item.batch && (
+                          <span className="flex items-center gap-1 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-md text-indigo-700 font-semibold">
+                            <User className="w-3.5 h-3.5 text-indigo-500" /> Target: {item.batch}
                           </span>
-                          <span className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-slate-500 font-semibold">
-                            <Users className="w-3.5 h-3.5 text-slate-400" /> Batch: {item.batch}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-slate-500 font-semibold">
-                            <Folder className="w-3.5 h-3.5 text-slate-400" /> Category: {item.category}
-                          </span>
-                          {item.batch && (
-                            <span className="flex items-center gap-1 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-md text-indigo-700 font-semibold">
-                              <User className="w-3.5 h-3.5 text-indigo-500" /> Target: {item.batch}
-                            </span>
-                          )}
-                        </>
-                      )}
-                      <span className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-slate-400 font-semibold">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" /> Date: {formatShortDate(item.date)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {item.status !== 'Actioned' && item.status !== 'Dismissed' && (
-                        <button onClick={() => handleUpdateStatus(item.id, 'Dismissed')}
-                          className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-50 rounded-lg transition-colors border border-transparent">
-                          Dismiss
+                        )}
+                      </>
+                    )}
+                    <span className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md text-slate-400 font-semibold">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" /> Date: {formatShortDate(item.date)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {item.status !== 'Actioned' && item.status !== 'Dismissed' && (
+                      <button onClick={() => handleUpdateStatus(item.id, 'Dismissed')}
+                        className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-50 rounded-lg transition-colors border border-transparent">
+                        Dismiss
+                      </button>
+                    )}
+                    {item.status === 'Submitted' && (
+                      <>
+                        <button onClick={() => handleUpdateStatus(item.id, 'Reviewed')}
+                          className="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 bg-white rounded-lg text-xs font-bold shadow-sm transition-all">
+                          Mark Reviewed
                         </button>
-                      )}
-                      {item.status === 'Submitted' && (
-                        <>
-                          <button onClick={() => handleUpdateStatus(item.id, 'Reviewed')}
-                            className="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 bg-white rounded-lg text-xs font-bold shadow-sm transition-all">
-                            Mark Reviewed
-                          </button>
-                          <button onClick={() => handleUpdateStatus(item.id, 'Actioned')}
-                            className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-md transition-all">
-                            Mark Actioned
-                          </button>
-                        </>
-                      )}
-                      {item.status === 'Reviewed' && (
                         <button onClick={() => handleUpdateStatus(item.id, 'Actioned')}
                           className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-md transition-all">
                           Mark Actioned
                         </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )) : (
-                <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center shadow-sm text-xs font-bold text-slate-400">
-                  {searchQuery ? 'No results match your search.' : 'No pending feedback — all caught up!'}
-                </div>
-              )
-            )}
-
-            {/* Feedback Intelligence & Action Hub */}
-            <div className="pt-6 mt-8 border-t border-slate-200/80">
-              <div className="flex items-center gap-2 mb-6">
-                <div className="p-1.5 bg-indigo-50 rounded-lg border border-indigo-100">
-                  <Sparkles className="w-4 h-4 text-indigo-600" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">Academic Feedback Intelligence Hub</h2>
-                  <p className="text-[10px] text-slate-400 mt-0.5 font-semibold">Automated analytical summaries, surveys, and tracking actions</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* AI Insights & Q&A Panel */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">AI Sentiment Advisor</span>
-                      <span className="flex items-center gap-1 text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping" /> Online
-                      </span>
-                    </div>
-
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs text-slate-600 leading-relaxed font-medium">
-                      {data.totalCount > 0 ? (
-                        <span>
-                          We analyzed <strong>{data.feedbackList?.length || 0}</strong> loaded feedbacks. The average rating is <strong>{data.avgRating}/5</strong>. 
-                          Key strengths lie in positive comments in <strong>{data.feedbackList?.filter((f: any) => f.rating >= 4).map((f: any) => f.category).filter((v: any, i: any, a: any) => a.indexOf(v) === i).slice(0, 2).join(', ') || 'Academics'}</strong>.
-                        </span>
-                      ) : (
-                        <span>
-                          No feedback entries are currently in the system. The console is ready to receive student, parent, and teacher submissions.
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Ask AI Input */}
-                    <div className="space-y-2 pt-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Ask Advisor about Feedback</label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={aiQuery}
-                          onChange={(e) => setAiQuery(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleAskAI(aiQuery)
-                          }}
-                          placeholder="e.g. physics, delay, lab 3..."
-                          className="w-full pl-3 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-400 focus:bg-white transition-all font-semibold"
-                        />
-                        <button
-                          onClick={() => handleAskAI(aiQuery)}
-                          disabled={isAnalyzing || !aiQuery.trim()}
-                          className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                        >
-                          {isAnalyzing ? 'Thinking...' : 'Ask AI'}
-                        </button>
-                      </div>
-
-                      {/* Example tags */}
-                      <div className="flex flex-wrap gap-1.5 items-center">
-                        <span className="text-[9px] font-bold text-slate-400">Try:</span>
-                        {['physics', 'delay', 'lab 3', 'canteen'].map(tag => (
-                          <button
-                            key={tag}
-                            onClick={() => {
-                              setAiQuery(tag)
-                              handleAskAI(tag)
-                            }}
-                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200/70 border border-slate-200/50 rounded-md text-[9px] font-bold text-slate-600 cursor-pointer"
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* AI Response Output */}
-                  {aiAnalysis && (
-                    <div className={`border rounded-xl p-3.5 space-y-2 text-xs transition-all duration-300 animate-fadeIn ${
-                      aiAnalysis.status === 'success' ? 'bg-indigo-50/40 border-indigo-100 text-indigo-900' :
-                      aiAnalysis.status === 'warning' ? 'bg-amber-50/40 border-amber-100 text-amber-900' :
-                      'bg-slate-50 border-slate-200 text-slate-800'
-                    }`}>
-                      <div className="flex items-center gap-1.5 font-bold">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>{aiAnalysis.text}</span>
-                      </div>
-                      <p className="text-[11px] leading-relaxed font-semibold opacity-90">{aiAnalysis.details}</p>
-                      <div className="pt-2 border-t border-indigo-100/40 flex items-start gap-1.5 text-[10px]">
-                        <span className="font-extrabold uppercase bg-white/80 border border-indigo-100/60 px-1 py-0.5 rounded text-[8px] tracking-wider shrink-0 text-indigo-700">Recommend</span>
-                        <span className="font-medium italic opacity-95">{aiAnalysis.action}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Card 2: Action Checklist */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 flex flex-col justify-between h-full">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div>
-                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                          <ClipboardList className="w-4 h-4 text-indigo-500" /> Feedback Action items ({actionTasks.filter(t => t.done).length} / {actionTasks.length} Completed)
-                        </h3>
-                        <p className="text-[10px] text-slate-400 mt-0.5 font-semibold">Tasks created to address concerns raised in feedback reviews</p>
-                      </div>
-                      {/* Progress bar */}
-                      <div className="w-32 flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-indigo-500 rounded-full transition-all duration-300"
-                            style={{ width: `${actionTasks.length > 0 ? (actionTasks.filter(t => t.done).length / actionTasks.length) * 100 : 0}%` }}
-                          />
-                        </div>
-                        <span className="text-[9px] font-bold text-slate-500">{actionTasks.length > 0 ? Math.round((actionTasks.filter(t => t.done).length / actionTasks.length) * 100) : 0}%</span>
-                      </div>
-                    </div>
-
-                    {/* Add new task */}
-                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                      <input
-                        type="text"
-                        value={newTaskText}
-                        onChange={(e) => setNewTaskText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            if (!newTaskText.trim()) return
-                            const newTasks = [...actionTasks, { id: Date.now().toString(), text: newTaskText, done: false, category: newTaskCategory }]
-                            saveTasks(newTasks)
-                            setNewTaskText('')
-                          }
-                        }}
-                        placeholder="New action item from feedback..."
-                        className="flex-1 min-w-0 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-400 focus:bg-white transition-all font-semibold"
-                      />
-                      <select
-                        value={newTaskCategory}
-                        onChange={(e) => setNewTaskCategory(e.target.value)}
-                        className="w-28 shrink-0 px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none cursor-pointer"
-                      >
-                        {['General', 'Infrastructure', 'Academics', 'Transport', 'Cafeteria', 'Communication'].map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => {
-                          if (!newTaskText.trim()) return
-                          const newTasks = [...actionTasks, { id: Date.now().toString(), text: newTaskText, done: false, category: newTaskCategory }]
-                          saveTasks(newTasks)
-                          setNewTaskText('')
-                        }}
-                        className="p-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-all cursor-pointer shrink-0"
-                      >
-                        <Plus className="w-4 h-4" />
+                      </>
+                    )}
+                    {item.status === 'Reviewed' && (
+                      <button onClick={() => handleUpdateStatus(item.id, 'Actioned')}
+                        className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-md transition-all">
+                        Mark Actioned
                       </button>
-                    </div>
-
-                    {/* Task list */}
-                    {actionTasks.length === 0 ? (
-                      <p className="text-[11px] font-bold text-slate-400 text-center py-4">No pending actions. You&apos;re fully caught up!</p>
-                    ) : (
-                      <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                        {actionTasks.map(task => (
-                          <div
-                            key={task.id}
-                            className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
-                              task.done ? 'bg-slate-50/50 border-slate-100 opacity-60' : 'bg-white border-slate-200/70 hover:border-slate-300 shadow-2xs'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <button
-                                onClick={() => {
-                                  const updated = actionTasks.map(t => t.id === task.id ? { ...t, done: !t.done } : t)
-                                  saveTasks(updated)
-                                }}
-                                className={`w-4 h-4 rounded border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
-                                  task.done ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-300 hover:border-indigo-400 bg-white'
-                                }`}
-                              >
-                                {task.done && <Check className="w-3 h-3 stroke-[3]" />}
-                              </button>
-                              <span className={`text-[11px] font-semibold text-slate-700 break-words ${task.done ? 'line-through text-slate-400' : ''}`}>
-                                {task.text}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border shrink-0 ${
-                                task.category === 'Infrastructure' ? 'bg-amber-50 border-amber-100 text-amber-700' :
-                                task.category === 'Academics' ? 'bg-blue-50 border-blue-100 text-blue-700' :
-                                task.category === 'Transport' ? 'bg-rose-50 border-rose-100 text-rose-700' :
-                                task.category === 'Cafeteria' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' :
-                                'bg-slate-50 border-slate-200 text-slate-600'
-                              }`}>
-                                {task.category}
-                              </span>
-                              <button
-                                onClick={() => {
-                                  const filtered = actionTasks.filter(t => t.id !== task.id)
-                                  saveTasks(filtered)
-                                }}
-                                className="p-1 text-slate-300 hover:text-rose-600 hover:bg-slate-50 rounded transition-colors cursor-pointer shrink-0"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
                     )}
                   </div>
                 </div>
               </div>
+            )) : (
+              <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center shadow-sm text-xs font-bold text-slate-400">
+                {searchQuery ? 'No results match your search.' : 'No pending feedback — all caught up!'}
+              </div>
+            )
+          )}
+        </div>
+
+        {/* Bottom Analytics & Legend Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-slate-200/80">
+          {/* Card 1: Rating Distribution */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-bold text-slate-900">Rating Distribution</h3>
+              {ratingFilter !== null && (
+                <button onClick={() => setRatingFilter(null)} className="text-[11px] font-bold text-indigo-600">Clear Filter</button>
+              )}
+            </div>
+            <div className="space-y-4">
+              {[5, 4, 3, 2, 1].map(stars => {
+                const pct = data.ratingDistribution?.[stars] || 0
+                const isSel = ratingFilter === stars
+                return (
+                  <button key={stars} onClick={() => setRatingFilter(isSel ? null : stars)}
+                    className={`w-full flex items-center gap-3 text-xs font-bold text-left p-1.5 rounded-lg transition-all hover:bg-slate-50 border border-transparent ${isSel ? 'bg-slate-100/70 border-slate-200 shadow-sm' : ''}`}>
+                    <span className="w-6 flex items-center gap-1 text-slate-500 shrink-0">{stars} <Star className="w-3 h-3 fill-amber-400 text-amber-400" /></span>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-500 ${stars === 5 ? 'bg-emerald-400' : stars === 4 ? 'bg-indigo-400' : stars === 3 ? 'bg-amber-300' : stars === 2 ? 'bg-orange-400' : 'bg-rose-500'}`}
+                        style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="w-8 text-right text-slate-500 font-semibold shrink-0">{pct}%</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
-          {/* Right Sidebar */}
-          <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-sm font-bold text-slate-900">Rating Distribution</h3>
-                {ratingFilter !== null && (
-                  <button onClick={() => setRatingFilter(null)} className="text-[11px] font-bold text-indigo-600">Clear Filter</button>
-                )}
-              </div>
-              <div className="space-y-4">
-                {[5, 4, 3, 2, 1].map(stars => {
-                  const pct = data.ratingDistribution?.[stars] || 0
-                  const isSel = ratingFilter === stars
-                  return (
-                    <button key={stars} onClick={() => setRatingFilter(isSel ? null : stars)}
-                      className={`w-full flex items-center gap-3 text-xs font-bold text-left p-1.5 rounded-lg transition-all hover:bg-slate-50 border border-transparent ${isSel ? 'bg-slate-100/70 border-slate-200 shadow-sm' : ''}`}>
-                      <span className="w-6 flex items-center gap-1 text-slate-500 shrink-0">{stars} <Star className="w-3 h-3 fill-amber-400 text-amber-400" /></span>
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all duration-500 ${stars === 5 ? 'bg-emerald-400' : stars === 4 ? 'bg-indigo-400' : stars === 3 ? 'bg-amber-300' : stars === 2 ? 'bg-orange-400' : 'bg-rose-500'}`}
-                          style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="w-8 text-right text-slate-500 font-semibold shrink-0">{pct}%</span>
-                    </button>
-                  )
-                })}
-              </div>
+          {/* Card 2: Sentiment Keywords */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-slate-900">Sentiment Keywords</h3>
+              <Info className="w-4 h-4 text-slate-400" />
             </div>
-
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-bold text-slate-900">Sentiment Keywords</h3>
-                <Info className="w-4 h-4 text-slate-400" />
-              </div>
-              <p className="text-[11px] text-slate-500 mb-6">Common topics appearing in recent feedback (last 30 days).</p>
-              <div className="flex flex-wrap gap-2.5">
-                {[
-                  { label: 'Detailed notes', cls: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100/50', icon: true },
-                  { label: 'Doubt clearing', cls: 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100/50', icon: true },
-                  { label: 'Pace of teaching', cls: 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100/50', icon: true },
-                  { label: 'Transport delays', cls: 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100/50', icon: false },
-                  { label: 'Cafeteria menu', cls: 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100/50', icon: false },
-                ].map(kw => {
-                  const isActive = searchQuery.toLowerCase() === kw.label.toLowerCase()
-                  return (
-                    <button key={kw.label} onClick={() => setSearchQuery(isActive ? '' : kw.label)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all border cursor-pointer ${isActive ? 'bg-slate-800 text-white border-slate-800' : kw.cls}`}>
-                      {kw.icon && <TrendingUp className="w-3.5 h-3.5" />}
-                      {kw.label}
-                    </button>
-                  )
-                })}
-              </div>
+            <p className="text-[11px] text-slate-500 mb-4">Common topics appearing in recent feedback (last 30 days).</p>
+            <div className="flex flex-wrap gap-2.5">
+              {[
+                { label: 'Detailed notes', cls: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100/50', icon: true },
+                { label: 'Doubt clearing', cls: 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100/50', icon: true },
+                { label: 'Pace of teaching', cls: 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100/50', icon: true },
+                { label: 'Transport delays', cls: 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100/50', icon: false },
+                { label: 'Cafeteria menu', cls: 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100/50', icon: false },
+                { label: 'Smartboard lab', cls: 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100/50', icon: true },
+                { label: 'PTM schedules', cls: 'bg-violet-50 text-violet-700 border-violet-100 hover:bg-violet-100/50', icon: false },
+                { label: 'Weekly reports', cls: 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100/50', icon: true },
+              ].map(kw => {
+                const isActive = searchQuery.toLowerCase() === kw.label.toLowerCase()
+                return (
+                  <button key={kw.label} onClick={() => setSearchQuery(isActive ? '' : kw.label)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all border cursor-pointer ${isActive ? 'bg-slate-800 text-white border-slate-800' : kw.cls}`}>
+                    {kw.icon && <TrendingUp className="w-3.5 h-3.5" />}
+                    {kw.label}
+                  </button>
+                )
+              })}
             </div>
+          </div>
 
-            {/* Quick legend */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-              <h3 className="text-sm font-bold text-slate-900 mb-4">Status Legend</h3>
-              <div className="space-y-2.5">
-                {Object.entries(STATUS_META).map(([, sm]) => (
-                  <div key={sm.label} className="flex items-center gap-2.5">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${sm.color}`}>
+          {/* Card 3: Quick legend */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-slate-900">Status Legend</h3>
+            </div>
+            <p className="text-[11px] text-slate-500 mb-5">Workflow states for processing feedback entries.</p>
+            <div className="space-y-3">
+              {[
+                { key: 'Submitted', desc: 'Newly received, awaiting initial review' },
+                { key: 'Reviewed', desc: 'Investigated by school administration' },
+                { key: 'Actioned', desc: 'Resolution completed and updated' },
+                { key: 'Dismissed', desc: 'Archived or marked inactive' },
+              ].map(({ key, desc }) => {
+                const sm = STATUS_META[key]
+                return (
+                  <div key={key} className="flex items-center justify-between gap-3 text-xs">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border shrink-0 ${sm.color}`}>
                       {sm.icon} {sm.label}
                     </span>
+                    <span className="text-[11px] font-medium text-slate-400 text-right">{desc}</span>
                   </div>
-                ))}
-              </div>
+                )
+              })}
             </div>
           </div>
-
         </div>
       </div>
 
