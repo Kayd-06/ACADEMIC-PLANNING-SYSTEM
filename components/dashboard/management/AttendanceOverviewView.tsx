@@ -2,20 +2,24 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Calendar as CalendarIcon, 
-  BarChart2, 
-  AlertTriangle, 
-  Star, 
-  Search, 
-  ChevronLeft, 
-  ChevronRight, 
+import * as XLSX from 'xlsx'
+import {
+  Calendar as CalendarIcon,
+  BarChart2,
+  AlertTriangle,
+  Star,
+  Search,
+  ChevronLeft,
+  ChevronRight,
   Filter,
   RefreshCw,
   TrendingUp,
+  Download,
   Info
 } from 'lucide-react'
 import { formatDate } from '@/lib/date'
+import ExportFormatModal from '@/components/dashboard/ExportFormatModal'
+import { downloadTabularReportPDF } from '@/lib/pdf/reportPdfGenerator'
 
 // Helper to format date into human readable form (e.g., 18 Jun 2026)
 function formatShortDate(dateStr: string) {
@@ -49,6 +53,14 @@ export default function AttendanceOverviewView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [tablePage, setTablePage] = useState(1)
   const itemsPerPage = 8
+
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 3000)
+  }
 
   async function fetchOverviewData() {
     setLoading(true)
@@ -84,6 +96,31 @@ export default function AttendanceOverviewView() {
     tablePage * itemsPerPage
   )
 
+  const handleExport = async (format: 'PDF' | 'CSV') => {
+    if (filteredStudents.length === 0) { showToast('No attendance records to export'); return }
+    const headers = ['Student', 'Batch', 'Present Days', 'Absent Days', 'Attendance %', 'Last Absent Date']
+    const rows = filteredStudents.map((st: any) => [st.name, st.batch, st.present, st.absent, `${st.rate}%`, st.lastAbsent || 'N/A'])
+
+    if (format === 'CSV') {
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+      ws['!cols'] = [{ wch: 22 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Attendance Detail')
+      XLSX.writeFile(wb, 'attendance_detail_export.xlsx')
+      showToast('Downloaded CSV export successfully!')
+      return
+    }
+
+    await downloadTabularReportPDF({
+      title: 'Student Attendance Detail',
+      subtitle: 'EduAdmin Pro • Attendance Trends Across Batches and Subjects',
+      columns: headers,
+      rows,
+      fileName: `attendance_detail_${new Date().toISOString().split('T')[0]}.pdf`,
+    })
+    showToast('Downloaded PDF report successfully!')
+  }
+
   // Color mapping helper for the heatmap blocks
   function getHeatmapColor(rate: number | null) {
     if (rate === null) return 'bg-slate-100 text-slate-300' // Sunday / No data
@@ -106,13 +143,22 @@ export default function AttendanceOverviewView() {
               Track daily attendance trends across batches and subjects
             </p>
           </div>
-          <button 
-            onClick={fetchOverviewData}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-all"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+            <button
+              onClick={fetchOverviewData}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-all"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Filter Row */}
@@ -471,6 +517,28 @@ export default function AttendanceOverviewView() {
       <div className="mt-8 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
         © 2026 EduAdmin Pro Suite • Secure Attendance Tracking
       </div>
+
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 right-6 bg-[#0b1320] text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-[100]"
+          >
+            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+            <span className="text-sm font-medium">{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {showExportModal && (
+        <ExportFormatModal
+          title="Export Attendance Detail"
+          onClose={() => setShowExportModal(false)}
+          onExport={async (format) => { await handleExport(format); setShowExportModal(false) }}
+        />
+      )}
 
     </div>
   )

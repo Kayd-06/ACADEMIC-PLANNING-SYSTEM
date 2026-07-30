@@ -42,6 +42,8 @@ import {
   Info
 } from 'lucide-react'
 import { formatDate } from '@/lib/date'
+import ExportFormatModal from '@/components/dashboard/ExportFormatModal'
+import { downloadTabularReportPDF } from '@/lib/pdf/reportPdfGenerator'
 
 // Formatting helper for currency in INR
 function formatCurrency(amount: number) {
@@ -89,6 +91,8 @@ export default function FeeManagementView() {
   
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null)
+
+  const [showExportModal, setShowExportModal] = useState(false)
 
   // EXCEL UPLOAD & FORMATTING GUIDE MODAL STATES
   const [showExcelModal, setShowExcelModal] = useState(false)
@@ -640,6 +644,62 @@ export default function FeeManagementView() {
     paymentPage * itemsPerPage
   )
 
+  // Export current tab (Fee Structure & Scope, or Fee Payments & Transactions)
+  async function handleExport(format: 'PDF' | 'CSV') {
+    if (activeTab === 'structure') {
+      if (filteredFeeTypes.length === 0) {
+        showAlert({ title: 'Nothing to Export', message: 'No fee structures match the current filters.', type: 'info' })
+        return
+      }
+      const headers = ['Fee Name', 'Fee Category', 'Amount (INR)', 'Frequency', 'Due Day', 'Mandatory', 'Program', 'Batch', 'Academic Year']
+      const rows = filteredFeeTypes.map(fee => [
+        fee.name, fee.feeType || 'Monthly Tuition', fee.amount, fee.frequency, fee.dueDay || 5,
+        fee.isMandatory ? 'Yes' : 'No', fee.programAssociation || 'All Programs', fee.batchAssociation || 'All Batches', fee.academicYear || '2024-25'
+      ])
+
+      if (format === 'CSV') {
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, 'Fee Structures')
+        XLSX.writeFile(wb, 'fee_structures_export.xlsx')
+      } else {
+        await downloadTabularReportPDF({
+          title: 'Fee Structure & Scope',
+          subtitle: 'EduAdmin Pro • Fee Types, Financial Details & Batch Associations',
+          columns: headers,
+          rows,
+          fileName: `fee_structures_${new Date().toISOString().split('T')[0]}.pdf`,
+        })
+      }
+    } else {
+      if (filteredPayments.length === 0) {
+        showAlert({ title: 'Nothing to Export', message: 'No payment records match the current filters.', type: 'info' })
+        return
+      }
+      const headers = ['Receipt No', 'Student', 'Roll No', 'Fee Name', 'Amount Due', 'Amount Paid', 'Discount', 'Late Fee', 'Method', 'Status', 'Due Date', 'Paid Date']
+      const rows = filteredPayments.map(record => [
+        record.receiptNumber || 'N/A', record.studentName, record.rollNo || 'N/A', record.feeName,
+        record.amountDue || record.totalAmount || 0, record.amountPaid || 0, record.discount || 0, record.lateFee || 0,
+        record.paymentMethod || 'UPI', record.status, formatDate(record.dueDate) || 'N/A', record.paidDate ? formatDate(record.paidDate) : 'N/A'
+      ])
+
+      if (format === 'CSV') {
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, 'Fee Payments')
+        XLSX.writeFile(wb, 'fee_payments_export.xlsx')
+      } else {
+        await downloadTabularReportPDF({
+          title: 'Fee Payments & Transactions',
+          subtitle: 'EduAdmin Pro • Receipts, Financial Breakdown & Timeline',
+          columns: headers,
+          rows,
+          fileName: `fee_payments_${new Date().toISOString().split('T')[0]}.pdf`,
+        })
+      }
+    }
+  }
+
   // Circular progress math for Collection Rate KPI
   const circleRadius = 22
   const strokeWidth = 5
@@ -875,6 +935,16 @@ export default function FeeManagementView() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Export current tab as CSV or PDF */}
+          <button
+            onClick={() => setShowExportModal(true)}
+            title="Export as CSV or PDF"
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-2xs"
+          >
+            <Download className="w-4 h-4 text-slate-500" />
+            <span className="hidden sm:inline">Export</span>
+          </button>
+
           {/* Quick Excel Upload Button right next to Create/Record */}
           <button
             onClick={openExcelUploadModal}
@@ -2117,6 +2187,14 @@ export default function FeeManagementView() {
           </div>
         )}
       </AnimatePresence>
+
+      {showExportModal && (
+        <ExportFormatModal
+          title={activeTab === 'structure' ? 'Export Fee Structures' : 'Export Fee Payments'}
+          onClose={() => setShowExportModal(false)}
+          onExport={async (format) => { await handleExport(format); setShowExportModal(false) }}
+        />
+      )}
 
     </div>
   )

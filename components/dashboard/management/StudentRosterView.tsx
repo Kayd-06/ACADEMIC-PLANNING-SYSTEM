@@ -2,9 +2,12 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, X, User, Phone, Briefcase, Loader2, Filter, Plus, Pencil, Trash2, Upload, Download, RotateCw } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import StudentFormModal from './StudentFormModal'
 import CsvUploadModal, { downloadTemplate } from './CsvUploadModal'
 import StudentProfileDrawer from './StudentProfileDrawer'
+import ExportFormatModal from '@/components/dashboard/ExportFormatModal'
+import { downloadTabularReportPDF } from '@/lib/pdf/reportPdfGenerator'
 import { getBlobUrl } from '@/lib/blob'
 import Avatar from '../Avatar'
 
@@ -45,6 +48,9 @@ export default function StudentRosterView() {
 
   // CSV upload
   const [showCsvModal, setShowCsvModal] = useState(false)
+
+  // Export
+  const [showExportModal, setShowExportModal] = useState(false)
 
   // Bumped after edits so the profile drawer refetches
   const [refreshTick, setRefreshTick] = useState(0)
@@ -144,6 +150,32 @@ export default function StudentRosterView() {
     return true
   })
 
+  const handleExport = async (format: 'PDF' | 'CSV') => {
+    if (filteredStudents.length === 0) { showToast('No students to export'); return }
+    const headers = ['Roll No', 'Name', 'Class', 'Program', 'Batch', 'Contact']
+
+    if (format === 'CSV') {
+      const rows = filteredStudents.map(s => [s.roll, s.name, s.class, s.program, s.batch, s.contact])
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+      ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 16 }]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Student Roster')
+      XLSX.writeFile(wb, 'student_roster_export.xlsx')
+      showToast('Downloaded CSV export successfully!')
+      return
+    }
+
+    const rows = filteredStudents.map(s => [s.roll, s.name, s.class, s.program, s.batch, s.contact])
+    await downloadTabularReportPDF({
+      title: 'Student Roster',
+      subtitle: 'EduAdmin Pro • Student Records, Batches & Contact Details',
+      columns: headers,
+      rows,
+      fileName: `student_roster_${new Date().toISOString().split('T')[0]}.pdf`,
+    })
+    showToast('Downloaded PDF report successfully!')
+  }
+
   return (
     <div className="flex-1 overflow-hidden bg-slate-50 relative flex h-screen">
       
@@ -188,6 +220,9 @@ export default function StudentRosterView() {
             </button>
             <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm cursor-pointer">
               <Download className="w-4 h-4" /> Export Sample CSV
+            </button>
+            <button onClick={() => setShowExportModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm cursor-pointer">
+              <Download className="w-4 h-4" /> Export
             </button>
             <button 
               onClick={handleRefresh} 
@@ -360,6 +395,14 @@ export default function StudentRosterView() {
           defaultProgram={selectedProgramName}
           onClose={() => setShowCsvModal(false)}
           onImported={fetchStudents}
+        />
+      )}
+
+      {showExportModal && (
+        <ExportFormatModal
+          title="Export Student Roster"
+          onClose={() => setShowExportModal(false)}
+          onExport={async (format) => { await handleExport(format); setShowExportModal(false) }}
         />
       )}
 
