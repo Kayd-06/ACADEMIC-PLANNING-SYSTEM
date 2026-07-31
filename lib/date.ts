@@ -1,27 +1,47 @@
+// Parses a date correctly even if it's an Excel serial date string (e.g. "46224")
+export function parseDateSafe(date: string | Date | number | null | undefined): Date | null {
+  if (date === null || date === undefined || date === '') return null
+  let d = date instanceof Date ? date : new Date(date as string)
+  
+  if ((typeof date === 'string' || typeof date === 'number') && /^\d{4,6}(\.\d+)?$/.test(String(date).trim())) {
+    const num = parseFloat(String(date).trim())
+    if (num > 30000 && num < 70000) {
+      d = new Date(Math.round((num - 25569) * 86400 * 1000))
+    }
+  }
+  
+  if (isNaN(d.getTime())) return null
+  return d
+}
+
 // Platform-wide date display format: "15 Jul 2026" (day, short month, full year).
 export function formatDate(date: string | Date | null | undefined): string {
-  if (!date) return ''
-  const d = typeof date === 'string' ? new Date(date) : date
-  if (isNaN(d.getTime())) return ''
+  const d = parseDateSafe(date)
+  if (!d) return ''
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 // Same as formatDate but with a trailing time, e.g. "15 Jul 2026, 3:45 PM".
 export function formatDateTime(date: string | Date | null | undefined): string {
-  if (!date) return ''
-  const d = typeof date === 'string' ? new Date(date) : date
-  if (isNaN(d.getTime())) return ''
+  const d = parseDateSafe(date)
+  if (!d) return ''
   const time = d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true })
   return `${formatDate(d)}, ${time}`
 }
 
 // Same as formatDate but prefixed with the weekday name, e.g. "Monday, 15 Jul 2026".
 export function formatDateWithWeekday(date: string | Date | null | undefined): string {
-  if (!date) return ''
-  const d = typeof date === 'string' ? new Date(date) : date
-  if (isNaN(d.getTime())) return ''
+  const d = parseDateSafe(date)
+  if (!d) return ''
   const weekday = d.toLocaleDateString('en-GB', { weekday: 'long' })
   return `${weekday}, ${formatDate(d)}`
+}
+
+// Formats for <input type="date"> which expects YYYY-MM-DD
+export function formatDateForInput(date: string | Date | null | undefined): string {
+  const d = parseDateSafe(date)
+  if (!d) return ''
+  return d.toISOString().split('T')[0]
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

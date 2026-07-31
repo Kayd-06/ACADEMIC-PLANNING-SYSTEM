@@ -13,6 +13,7 @@ import Avatar from '../Avatar'
 import { getBlobUrl } from '@/lib/blob'
 import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
 import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
+import { formatDate, formatDateForInput } from '@/lib/date'
 
 type FacultyMember = { _id: string; name: string; sub: string; spec: string; specTheme: string; batches: number; exp: string; status: string; initials: string; color: string; profileImgUrl?: string | null; phone?: string; joiningDate?: string; batchList?: string[] }
 type Material = { _id: string; title: string; type: string; fileUrl: string; spec: string; specTheme: string; author: string; time: string; iconColor: string; iconBg: string }
@@ -124,10 +125,10 @@ function formFromFaculty(f: any): typeof EMPTY_FACULTY_FORM {
     name: f.name ?? '', subject: f.subject ?? '', specialization: f.specialization ?? '',
     batches: String(f.batches ?? 0), experience: f.experience ?? '', status: f.status ?? 'ACTIVE',
     email: f.email ?? '', phone: f.phone ?? '',
-    employeeId: f.employeeId ?? '', dob: f.dob ?? '', gender: f.gender ?? '', bio: f.bio ?? '', profileImgUrl: f.profileImgUrl ?? '',
+    employeeId: f.employeeId ?? '', dob: formatDateForInput(f.dob), gender: f.gender ?? '', bio: f.bio ?? '', profileImgUrl: f.profileImgUrl ?? '',
     altPhone: f.altPhone ?? '', addressLine1: f.addressLine1 ?? '', city: f.city ?? '', state: f.state ?? '', pincode: f.pincode ?? '',
     qualification: f.qualification ?? '', experienceYears: f.experienceYears != null ? String(f.experienceYears) : '',
-    primaryStream: f.primaryStream ?? '', joiningDate: f.joiningDate ?? '',
+    primaryStream: f.primaryStream ?? '', joiningDate: formatDateForInput(f.joiningDate),
   }
 }
 
@@ -638,7 +639,7 @@ export default function TeacherPortalView() {
                         </td>
                         <td className="px-6 py-4">
                           {fac.joiningDate && fac.joiningDate !== 'N/A' ? (
-                            <span className="text-[13px] font-medium text-slate-600">{fac.joiningDate}</span>
+                            <span className="text-[13px] font-medium text-slate-600">{formatDate(fac.joiningDate)}</span>
                           ) : (
                             <span className="text-[12px] text-slate-300">—</span>
                           )}
