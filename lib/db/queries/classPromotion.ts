@@ -1,7 +1,14 @@
 import { eq, and, inArray } from 'drizzle-orm'
 import { db } from '../index'
-import { students, users } from '../schema'
-import { isEligibleForPromotion, type PromotionCandidate } from '@/lib/classPromotion'
+import { students, users, classPromotionRuns, notifications } from '../schema'
+import {
+  isEligibleForPromotion,
+  computeBoundaryDate,
+  subtractOneYear,
+  computeAcademicYearLabel,
+  buildPreviewCounts,
+  type PromotionCandidate,
+} from '@/lib/classPromotion'
 
 export interface EligibleStudent extends PromotionCandidate {
   id: string
@@ -38,4 +45,51 @@ export async function getManagementUserIds(schoolId: string): Promise<string[]> 
     .from(users)
     .where(and(eq(users.schoolId, schoolId), eq(users.role, 'management')))
   return rows.map((r) => r.id)
+}
+
+// Shared by the daily cron and the management "Check now" trigger. Idempotent
+// per academic year: a second call for the same school on the same boundary
+// is a no-op because a run for that academicYear already exists.
+export async function runPromotionDetectionForSchool(
+  schoolId: string,
+  academicYearStartMonth: number
+): Promise<{ created: boolean; academicYear: string }> {
+  const boundaryDate = computeBoundaryDate(academicYearStartMonth)
+  const academicYear = computeAcademicYearLabel(boundaryDate)
+
+  const existing = await db
+    .select({ id: classPromotionRuns.id })
+    .from(classPromotionRuns)
+    .where(and(eq(classPromotionRuns.schoolId, schoolId), eq(classPromotionRuns.academicYear, academicYear)))
+  if (existing.length > 0) return { created: false, academicYear }
+
+  const previousBoundaryDate = subtractOneYear(boundaryDate)
+  const eligible = await getEligibleStudents(schoolId, previousBoundaryDate)
+  const excludedNewAdmissionCount = await getExcludedNewAdmissionCount(schoolId, previousBoundaryDate)
+  const excludedTerminalCount = await getActiveClass12Count(schoolId)
+  const previewCounts = buildPreviewCounts(eligible)
+
+  await db.insert(classPromotionRuns).values({
+    schoolId,
+    academicYear,
+    boundaryDate,
+    status: 'pending',
+    previewCounts,
+    excludedNewAdmissionCount,
+    excludedTerminalCount,
+  })
+
+  const managementUserIds = await getManagementUserIds(schoolId)
+  for (const userId of managementUserIds) {
+    await db.insert(notifications).values({
+      userId,
+      category: 'General',
+      title: 'Class promotion ready for review',
+      message: `${academicYear} class promotion is ready to review for your school.`,
+      link: '/management/academic-planning?tab=Promotion',
+      schoolId,
+    })
+  }
+
+  return { created: true, academicYear }
 }

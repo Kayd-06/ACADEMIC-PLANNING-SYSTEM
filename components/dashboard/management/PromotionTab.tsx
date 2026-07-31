@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react'
 
 interface PromotionRun {
   id: string
@@ -21,6 +21,8 @@ export default function PromotionTab() {
   const [history, setHistory] = useState<PromotionRun[]>([])
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const [checkMessage, setCheckMessage] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -35,6 +37,23 @@ export default function PromotionTab() {
   }
 
   useEffect(() => { load() }, [])
+
+  async function checkNow() {
+    setChecking(true)
+    setCheckMessage(null)
+    try {
+      const res = await fetch('/api/academic-planning/promotions/check', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setCheckMessage(data.error || 'Could not run the promotion check.')
+        return
+      }
+      await load()
+      setCheckMessage(data.created ? null : 'No students are eligible for promotion right now.')
+    } finally {
+      setChecking(false)
+    }
+  }
 
   async function confirmPromotion() {
     if (!pending) return
@@ -66,6 +85,17 @@ export default function PromotionTab() {
 
   return (
     <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-slate-500">Checked automatically once a day. You can also check on demand.</p>
+        <button onClick={checkNow} disabled={checking} className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg text-sm font-semibold disabled:opacity-50">
+          {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check for promotion now
+        </button>
+      </div>
+
+      {checkMessage && (
+        <div className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2">{checkMessage}</div>
+      )}
+
       {pending ? (
         <div className="bg-white rounded-xl border border-amber-200 shadow-sm p-6">
           <h3 className="font-bold text-slate-900 mb-1">Class Promotion Ready: {pending.academicYear}</h3>
