@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { schools, users, students, studentBatchEnrollments, classPromotionRuns, classPromotionLog } from '@/lib/db/schema'
+import { schools, users, students, studentBatchEnrollments, classPromotionRuns, classPromotionLog, batches } from '@/lib/db/schema'
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }))
 import { auth } from '@/lib/auth'
@@ -19,10 +19,13 @@ describe('POST /api/academic-planning/promotions/[runId]/confirm', () => {
     expect(res.status).toBe(403)
   })
 
-  it('promotes eligible students, clears batch, completes enrollment, logs the change, and leaves Class 12/Repeater untouched', async () => {
+  it('promotes eligible students, keeps them in their batch, bumps the batch class level, logs the change, and leaves Class 12/Repeater untouched', async () => {
     const [school] = await db.insert(schools).values({}).returning()
     const [manager] = await db.insert(users).values({
       name: 'Manager', email: `mgr-${Date.now()}@test.com`, password: 'x', role: 'management', schoolId: school.id,
+    }).returning()
+    const [batch] = await db.insert(batches).values({
+      name: 'Morning', classLevel: '9', schoolId: school.id,
     }).returning()
     const [student] = await db.insert(students).values({
       name: 'Promotable', class: '9', batch: 'Morning', admissionDate: '2025-01-01', schoolId: school.id, isActive: true,
@@ -50,10 +53,13 @@ describe('POST /api/academic-planning/promotions/[runId]/confirm', () => {
 
       const [updatedStudent] = await db.select().from(students).where(eq(students.id, student.id))
       expect(updatedStudent.class).toBe('10')
-      expect(updatedStudent.batch).toBe('')
+      expect(updatedStudent.batch).toBe('Morning')
 
-      const [updatedEnrollment] = await db.select().from(studentBatchEnrollments).where(eq(studentBatchEnrollments.id, enrollment.id))
-      expect(updatedEnrollment.status).toBe('completed')
+      const [updatedBatch] = await db.select().from(batches).where(eq(batches.id, batch.id))
+      expect(updatedBatch.classLevel).toBe('10')
+
+      const [unchangedEnrollment] = await db.select().from(studentBatchEnrollments).where(eq(studentBatchEnrollments.id, enrollment.id))
+      expect(unchangedEnrollment.status).toBe('active')
 
       const logs = await db.select().from(classPromotionLog).where(eq(classPromotionLog.runId, run.id))
       expect(logs).toHaveLength(1)
@@ -75,6 +81,7 @@ describe('POST /api/academic-planning/promotions/[runId]/confirm', () => {
       await db.delete(classPromotionRuns).where(eq(classPromotionRuns.id, run.id))
       await db.delete(studentBatchEnrollments).where(eq(studentBatchEnrollments.studentId, student.id))
       await db.delete(students).where(eq(students.schoolId, school.id))
+      await db.delete(batches).where(eq(batches.schoolId, school.id))
       await db.delete(users).where(eq(users.schoolId, school.id))
       await db.delete(schools).where(eq(schools.id, school.id))
     }

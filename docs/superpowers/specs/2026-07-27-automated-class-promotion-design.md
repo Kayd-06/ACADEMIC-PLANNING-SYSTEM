@@ -8,13 +8,13 @@ A student's grade level (`students.class`, e.g. `"9"`, `"10"`, `"11"`, `"12"`) i
 
 - Detect, once per school per academic-year boundary, which students are due to move up a class level.
 - Surface that as a reviewable preview (counts, not raw silent writes) with a notification to management.
-- On explicit confirmation, apply the class bump, clear the now-stale batch assignment, and record an audit trail.
+- On explicit confirmation, apply the class bump, level up the student's batch to match, and record an audit trail.
 - Never guess at outcomes the system can't know (pass/fail for Class 12, or for students already marked `Repeater`).
 
 ## Non-goals
 
 - No automatic handling of Class 12 exit (graduation vs. repeat) — depends on board exam results, which this system has no way to know. Class 12 students are excluded from the automated run entirely; management continues to handle their status manually via the existing student edit flow.
-- No automatic re-assignment of promoted students to a new batch. Batches are tied to a specific class level (`batches.classLevel`), and guessing which of possibly several Class-10 batches a former Class-9 student should land in is out of scope. Promoted students become batch-`"—"` (unassigned) — visible and filterable in the existing Student Roster today, so no new "reassignment worklist" UI is built.
+- No moving a promoted student into a *different* batch. A batch is treated as a persistent cohort (its date range already spans multiple academic years in practice) — on confirmation, the student's existing batch has its own `classLevel` bumped to match instead of the student being reassigned elsewhere. If a batch holds a genuine mix of promoted and non-promoted students (e.g. a Repeater sharing a batch with promoted peers), the batch's `classLevel` still advances to reflect the promoted majority; management resolves any resulting mismatch manually via the existing student edit flow, same as other exclusions below.
 - No support for non-standard class chains. The promotion chain is hardcoded as `9 → 10 → 11 → 12` (terminal), matching `CLASS_LEVELS` already used in `BatchesTab.tsx` / `app/api/batches/route.ts`. The free-text `schools.classes` field (e.g. `"Nursery – XII"`) is not parsed for this — it isn't structured reliably enough across schools, and this app's admissions/batches model is already built around 9–12.
 - `Repeater`-class students are excluded from auto-promotion for the same reason as Class 12 — the system can't know they've cleared the year. They stay `Repeater` until staff manually changes their class.
 - No per-student anniversary promotion — this is cohort-based (whole school moves together each cycle), per explicit product decision.
@@ -103,10 +103,10 @@ New **"Promotion"** tab in `AcademicPlanningView.tsx`, alongside Schools / Progr
 
 1. Re-runs the eligibility query fresh (protects against data drift since detection — a student's admission date/class/active status could have changed).
 2. In a single DB transaction, for each eligible student:
-   - `UPDATE students SET class = <nextClass>, batch = ''`
-   - If a `student_batch_enrollments` row exists for that student with `batchName = <old batch>` and `status = 'active'`, set it to `status = 'completed'` (preserves enrollment history rather than deleting it).
+   - `UPDATE students SET class = <nextClass>` — the student's `batch` is left untouched; they stay enrolled where they were, and their `student_batch_enrollments` row (if any) stays `status = 'active'`.
    - Insert one `class_promotion_log` row (`fromClass`, `toClass`, `previousBatch`).
-3. Update the run: `status = 'confirmed'`, `confirmedAt`, `confirmedBy`.
+3. For each distinct batch that had at least one promoted student, `UPDATE batches SET classLevel = <nextClass>` once — the batch itself levels up alongside its cohort.
+4. Update the run: `status = 'confirmed'`, `confirmedAt`, `confirmedBy`.
 4. Return summary counts.
 
 ### Dismiss
@@ -117,5 +117,5 @@ New **"Promotion"** tab in `AcademicPlanningView.tsx`, alongside Schools / Progr
 
 - Eligibility rule: unit tests around the boundary date (admitted exactly on `previousBoundaryDate`, one day before, one day after).
 - Idempotency: calling the cron handler twice on the same day for the same school produces only one `pending` run.
-- Confirm transaction: verifies class bump, batch clear, enrollment row transition to `completed`, and log rows, in one test each; verifies Class 12 / Repeater students are untouched.
+- Confirm transaction: verifies class bump, batch classLevel bump, enrollment row stays `active`, and log rows, in one test each; verifies Class 12 / Repeater students are untouched.
 - Confirm re-validates eligibility at confirm time, not just at detection time (test: a student deactivated between detection and confirm is excluded from the confirm).

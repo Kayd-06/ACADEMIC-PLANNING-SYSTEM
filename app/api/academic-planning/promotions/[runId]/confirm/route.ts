@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { classPromotionRuns, classPromotionLog, students, studentBatchEnrollments } from '@/lib/db/schema'
+import { classPromotionRuns, classPromotionLog, students, batches } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { NEXT_CLASS, subtractOneYear } from '@/lib/classPromotion'
 import { getEligibleStudents } from '@/lib/db/queries/classPromotion'
@@ -27,6 +27,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ run
   const previousBoundaryDate = subtractOneYear(run.boundaryDate)
   const eligible = await getEligibleStudents(schoolId, previousBoundaryDate)
 
+  // Batches are a persistent cohort (their date ranges already span multiple
+  // years), not a fixed class-level container — so a batch levels up with
+  // its students instead of being cleared out. Bump each affected batch
+  // once, keyed by the class its promoted students were coming from.
+  const batchBumps = new Map<string, string>()
+
   let promotedCount = 0
   for (const student of eligible) {
     const nextClass = NEXT_CLASS[student.class]
@@ -34,17 +40,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ run
 
     const previousBatch = student.batch || null
 
-    await db.update(students).set({ class: nextClass, batch: '', updatedAt: new Date() }).where(eq(students.id, student.id))
+    await db.update(students).set({ class: nextClass, updatedAt: new Date() }).where(eq(students.id, student.id))
 
-    if (previousBatch) {
-      await db
-        .update(studentBatchEnrollments)
-        .set({ status: 'completed', updatedAt: new Date() })
-        .where(and(
-          eq(studentBatchEnrollments.studentId, student.id),
-          eq(studentBatchEnrollments.batchName, previousBatch),
-          eq(studentBatchEnrollments.status, 'active'),
-        ))
+    if (previousBatch && !batchBumps.has(previousBatch)) {
+      batchBumps.set(previousBatch, nextClass)
     }
 
     await db.insert(classPromotionLog).values({
@@ -56,6 +55,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ run
     })
 
     promotedCount++
+  }
+
+  for (const [batchName, nextClass] of batchBumps) {
+    await db
+      .update(batches)
+      .set({ classLevel: nextClass, updatedAt: new Date() })
+      .where(and(eq(batches.schoolId, schoolId), eq(batches.name, batchName)))
   }
 
   await db
