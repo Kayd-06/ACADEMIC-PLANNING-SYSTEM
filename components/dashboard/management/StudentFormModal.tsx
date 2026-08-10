@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Loader2, Upload } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
 import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
@@ -30,6 +30,7 @@ interface StudentFormValues {
   class: string
   program: string
   batch: string
+  batchId: string
   // Status & Metadata
   admissionDate: string
   status: string
@@ -40,7 +41,7 @@ const EMPTY_FORM: StudentFormValues = {
   name: '', admissionNumber: '', aadharNumber: '', rollNo: '',
   email: '', phone: '', parentContact: '', addressLine1: '', city: '', state: '', pincode: '',
   dob: '', gender: '', bloodGroup: '', profileImgUrl: '',
-  previousSchool: '', previousPercentage: '', class: '', program: '', batch: '',
+  previousSchool: '', previousPercentage: '', class: '', program: '', batch: '', batchId: '',
   admissionDate: '', status: 'active', notes: '',
 }
 
@@ -86,6 +87,7 @@ function valuesFromStudent(student: any): StudentFormValues {
     class: clean(student.rawClass ?? student.class),
     program: clean(student.program),
     batch: clean(student.batch),
+    batchId: clean(student.batchId),
     admissionDate: clean(student.admissionDate),
     status: clean(student.status, 'active') || 'active',
     notes: clean(student.notes),
@@ -101,6 +103,22 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [uploadingBlob, setUploadingBlob] = useState(false)
+  const [availableBatches, setAvailableBatches] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/batches')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setAvailableBatches(data.map((b: any) => ({ id: b.id, name: b.name })))
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (mode !== 'add' || !defaultBatch || availableBatches.length === 0) return
+    const match = availableBatches.find((b) => b.name === defaultBatch)
+    if (match) setForm((f) => (f.batchId ? f : { ...f, batchId: match.id, batch: match.name }))
+  }, [availableBatches, mode, defaultBatch])
 
   async function handlePhotoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -300,7 +318,19 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
               </div>
               <div>
                 <label className={labelClass}>Batch</label>
-                <input value={form.batch} onChange={set('batch')} className={inputClass} />
+                <select
+                  value={form.batchId}
+                  onChange={(e) => {
+                    const selected = availableBatches.find((b) => b.id === e.target.value)
+                    setForm((f) => ({ ...f, batchId: e.target.value, batch: selected?.name ?? '' }))
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">Unassigned</option>
+                  {availableBatches.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
