@@ -1,6 +1,6 @@
-ALTER TABLE students ADD COLUMN IF NOT EXISTS batch_id uuid;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS batch_id uuid REFERENCES batches(id) ON DELETE SET NULL;
 --> statement-breakpoint
-ALTER TABLE tests ADD COLUMN IF NOT EXISTS batch_id uuid;
+ALTER TABLE tests ADD COLUMN IF NOT EXISTS batch_id uuid REFERENCES batches(id) ON DELETE SET NULL;
 --> statement-breakpoint
 ALTER TABLE chapters ADD COLUMN IF NOT EXISTS code varchar(50) NOT NULL DEFAULT '';
 --> statement-breakpoint
@@ -8,18 +8,10 @@ ALTER TABLE chapters ADD COLUMN IF NOT EXISTS board varchar(50);
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS concepts (
 	id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	chapter_id uuid NOT NULL,
+	chapter_id uuid NOT NULL REFERENCES chapters(id) ON DELETE cascade,
 	name varchar(255) NOT NULL,
 	code varchar(50) NOT NULL DEFAULT '',
 	order_index integer NOT NULL DEFAULT 0,
-	school_id uuid,
+	school_id uuid REFERENCES schools(id) ON DELETE cascade,
 	created_at timestamp with time zone DEFAULT now() NOT NULL
 );
---> statement-breakpoint
-ALTER TABLE students ADD CONSTRAINT students_batch_id_batches_id_fk FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE SET NULL;
---> statement-breakpoint
-ALTER TABLE tests ADD CONSTRAINT tests_batch_id_batches_id_fk FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE SET NULL;
---> statement-breakpoint
-ALTER TABLE concepts ADD CONSTRAINT concepts_chapter_id_chapters_id_fk FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE;
---> statement-breakpoint
-ALTER TABLE concepts ADD CONSTRAINT concepts_school_id_schools_id_fk FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE
