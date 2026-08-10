@@ -68,6 +68,7 @@ export default function CurriculumManagerView() {
     loadChapters(selectedSubjectId)
     setSelectedChapterId('')
     setConcepts([])
+    resetChapterForm()
   }, [selectedSubjectId, loadChapters])
 
   const loadConcepts = useCallback(async (chapterId: string) => {
@@ -83,6 +84,7 @@ export default function CurriculumManagerView() {
 
   useEffect(() => {
     loadConcepts(selectedChapterId)
+    resetConceptForm()
   }, [selectedChapterId, loadConcepts])
 
   function resetChapterForm() {
