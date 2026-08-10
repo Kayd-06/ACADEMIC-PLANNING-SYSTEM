@@ -1,23 +1,8 @@
-import { eq, ilike, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from './index'
 import { users, emailVerifications, passwordResets, schools, students, studentReports, studentReportEntries, tests, questions, testGrades, batches, chapters, subjects, concepts } from './schema'
 
 describe('schema', () => {
-  beforeAll(async () => {
-    // Clean up any leftover test data from previous runs
-    try {
-      await db.delete(concepts).where(ilike(concepts.name, '%Bonding%'))
-      await db.delete(chapters).where(inArray(chapters.name, ['Kinematics', 'Chemical Bonding']))
-      await db.delete(subjects).where(ilike(subjects.name, '%Foundation Test%'))
-      await db.delete(tests).where(ilike(tests.title, '%Linked%'))
-      await db.delete(students).where(ilike(students.name, '%Test Student%'))
-      await db.delete(batches).where(ilike(batches.name, '%Batch%'))
-      await db.delete(schools).where(ilike(schools.name, '%Test School%'))
-    } catch (e) {
-      // Ignore cleanup errors in beforeAll
-    }
-  })
-
   it('can query all tables without error', async () => {
     await expect(db.select().from(users)).resolves.toEqual(expect.any(Array))
     await expect(db.select().from(emailVerifications)).resolves.toEqual(expect.any(Array))
