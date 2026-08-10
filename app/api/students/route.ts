@@ -22,7 +22,7 @@ const STUDENT_FIELDS = [
   'name', 'admissionNumber', 'aadharNumber', 'rollNo',
   'email', 'phone', 'addressLine1', 'city', 'state', 'pincode',
   'dob', 'gender', 'bloodGroup', 'profileImgUrl',
-  'previousSchool', 'previousPercentage', 'class', 'program', 'batch', 'parentContact',
+  'previousSchool', 'previousPercentage', 'class', 'program', 'batch', 'batchId', 'parentContact',
   'admissionDate', 'status', 'notes', 'isActive',
 ] as const
 
@@ -34,6 +34,9 @@ function pickStudentFields(body: any): Partial<NewStudent> {
   // Keep status and isActive consistent when only one is sent
   if (data.status !== undefined && data.isActive === undefined) data.isActive = data.status === 'active'
   if (data.isActive !== undefined && data.status === undefined) data.status = data.isActive ? 'active' : 'inactive'
+  // batchId is a UUID FK, not a free-text field like `batch` — normalize the
+  // "Unassigned" option's empty string to null so Postgres doesn't reject it.
+  if (data.batchId === '') data.batchId = null
   return data
 }
 
@@ -91,6 +94,7 @@ export async function POST(req: NextRequest) {
       class: data.class ?? '',
       program: data.program ?? '',
       batch: data.batch ?? '',
+      batchId: data.batchId ?? null,
       schoolId,
     })
     return NextResponse.json(toApiShape(student), { status: 201 })

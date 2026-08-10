@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { students, parentsGuardians } from '@/lib/db/schema'
+import { students, parentsGuardians, batches } from '@/lib/db/schema'
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
@@ -122,6 +122,22 @@ describe('POST /api/students', () => {
     expect(body.batch).toBe('Morning')
   })
 
+  it('persists batchId when provided', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const [batch] = await db.insert(batches).values({ name: 'Route Batch' }).returning()
+    const res = await POST(
+      req('http://localhost/api/students', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Batch Student', batchId: batch.id }),
+      })
+    )
+    const body = await res.json()
+    if (res.status === 201) createdIds.push(body._id)
+    await db.delete(batches).where(eq(batches.id, batch.id))
+    expect(res.status).toBe(201)
+    expect(body.batchId).toBe(batch.id)
+  })
+
   it('rejects a phone number longer than 10 characters', async () => {
     ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
     const res = await POST(
@@ -179,6 +195,24 @@ describe('PATCH /api/students', () => {
     expect(res.status).toBe(200)
     expect(body.program).toBe('Foundation')
     expect(body.batch).toBe('Evening')
+  })
+
+  it('normalizes empty-string batchId to null on update', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const [batch] = await db.insert(batches).values({ name: 'Unassign Batch' }).returning()
+    const [created] = await db.insert(students).values({ name: 'Before', batchId: batch.id }).returning()
+    createdIds.push(created.id)
+
+    const patchRes = await PATCH(
+      req(`http://localhost/api/students?id=${created.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ batchId: '' }),
+      })
+    )
+    const patched = await patchRes.json()
+    await db.delete(batches).where(eq(batches.id, batch.id))
+    expect(patchRes.status).toBe(200)
+    expect(patched.batchId).toBeNull()
   })
 
   it('returns 404 for an unknown id', async () => {
