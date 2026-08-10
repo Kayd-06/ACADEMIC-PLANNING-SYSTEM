@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { tests, users } from '@/lib/db/schema'
+import { tests, users, batches } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 
 jest.mock('@/lib/auth', () => ({
@@ -27,6 +27,7 @@ describe('tests/schedule ownership', () => {
   afterEach(async () => {
     await db.delete(tests)
     await db.delete(users)
+    await db.delete(batches)
     jest.clearAllMocks()
   })
 
@@ -135,5 +136,47 @@ describe('tests/schedule ownership', () => {
     const res = await GET(req(`http://localhost/api/tests/schedule?teacherId=${teacherA.id}`))
     const body = await res.json()
     expect(body.map((t: any) => t.title)).toEqual(['A Owned'])
+  })
+
+  it('POST persists batchId when provided', async () => {
+    const teacher = await createUser('Teacher K', 'teacher')
+    const [batch] = await db.insert(batches).values({ name: 'Schedule Batch' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: teacher.id, role: 'teacher', schoolId: null } })
+
+    const res = await POST(req('http://localhost/api/tests/schedule', {
+      method: 'POST',
+      body: JSON.stringify({ title: 'Quiz', batch: 'Batch A', batchId: batch.id, subject: 'Physics', date: '2026-08-01', time: '10:00 AM', duration: 60, totalMarks: 100 }),
+    }))
+    const body = await res.json()
+    expect(res.status).toBe(201)
+    expect(body.batchId).toBe(batch.id)
+  })
+
+  it('PUT updates batchId', async () => {
+    const teacher = await createUser('Teacher L', 'teacher')
+    const [batch] = await db.insert(batches).values({ name: 'Schedule Batch 2' }).returning()
+    const [existing] = await db.insert(tests).values({
+      title: 'Original', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', createdByUserId: teacher.id,
+    }).returning()
+
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: teacher.id, role: 'teacher', schoolId: null } })
+    const res = await PUT(req('http://localhost/api/tests/schedule', {
+      method: 'PUT',
+      body: JSON.stringify({ id: existing.id, title: 'Original', batch: 'Batch A', batchId: batch.id, subject: 'Physics', date: '2026-08-01', time: '10:00 AM', duration: 60, totalMarks: 100 }),
+    }))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.batchId).toBe(batch.id)
+  })
+
+  it('GET includes batchId in the row shape', async () => {
+    const teacher = await createUser('Teacher M', 'teacher')
+    const [batch] = await db.insert(batches).values({ name: 'Schedule Batch 3' }).returning()
+    const [test] = await db.insert(tests).values({ title: 'Shaped Test', batch: 'Batch A', batchId: batch.id, subject: 'Physics', date: '2026-08-01', createdByUserId: teacher.id }).returning()
+
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: teacher.id, role: 'teacher', schoolId: null } })
+    const res = await GET(req('http://localhost/api/tests/schedule'))
+    const body = await res.json()
+    expect(body[0].batchId).toBe(batch.id)
   })
 })
