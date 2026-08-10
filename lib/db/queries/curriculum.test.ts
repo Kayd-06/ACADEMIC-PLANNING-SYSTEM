@@ -46,7 +46,7 @@ describe('curriculum queries', () => {
     expect(result[1].name).toBe('Newton\'s Laws')
   })
 
-  it('updateChapter modifies row, leaves code/board unspecified untouched', async () => {
+  it('updateChapter updates fields and returns null for an unknown id', async () => {
     const [subject] = await db.insert(subjects).values({ name: 'Biology' }).returning()
     const [chapter] = await db.insert(chapters).values({ subjectId: subject.id, name: 'Genetics' }).returning()
 
@@ -56,6 +56,9 @@ describe('curriculum queries', () => {
     expect(updated?.name).toBe('Heredity')
     expect(updated?.code).toBe('')
     expect(updated?.board).toBeNull()
+
+    const missing = await updateChapter('00000000-0000-0000-0000-000000000000', { name: 'NonExistent' })
+    expect(missing).toBeNull()
   })
 
   it('deleteChapter removes row', async () => {
@@ -92,7 +95,7 @@ describe('curriculum queries', () => {
     expect(result[1].name).toBe('Covalent Bonding')
   })
 
-  it('updateConcept modifies row', async () => {
+  it('updateConcept updates fields and returns null for an unknown id', async () => {
     const [subject] = await db.insert(subjects).values({ name: 'Chemistry' }).returning()
     const [chapter] = await db.insert(chapters).values({ subjectId: subject.id, name: 'Bonding' }).returning()
     const [concept] = await db.insert(concepts).values({ chapterId: chapter.id, name: 'Covalent Bond' }).returning()
@@ -101,6 +104,9 @@ describe('curriculum queries', () => {
 
     expect(updated).not.toBeNull()
     expect(updated?.name).toBe('Covalent Bonding')
+
+    const missing = await updateConcept('00000000-0000-0000-0000-000000000000', { name: 'NonExistent' })
+    expect(missing).toBeNull()
   })
 
   it('deleteConcept removes row', async () => {
