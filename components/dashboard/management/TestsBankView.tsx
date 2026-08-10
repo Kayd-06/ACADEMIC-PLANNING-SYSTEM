@@ -76,6 +76,7 @@ export default function TestsBankView() {
   const [testForm, setTestForm] = useState({
     title: '',
     batch: '',
+    batchId: '',
     subject: 'Physics (PHY-101)',
     date: '',
     time: '10:00 AM',
@@ -95,7 +96,7 @@ export default function TestsBankView() {
     negativeMarks: '0'
   })
 
-  const [availableBatches, setAvailableBatches] = useState<string[]>([])
+  const [availableBatches, setAvailableBatches] = useState<{ id: string; name: string }[]>([])
   const [availablePrograms, setAvailablePrograms] = useState<string[]>([])
 
   // "All Tests" tab filters
@@ -132,14 +133,15 @@ export default function TestsBankView() {
         setQuestions(questionsData)
       }
 
-      const bRes = await fetch('/api/daily-report', { method: 'PUT' })
+      const bRes = await fetch('/api/batches')
       const bData = await bRes.json()
       if (Array.isArray(bData)) {
-        setAvailableBatches(bData)
-        if (bData.length > 0) {
-          setTestForm(prev => ({ ...prev, batch: bData[0] }))
+        const batchOptions = bData.map((b: any) => ({ id: b.id, name: b.name }))
+        setAvailableBatches(batchOptions)
+        if (batchOptions.length > 0) {
+          setTestForm(prev => ({ ...prev, batch: batchOptions[0].name, batchId: batchOptions[0].id }))
         } else {
-          setTestForm(prev => ({ ...prev, batch: '' }))
+          setTestForm(prev => ({ ...prev, batch: '', batchId: '' }))
         }
       }
 
@@ -173,7 +175,8 @@ export default function TestsBankView() {
         setShowTestModal(false)
         setTestForm({
           title: '',
-          batch: availableBatches[0] || '',
+          batch: availableBatches[0]?.name || '',
+          batchId: availableBatches[0]?.id || '',
           subject: 'Physics (PHY-101)',
           date: '',
           time: '10:00 AM',
@@ -949,12 +952,15 @@ export default function TestsBankView() {
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Batch *</label>
                     <select
-                      value={testForm.batch}
-                      onChange={(e) => setTestForm({...testForm, batch: e.target.value})}
+                      value={testForm.batchId}
+                      onChange={(e) => {
+                        const selected = availableBatches.find(b => b.id === e.target.value)
+                        setTestForm({ ...testForm, batchId: e.target.value, batch: selected?.name ?? '' })
+                      }}
                       className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer"
                     >
                       {availableBatches.map(b => (
-                        <option key={b} value={b}>{b}</option>
+                        <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
                       {availableBatches.length === 0 && (
                         <option value="">No batches available</option>
