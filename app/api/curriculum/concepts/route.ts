@@ -10,7 +10,7 @@ import type { NewConcept } from '@/lib/db/schema'
 
 export const dynamic = 'force-dynamic'
 
-const CONCEPT_FIELDS = ['chapterId', 'name', 'code', 'description', 'orderIndex', 'expectedHours'] as const
+const CONCEPT_FIELDS = ['chapterId', 'name', 'code', 'orderIndex'] as const
 
 function pickConceptFields(body: any): Partial<NewConcept> {
   const data: Record<string, any> = {}
