@@ -41,7 +41,7 @@ export default function TeacherTestsView() {
   const [subjectFilter, setSubjectFilter] = useState('All')
   const [chapterFilter, setChapterFilter] = useState('All')
   const [difficultyFilter, setDifficultyFilter] = useState('All')
-  const [availableBatches, setAvailableBatches] = useState<string[]>([])
+  const [availableBatches, setAvailableBatches] = useState<{ id: string; name: string }[]>([])
   const [availablePrograms, setAvailablePrograms] = useState<string[]>([])
   const [uploadingPaperFor, setUploadingPaperFor] = useState<string | null>(null)
   const [gradingTest, setGradingTest] = useState<any | null>(null)
@@ -82,6 +82,7 @@ export default function TeacherTestsView() {
   const [testForm, setTestForm] = useState({
     title: '',
     batch: '',
+    batchId: '',
     program: '',
     subject: 'Physics (PHY-101)',
     date: '',
@@ -102,14 +103,15 @@ export default function TeacherTestsView() {
       const tData = await tRes.json()
       if (!tData.error) setTests(tData)
 
-      const bRes = await fetch('/api/daily-report', { method: 'PUT' })
+      const bRes = await fetch('/api/batches')
       const bData = await bRes.json()
       if (Array.isArray(bData)) {
-        setAvailableBatches(bData)
-        if (bData.length > 0) {
-          setTestForm(prev => ({ ...prev, batch: bData[0] }))
+        const batchOptions = bData.map((b: any) => ({ id: b.id, name: b.name }))
+        setAvailableBatches(batchOptions)
+        if (batchOptions.length > 0) {
+          setTestForm(prev => ({ ...prev, batch: batchOptions[0].name, batchId: batchOptions[0].id }))
         } else {
-          setTestForm(prev => ({ ...prev, batch: '' }))
+          setTestForm(prev => ({ ...prev, batch: '', batchId: '' }))
         }
       }
 
@@ -275,7 +277,8 @@ export default function TeacherTestsView() {
         setEditingTest(null)
         setTestForm({
           title: '',
-          batch: availableBatches[0] || '',
+          batch: availableBatches[0]?.name || '',
+          batchId: availableBatches[0]?.id || '',
           program: availablePrograms[0] || '',
           subject: 'Physics (PHY-101)',
           date: '',
@@ -363,6 +366,7 @@ export default function TeacherTestsView() {
     setTestForm({
       title: t.title,
       batch: t.batch,
+      batchId: t.batchId || '',
       program: t.program || '',
       subject: t.subject,
       date: t.date,
@@ -715,12 +719,13 @@ export default function TeacherTestsView() {
               {/* Add & Filter Control Bar */}
               <div className="flex flex-wrap items-center justify-between gap-4">
                 
-                <button 
+                <button
                   onClick={() => {
                     setEditingTest(null)
                     setTestForm({
                       title: '',
-                      batch: availableBatches[0] || '',
+                      batch: availableBatches[0]?.name || '',
+                      batchId: availableBatches[0]?.id || '',
                       program: availablePrograms[0] || '',
                       subject: 'Physics (PHY-101)',
                       date: '',
@@ -753,14 +758,14 @@ export default function TeacherTestsView() {
                   {/* Batch Filter */}
                   <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-sm">
                     <Filter className="w-3 h-3 text-slate-400" />
-                    <select 
+                    <select
                       value={testBatchFilter}
                       onChange={(e) => { setTestBatchFilter(e.target.value); setTestPage(1); }}
                       className="text-[11px] font-semibold text-slate-700 bg-transparent outline-none cursor-pointer"
                     >
                       <option value="All">All Batches</option>
                       {availableBatches.map(b => (
-                        <option key={b} value={b}>{b}</option>
+                        <option key={b.id} value={b.name}>{b.name}</option>
                       ))}
                     </select>
                   </div>
@@ -1165,11 +1170,14 @@ export default function TeacherTestsView() {
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Batch *</label>
                     <select
                       value={testForm.batch}
-                      onChange={(e) => setTestForm({...testForm, batch: e.target.value})}
+                      onChange={(e) => {
+                        const selected = availableBatches.find(b => b.name === e.target.value)
+                        setTestForm({...testForm, batch: e.target.value, batchId: selected?.id || ''})
+                      }}
                       className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer"
                     >
                       {availableBatches.map(b => (
-                        <option key={b} value={b}>{b}</option>
+                        <option key={b.id} value={b.name}>{b.name}</option>
                       ))}
                       {availableBatches.length === 0 && (
                         <option value="">No batches available</option>
