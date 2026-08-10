@@ -1169,15 +1169,15 @@ export default function TeacherTestsView() {
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Batch *</label>
                     <select
-                      value={testForm.batch}
+                      value={testForm.batchId}
                       onChange={(e) => {
-                        const selected = availableBatches.find(b => b.name === e.target.value)
-                        setTestForm({...testForm, batch: e.target.value, batchId: selected?.id || ''})
+                        const selected = availableBatches.find(b => b.id === e.target.value)
+                        setTestForm({ ...testForm, batchId: e.target.value, batch: selected?.name ?? '' })
                       }}
                       className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer"
                     >
                       {availableBatches.map(b => (
-                        <option key={b.id} value={b.name}>{b.name}</option>
+                        <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
                       {availableBatches.length === 0 && (
                         <option value="">No batches available</option>
