@@ -45,16 +45,6 @@ export async function findStudentsByBatch(batch: string, schoolId?: string | nul
     .orderBy(students.rollNo, students.name)
 }
 
-export async function findStudentsByBatchId(batchId: string, schoolId?: string | null): Promise<Student[]> {
-  const conditions: any[] = [eq(students.batchId, batchId), eq(students.isActive, true)]
-  if (schoolId) conditions.push(eq(students.schoolId, schoolId))
-  return db
-    .select()
-    .from(students)
-    .where(and(...conditions))
-    .orderBy(students.rollNo, students.name)
-}
-
 export async function countStudentsByClasses(classes: string[], schoolId?: string | null): Promise<number> {
   const conditions: any[] = [inArray(students.class, classes)]
   if (schoolId) conditions.push(eq(students.schoolId, schoolId))

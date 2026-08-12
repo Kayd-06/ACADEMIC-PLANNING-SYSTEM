@@ -1,53 +1,24 @@
-import { eq } from 'drizzle-orm'
 import { db } from '../index'
-import { students, schools, batches } from '../schema'
+import { students, schools } from '../schema'
 import {
   listStudents,
   findStudentsByClasses,
   countStudentsByClasses,
   deleteStudentsByClasses,
   getStudentById,
-  createStudent as _createStudent,
-  bulkInsertStudents as _bulkInsertStudents,
-  upsertStudentByRollClassSection as _upsertStudentByRollClassSection,
+  createStudent,
+  bulkInsertStudents,
+  upsertStudentByRollClassSection,
   updateStudent,
   deleteStudent,
   deleteAllStudents,
   findStudentsByBatch,
-  findStudentsByBatchId,
 } from './students'
 
 describe('students queries', () => {
-  // Scoped-by-ID cleanup only — never db.delete(students)/db.delete(schools) with no WHERE
-  // (both are DB-Guard-protected tables; an unscoped delete silently no-ops and leaks fixtures).
-  const createdStudentIds: string[] = []
-  const createdSchoolIds: string[] = []
-
-  async function createStudent(...args: Parameters<typeof _createStudent>) {
-    const s = await _createStudent(...args)
-    createdStudentIds.push(s.id)
-    return s
-  }
-
-  async function bulkInsertStudents(...args: Parameters<typeof _bulkInsertStudents>) {
-    const rows = await _bulkInsertStudents(...args)
-    createdStudentIds.push(...rows.map((r) => r.id))
-    return rows
-  }
-
-  async function upsertStudentByRollClassSection(...args: Parameters<typeof _upsertStudentByRollClassSection>) {
-    const s = await _upsertStudentByRollClassSection(...args)
-    createdStudentIds.push(s.id)
-    return s
-  }
-
   afterEach(async () => {
-    for (const id of createdStudentIds) await db.delete(students).where(eq(students.id, id))
-    createdStudentIds.length = 0
-    for (const id of createdSchoolIds) await db.delete(schools).where(eq(schools.id, id))
-    createdSchoolIds.length = 0
-    // batches is not DB-Guard-protected, so an unscoped delete here is safe.
-    await db.delete(batches)
+    await db.delete(students)
+    await db.delete(schools)
   })
 
   it('createStudent inserts a row with defaults applied', async () => {
@@ -193,41 +164,13 @@ describe('students queries', () => {
   })
 
   it('findStudentsByBatch scopes to the given schoolId when provided', async () => {
-    const [schoolA] = await db.insert(schools).values({ id: '00000000-0000-0000-0000-0000000000a1' as any }).returning()
-    const [schoolB] = await db.insert(schools).values({ id: '00000000-0000-0000-0000-0000000000b1' as any }).returning()
-    createdSchoolIds.push(schoolA.id, schoolB.id)
+    const schoolA = await db.insert(schools).values({ id: '00000000-0000-0000-0000-0000000000a1' as any }).returning()
+    const schoolB = await db.insert(schools).values({ id: '00000000-0000-0000-0000-0000000000b1' as any }).returning()
 
     await createStudent({ name: 'School A Student', batch: 'Batch A', schoolId: '00000000-0000-0000-0000-0000000000a1' as any })
     await createStudent({ name: 'School B Student', batch: 'Batch A', schoolId: '00000000-0000-0000-0000-0000000000b1' as any })
 
     const results = await findStudentsByBatch('Batch A', '00000000-0000-0000-0000-0000000000a1')
-    expect(results).toHaveLength(1)
-    expect(results[0].name).toBe('School A Student')
-  })
-
-  it('findStudentsByBatchId returns only active students in batch, sorted by roll number then name', async () => {
-    const [batch] = await db.insert(batches).values({ name: 'Morning Batch' }).returning()
-    const [otherBatch] = await db.insert(batches).values({ name: 'Evening Batch' }).returning()
-
-    await createStudent({ name: 'Zoe', rollNo: '002', batchId: batch.id, isActive: true })
-    await createStudent({ name: 'Amit', rollNo: '001', batchId: batch.id, isActive: true })
-    await createStudent({ name: 'Different Batch', rollNo: '003', batchId: otherBatch.id, isActive: true })
-    await createStudent({ name: 'Inactive', rollNo: '004', batchId: batch.id, isActive: false })
-
-    const results = await findStudentsByBatchId(batch.id)
-    expect(results.map((s) => s.name)).toEqual(['Amit', 'Zoe'])
-  })
-
-  it('findStudentsByBatchId scopes to the given schoolId when provided', async () => {
-    const [schoolA] = await db.insert(schools).values({ id: '00000000-0000-0000-0000-0000000000a2' as any }).returning()
-    const [schoolB] = await db.insert(schools).values({ id: '00000000-0000-0000-0000-0000000000b2' as any }).returning()
-    createdSchoolIds.push(schoolA.id, schoolB.id)
-    const [batch] = await db.insert(batches).values({ name: 'Shared Batch' }).returning()
-
-    await createStudent({ name: 'School A Student', batchId: batch.id, schoolId: '00000000-0000-0000-0000-0000000000a2' as any })
-    await createStudent({ name: 'School B Student', batchId: batch.id, schoolId: '00000000-0000-0000-0000-0000000000b2' as any })
-
-    const results = await findStudentsByBatchId(batch.id, '00000000-0000-0000-0000-0000000000a2')
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('School A Student')
   })

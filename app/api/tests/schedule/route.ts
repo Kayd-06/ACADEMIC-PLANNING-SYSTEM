@@ -62,7 +62,6 @@ export async function GET(req: NextRequest) {
         id: tests.id,
         title: tests.title,
         batch: tests.batch,
-        batchId: tests.batchId,
         program: tests.program,
         subject: tests.subject,
         date: tests.date,
@@ -104,7 +103,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { title, batch, batchId, program, subject, date, time, duration, totalMarks, testType } = body
+    const { title, batch, program, subject, date, time, duration, totalMarks, testType } = body
 
     if (!title?.trim() || !batch?.trim() || !subject?.trim() || !date || !time?.trim() || !duration || !totalMarks) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -116,7 +115,6 @@ export async function POST(req: NextRequest) {
     const [created] = await db.insert(tests).values({
       title: title.trim(),
       batch: batch.trim(),
-      batchId: batchId || null,
       program: program?.trim() || '',
       subject: subject.trim(),
       date,
@@ -160,7 +158,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { id, title, batch, batchId, program, subject, date, time, duration, totalMarks, testType, status } = body
+    const { id, title, batch, program, subject, date, time, duration, totalMarks, testType, status } = body
 
     if (!id || !title?.trim() || !batch?.trim() || !subject?.trim() || !date || !time?.trim() || !duration || !totalMarks) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -175,7 +173,6 @@ export async function PUT(req: NextRequest) {
     const [updated] = await db.update(tests).set({
       title: title.trim(),
       batch: batch.trim(),
-      batchId: batchId || null,
       program: program?.trim() || '',
       subject: subject.trim(),
       date,

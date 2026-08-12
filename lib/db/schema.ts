@@ -121,7 +121,6 @@ export const students = pgTable(
     section: varchar('section', { length: 255 }).notNull().default(''),
     program: varchar('program', { length: 255 }).notNull().default(''),
     batch: varchar('batch', { length: 255 }).notNull().default(''),
-    batchId: uuid('batch_id').references(() => batches.id, { onDelete: 'set null' }),
     parentContact: varchar('parent_contact', { length: 255 }),
     // Status & Metadata
     admissionDate: varchar('admission_date', { length: 10 }),
@@ -425,8 +424,6 @@ export const chapters = pgTable('chapters', {
   programId: uuid('program_id').references(() => programs.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description').notNull().default(''),
-  code: varchar('code', { length: 50 }).notNull().default(''),
-  board: varchar('board', { length: 50 }),
   orderIndex: integer('order_index').notNull().default(0),
   expectedHours: integer('expected_hours'),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
@@ -435,19 +432,6 @@ export const chapters = pgTable('chapters', {
 
 export type Chapter = typeof chapters.$inferSelect
 export type NewChapter = typeof chapters.$inferInsert
-
-export const concepts = pgTable('concepts', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  chapterId: uuid('chapter_id').notNull().references(() => chapters.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 255 }).notNull(),
-  code: varchar('code', { length: 50 }).notNull().default(''),
-  orderIndex: integer('order_index').notNull().default(0),
-  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-})
-
-export type Concept = typeof concepts.$inferSelect
-export type NewConcept = typeof concepts.$inferInsert
 
 // Batch chapter timeline: Not Started | In Progress | Completed
 export const batchSyllabus = pgTable('batch_syllabus', {
@@ -931,7 +915,6 @@ export const tests = pgTable('tests', {
   id: uuid('id').defaultRandom().primaryKey(),
   title: varchar('title', { length: 255 }).notNull(),
   batch: varchar('batch', { length: 255 }).notNull(),
-  batchId: uuid('batch_id').references(() => batches.id, { onDelete: 'set null' }),
   program: varchar('program', { length: 255 }).notNull().default(''),
   subject: varchar('subject', { length: 255 }).notNull(),
   date: varchar('date', { length: 10 }).notNull(),

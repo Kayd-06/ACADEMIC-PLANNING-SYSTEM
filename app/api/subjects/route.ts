@@ -37,9 +37,8 @@ export async function GET() {
       }
     }
 
-    const idByName = new Map(rows.map(r => [r.name, r.id]))
     const allSubjectNames = Array.from(new Set([...DEFAULT_SUBJECTS, ...rows.map(r => r.name)]))
-    const result = allSubjectNames.map(name => ({ name, id: idByName.get(name) ?? null }))
+    const result = allSubjectNames.map(name => ({ name }))
 
     return NextResponse.json(result, {
       headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' },
