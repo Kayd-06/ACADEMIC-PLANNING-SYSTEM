@@ -966,6 +966,11 @@ export const questions = pgTable('questions', {
   correctAnswer: text('correct_answer').notNull().default(''),
   marks: integer('marks').notNull().default(4),
   negativeMarks: integer('negative_marks').notNull().default(0),
+  unattemptedMarks: integer('unattempted_marks').notNull().default(0),
+  // Nullable: existing rows keep free-text `topic`; chapterId/conceptId are
+  // populated for new questions going forward via a picker.
+  chapterId: uuid('chapter_id').references(() => chapters.id, { onDelete: 'set null' }),
+  conceptId: uuid('concept_id').references(() => concepts.id, { onDelete: 'set null' }),
   source: varchar('source', { length: 100 }).notNull().default('Custom'),
   // NULL means this row predates faculty ownership — visible to management
   // only, never to any teacher. Same semantics as tests.createdByUserId.
@@ -977,6 +982,42 @@ export const questions = pgTable('questions', {
 
 export type Question = typeof questions.$inferSelect
 export type NewQuestion = typeof questions.$inferInsert
+
+export const responseStatusEnum = pgEnum('response_status', ['Correct', 'Incorrect', 'Unattempted'])
+
+// Which questions are attached to a test (a test has no question set until
+// this is populated — additive, existing tests keep working with no rows here).
+export const testQuestions = pgTable('test_questions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  testId: uuid('test_id').notNull().references(() => tests.id, { onDelete: 'cascade' }),
+  questionId: uuid('question_id').notNull().references(() => questions.id, { onDelete: 'cascade' }),
+  orderIndex: integer('order_index').notNull().default(0),
+}, (table) => ({
+  testQuestionUnique: uniqueIndex('test_questions_test_question_unique').on(table.testId, table.questionId),
+}))
+
+export type TestQuestion = typeof testQuestions.$inferSelect
+export type NewTestQuestion = typeof testQuestions.$inferInsert
+
+// Per-student, per-question grading. test_grades stays the read path (a
+// cache summed from these rows on save) so existing readers keep working.
+export const testQuestionResponses = pgTable('test_question_responses', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  testId: uuid('test_id').notNull().references(() => tests.id, { onDelete: 'cascade' }),
+  questionId: uuid('question_id').notNull().references(() => questions.id, { onDelete: 'cascade' }),
+  studentId: uuid('student_id').notNull().references(() => students.id, { onDelete: 'cascade' }),
+  status: responseStatusEnum('status').notNull(),
+  marksAwarded: integer('marks_awarded').notNull().default(0),
+  gradedByUserId: uuid('graded_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  responseUnique: uniqueIndex('test_question_responses_unique').on(table.testId, table.questionId, table.studentId),
+}))
+
+export type TestQuestionResponse = typeof testQuestionResponses.$inferSelect
+export type NewTestQuestionResponse = typeof testQuestionResponses.$inferInsert
 
 export const testGrades = pgTable('test_grades', {
   id: uuid('id').defaultRandom().primaryKey(),
