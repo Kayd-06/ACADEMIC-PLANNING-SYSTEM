@@ -121,6 +121,7 @@ export const students = pgTable(
     section: varchar('section', { length: 255 }).notNull().default(''),
     program: varchar('program', { length: 255 }).notNull().default(''),
     batch: varchar('batch', { length: 255 }).notNull().default(''),
+    batchId: uuid('batch_id').references(() => batches.id, { onDelete: 'set null' }),
     parentContact: varchar('parent_contact', { length: 255 }),
     // Status & Metadata
     admissionDate: varchar('admission_date', { length: 10 }),
@@ -915,6 +916,7 @@ export const tests = pgTable('tests', {
   id: uuid('id').defaultRandom().primaryKey(),
   title: varchar('title', { length: 255 }).notNull(),
   batch: varchar('batch', { length: 255 }).notNull(),
+  batchId: uuid('batch_id').references(() => batches.id, { onDelete: 'set null' }),
   program: varchar('program', { length: 255 }).notNull().default(''),
   subject: varchar('subject', { length: 255 }).notNull(),
   date: varchar('date', { length: 10 }).notNull(),

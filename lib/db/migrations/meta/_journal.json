@@ -155,6 +155,13 @@
       "when": 1785128400000,
       "tag": "0035_faculty_role",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786809000000,
+      "tag": "0036_batch_integrity",
+      "breakpoints": true
     }
   ]
 }
