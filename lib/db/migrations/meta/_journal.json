@@ -162,6 +162,13 @@
       "when": 1786809000000,
       "tag": "0036_batch_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786895400000,
+      "tag": "0037_curriculum_concepts",
+      "breakpoints": true
     }
   ]
 }

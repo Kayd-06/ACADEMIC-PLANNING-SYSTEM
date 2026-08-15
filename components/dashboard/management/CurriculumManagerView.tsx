@@ -122,7 +122,7 @@ export default function CurriculumManagerView() {
   }
 
   async function removeChapter(id: string) {
-    if (!confirm('Delete this chapter and all its concepts?')) return
+    if (!confirm('Delete this chapter? This also removes its concepts and any batch syllabus progress tracked against it.')) return
     await fetch(`/api/curriculum/chapters?id=${id}`, { method: 'DELETE' })
     if (selectedChapterId === id) setSelectedChapterId('')
     loadChapters(selectedSubjectId)

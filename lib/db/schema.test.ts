@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db } from './index'
-import { users, emailVerifications, passwordResets, schools, students, studentReports, studentReportEntries, tests, questions, testGrades, batches } from './schema'
+import { users, emailVerifications, passwordResets, schools, students, studentReports, studentReportEntries, tests, questions, testGrades, batches, subjects, chapters, concepts } from './schema'
 
 describe('schema', () => {
   it('can query all tables without error', async () => {
@@ -52,6 +52,41 @@ describe('schema', () => {
       const [test] = await db.insert(tests).values({ title: 'Linked Test', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', batchId: batch.id, schoolId: school.id }).returning()
       testTestId = test.id
       expect(test.batchId).toBe(batch.id)
+    })
+  })
+
+  describe('curriculum foundation', () => {
+    let testSubjectId: string
+    let testChapterId: string
+    let testConceptId: string
+
+    afterEach(async () => {
+      if (testConceptId) await db.delete(concepts).where(eq(concepts.id, testConceptId))
+      if (testChapterId) await db.delete(chapters).where(eq(chapters.id, testChapterId))
+      if (testSubjectId) await db.delete(subjects).where(eq(subjects.id, testSubjectId))
+      testSubjectId = ''
+      testChapterId = ''
+      testConceptId = ''
+    })
+
+    it('chapters accepts code and board', async () => {
+      const [subject] = await db.insert(subjects).values({ name: 'Physics Foundation Test' }).returning()
+      testSubjectId = subject.id
+      const [chapter] = await db.insert(chapters).values({ subjectId: subject.id, name: 'Kinematics Foundation Test', code: 'PHY-01', board: 'CBSE' }).returning()
+      testChapterId = chapter.id
+      expect(chapter.code).toBe('PHY-01')
+      expect(chapter.board).toBe('CBSE')
+    })
+
+    it('concepts links to a chapter', async () => {
+      const [subject] = await db.insert(subjects).values({ name: 'Chemistry Foundation Test' }).returning()
+      testSubjectId = subject.id
+      const [chapter] = await db.insert(chapters).values({ subjectId: subject.id, name: 'Chemical Bonding Foundation Test' }).returning()
+      testChapterId = chapter.id
+      const [concept] = await db.insert(concepts).values({ chapterId: chapter.id, name: 'Ionic Bonding', code: 'CB-01' }).returning()
+      testConceptId = concept.id
+      expect(concept.chapterId).toBe(chapter.id)
+      expect(concept.name).toBe('Ionic Bonding')
     })
   })
 })
