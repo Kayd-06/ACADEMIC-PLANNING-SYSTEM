@@ -51,6 +51,9 @@ export async function GET(req: NextRequest) {
         correctAnswer: questions.correctAnswer,
         marks: questions.marks,
         negativeMarks: questions.negativeMarks,
+        unattemptedMarks: questions.unattemptedMarks,
+        chapterId: questions.chapterId,
+        conceptId: questions.conceptId,
         source: questions.source,
         createdByUserId: questions.createdByUserId,
         schoolId: questions.schoolId,
@@ -87,7 +90,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { subject, topic, difficulty, type, text, options, correctAnswer, marks, negativeMarks, source } = body
+    const { subject, topic, difficulty, type, text, options, correctAnswer, marks, negativeMarks, unattemptedMarks, chapterId, conceptId, source } = body
 
     if (!subject?.trim() || !topic?.trim() || !difficulty || !type || !text?.trim()) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -106,6 +109,9 @@ export async function POST(req: NextRequest) {
       correctAnswer: correctAnswer?.trim() || '',
       marks: marks ? Number(marks) : 4,
       negativeMarks: negativeMarks ? Number(negativeMarks) : 0,
+      unattemptedMarks: unattemptedMarks ? Number(unattemptedMarks) : 0,
+      chapterId: chapterId || null,
+      conceptId: conceptId || null,
       source: source?.trim() || 'Custom',
       createdByUserId: userId,
       schoolId,
@@ -132,7 +138,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { id, subject, topic, difficulty, type, text, options, correctAnswer, marks, negativeMarks, source } = body
+    const { id, subject, topic, difficulty, type, text, options, correctAnswer, marks, negativeMarks, unattemptedMarks, chapterId, conceptId, source } = body
 
     if (!id || !subject?.trim() || !topic?.trim() || !difficulty || !type || !text?.trim()) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -154,6 +160,9 @@ export async function PUT(req: NextRequest) {
       correctAnswer: correctAnswer?.trim() || '',
       marks: marks ? Number(marks) : 4,
       negativeMarks: negativeMarks ? Number(negativeMarks) : 0,
+      unattemptedMarks: unattemptedMarks ? Number(unattemptedMarks) : 0,
+      chapterId: chapterId || null,
+      conceptId: conceptId || null,
       source: source?.trim() || 'Custom',
       updatedAt: new Date(),
     }).where(and(...conditions)).returning()
