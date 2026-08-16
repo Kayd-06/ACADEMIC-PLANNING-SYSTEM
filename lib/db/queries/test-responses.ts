@@ -8,18 +8,20 @@ export interface ResponseInput {
   studentId: string
   questionId: string
   status: ResponseStatus
+  mistakeType?: string
 }
 
 export interface ResponseGridEntry {
   questionId: string
   studentId: string
   status: ResponseStatus
+  mistakeType?: string
   marksAwarded: number
 }
 
 export async function getResponseGrid(testId: string): Promise<ResponseGridEntry[]> {
   const rows = await db.select().from(testQuestionResponses).where(eq(testQuestionResponses.testId, testId))
-  return rows.map(r => ({ questionId: r.questionId, studentId: r.studentId, status: r.status, marksAwarded: r.marksAwarded }))
+  return rows.map(r => ({ questionId: r.questionId, studentId: r.studentId, status: r.status, mistakeType: r.mistakeType || undefined, marksAwarded: r.marksAwarded }))
 }
 
 // Bulk upserts per-question responses for a test, then recomputes and
@@ -51,6 +53,7 @@ export async function saveResponses(
       questionId: r.questionId,
       studentId: r.studentId,
       status: r.status,
+      mistakeType: r.status === 'Incorrect' ? r.mistakeType : null,
       marksAwarded,
       gradedByUserId,
       schoolId,

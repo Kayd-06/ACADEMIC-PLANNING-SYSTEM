@@ -54,13 +54,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ])
 
     const statusByStudentAndQuestion = new Map(grid.map(r => [`${r.studentId}:${r.questionId}`, r.status]))
+    const mistakeTypeByStudentAndQuestion = new Map(grid.map(r => [`${r.studentId}:${r.questionId}`, r.mistakeType]))
 
     const studentResults = roster.map(s => ({
       studentId: s.id,
       studentName: s.name,
       rollNo: s.rollNo || '',
       responses: Object.fromEntries(
-        attachedQuestions.map(q => [q.id, statusByStudentAndQuestion.get(`${s.id}:${q.id}`) ?? null])
+        attachedQuestions.map(q => [
+          q.id,
+          statusByStudentAndQuestion.get(`${s.id}:${q.id}`) ?? null
+        ])
+      ),
+      mistakes: Object.fromEntries(
+        attachedQuestions.map(q => [
+          q.id,
+          mistakeTypeByStudentAndQuestion.get(`${s.id}:${q.id}`) ?? null
+        ])
       ),
     }))
 
