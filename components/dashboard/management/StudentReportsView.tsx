@@ -91,6 +91,7 @@ export default function StudentReportsView() {
           setTopPerformers(data.topPerformers || [])
           setAttentionSubjects(data.attentionSubjects || [])
           setFilterOptions(data.filterOptions || { classes: [], subjects: [], terms: [] })
+        }
         setLoading(false)
       })
       .catch(err => {
