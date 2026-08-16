@@ -29,18 +29,32 @@ async function loadAuthorizedTest(testId: string, session: any) {
 
 // Dense ranking over present, graded students only — an absent or ungraded
 // student gets no rank at all rather than being sorted to the bottom.
-function calculateRanks(rows: { studentId: string; marksObtained: number | null; absent: boolean }[]): Map<string, number> {
+function calculateRanksAndPercentiles(rows: { studentId: string; marksObtained: number | null; absent: boolean }[]) {
   const graded = rows
     .filter(r => !r.absent && r.marksObtained !== null)
     .sort((a, b) => (b.marksObtained as number) - (a.marksObtained as number))
 
+  const totalGraded = graded.length
   const rankByStudent = new Map<string, number>()
+  const percentileByStudent = new Map<string, number>()
+  
   let currentRank = 1
   graded.forEach((r, index) => {
     if (index > 0 && r.marksObtained !== graded[index - 1].marksObtained) currentRank = index + 1
     rankByStudent.set(r.studentId, currentRank)
+    
+    // Percentile = (Number of candidates with score <= candidate's score) / Total candidates * 100
+    // Since it's sorted descending, candidates with score <= this score are from this index to the end
+    // Actually, candidates with score < candidate's score + candidates with same score.
+    // So anyone from the FIRST occurrence of this score down to the end has score <= this score.
+    // Wait, the number of candidates with score <= candidate's score is exactly (totalGraded - currentRank + 1) if using dense rank? No, dense rank doesn't map to counts.
+    // Let's count them:
+    const countLessOrEqual = graded.filter(x => (x.marksObtained as number) <= (r.marksObtained as number)).length
+    const percentile = Math.round((countLessOrEqual / totalGraded) * 10000) / 100 // 2 decimal places
+    percentileByStudent.set(r.studentId, percentile)
   })
-  return rankByStudent
+  
+  return { rankByStudent, percentileByStudent }
 }
 
 // GET — real batch roster left-joined with any saved grades for this test.
@@ -59,7 +73,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const grades = await db.select().from(testGrades).where(eq(testGrades.testId, test.id))
     const gradeByStudent = new Map(grades.map(g => [g.studentId, g]))
 
-    const ranks = calculateRanks(
+    const { rankByStudent, percentileByStudent } = calculateRanksAndPercentiles(
       roster.map(s => {
         const g = gradeByStudent.get(s.id)
         return { studentId: s.id, marksObtained: g?.marksObtained ?? null, absent: g?.absent ?? false }
@@ -83,7 +97,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         unattempted: g?.unattempted ?? null,
         absent,
         percentage,
-        rank: ranks.get(s.id) ?? null,
+        rank: rankByStudent.get(s.id) ?? null,
+        percentile: percentileByStudent.get(s.id) ?? null,
       }
     })
 

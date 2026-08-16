@@ -38,9 +38,14 @@ async function recomputeBatchRanks(batch: string, termType: string, academicYear
     const totalStudents = sorted.length
     for (let i = 0; i < sorted.length; i++) {
       const rankOrdinal = getOrdinalRank(i + 1, totalStudents)
-      if (sorted[i].rank !== rankOrdinal) {
+      
+      const currentPct = parseInt(sorted[i].percentage || '0', 10) || 0
+      const countLessOrEqual = sorted.filter(r => (parseInt(r.percentage || '0', 10) || 0) <= currentPct).length
+      const percentile = totalStudents > 0 ? (Math.round((countLessOrEqual / totalStudents) * 10000) / 100).toString() : '0'
+
+      if (sorted[i].rank !== rankOrdinal || sorted[i].percentile !== percentile) {
         await db.update(progressReports)
-          .set({ rank: rankOrdinal })
+          .set({ rank: rankOrdinal, percentile })
           .where(eq(progressReports.id, sorted[i].id))
       }
     }
