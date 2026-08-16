@@ -27,6 +27,7 @@ interface ProgressReport {
   academicYear: string
   percentage: string
   rank: string
+  percentile: string
   teacherRemarks: string
   principalRemarks: string
   teacherName: string
@@ -294,6 +295,10 @@ export default function ProgressReportView() {
         <span>Batch Standing / Rank</span>
         <strong>${report.rank || 'N/A'}</strong>
       </div>
+      <div class="summary-item">
+        <span>Percentile</span>
+        <strong>${report.percentile || 'N/A'}</strong>
+      </div>
     </div>
 
     <div class="remarks">
@@ -467,6 +472,7 @@ export default function ProgressReportView() {
                     <div className="text-right pl-2 border-l border-gray-200/60">
                       <p className="text-sm font-extrabold text-gray-900">{report.percentage}</p>
                       <p className="text-[11px] font-semibold text-gray-500">Rank: <span className="text-indigo-600 font-bold">{report.rank}</span></p>
+                      <p className="text-[11px] font-semibold text-gray-500">PR: <span className="text-blue-600 font-bold">{report.percentile}</span></p>
                     </div>
                     <div className="text-gray-400">
                       {expandedId === report.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}

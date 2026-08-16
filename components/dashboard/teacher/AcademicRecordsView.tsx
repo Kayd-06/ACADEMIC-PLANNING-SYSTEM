@@ -121,7 +121,9 @@ export default function AcademicRecordsView() {
       .filter(r => !r.absent && r.marksObtained !== undefined && r.marksObtained !== '')
       .sort((a, b) => Number(b.marksObtained || 0) - Number(a.marksObtained || 0))
 
+    const totalGraded = graded.length
     const rankMap = new Map<string, number>()
+    const percentileMap = new Map<string, number>()
     let currentRank = 1
 
     graded.forEach((res, index) => {
@@ -131,6 +133,10 @@ export default function AcademicRecordsView() {
       // Unique key by roll number if available, else name
       const key = res.rollNo ? `${res.rollNo}-${res.studentName}` : res.studentName
       rankMap.set(key, currentRank)
+      
+      const countLessOrEqual = graded.filter(x => Number(x.marksObtained || 0) <= Number(res.marksObtained || 0)).length
+      const percentile = Math.round((countLessOrEqual / totalGraded) * 10000) / 100
+      percentileMap.set(key, percentile)
     })
 
     return records.map(res => {
@@ -138,13 +144,15 @@ export default function AcademicRecordsView() {
         return {
           ...res,
           rank: undefined,
+          percentile: undefined,
           percentage: undefined
         }
       }
       const key = res.rollNo ? `${res.rollNo}-${res.studentName}` : res.studentName
       return {
         ...res,
-        rank: rankMap.get(key) || 1
+        rank: rankMap.get(key) || 1,
+        percentile: percentileMap.get(key)
       }
     })
   }
@@ -255,7 +263,7 @@ export default function AcademicRecordsView() {
 
   // Export results to CSV
   const handleExportCSV = () => {
-    const headers = ['Student Name', 'Roll No', 'Marks Obtained', 'Correct', 'Incorrect', 'Unattempted', 'Rank', 'Percentage', 'Absent']
+    const headers = ['Student Name', 'Roll No', 'Marks Obtained', 'Correct', 'Incorrect', 'Unattempted', 'Rank', 'Percentile', 'Percentage', 'Absent']
     const rows = studentResults.map(r => [
       r.studentName,
       r.rollNo,
@@ -264,6 +272,7 @@ export default function AcademicRecordsView() {
       r.absent ? '' : r.incorrect ?? '',
       r.absent ? '' : r.unattempted ?? '',
       r.absent ? '-' : r.rank ?? '',
+      r.absent ? '-' : r.percentile ?? '',
       r.absent ? '-' : `${r.percentage}%`,
       r.absent ? 'Yes' : 'No'
     ])
@@ -537,6 +546,7 @@ export default function AcademicRecordsView() {
                   <th className="px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center w-24">Incorrect</th>
                   <th className="px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center w-24">Unattempted</th>
                   <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center w-20">Rank</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center w-28">Percentile</th>
                   <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center w-28">Percentage</th>
                   <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center w-20">Absent</th>
                 </tr>
@@ -628,6 +638,11 @@ export default function AcademicRecordsView() {
                       {/* Rank */}
                       <td className="px-6 py-4 text-center text-sm font-bold text-slate-700">
                         {record.absent || record.rank === undefined ? '-' : record.rank}
+                      </td>
+
+                      {/* Percentile */}
+                      <td className="px-6 py-4 text-center text-sm font-semibold text-blue-600 font-mono">
+                        {record.absent || record.percentile === undefined ? '-' : `${record.percentile}`}
                       </td>
 
                       {/* Percentage */}
