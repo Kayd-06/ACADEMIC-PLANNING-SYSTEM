@@ -18,7 +18,17 @@ interface StudentResult {
   studentName: string
   rollNo: string
   responses: Record<string, 'Correct' | 'Incorrect' | 'Unattempted' | null>
+  mistakes: Record<string, string | null>
 }
+
+const MISTAKE_TYPES = [
+  'Calculation Error',
+  'Conceptual Error',
+  'Formula Error',
+  'Silly Mistake',
+  'Time Management',
+  'Other'
+]
 
 interface TestGradingModalProps {
   test: { id: string; title: string; batch: string; totalMarks: number; date: string }
@@ -75,6 +85,23 @@ export default function TestGradingModal({ test, onClose, onSaved }: TestGrading
         responses: {
           ...student.responses,
           [questionId]: nextStatus
+        },
+        mistakes: {
+          ...student.mistakes,
+          [questionId]: nextStatus === 'Incorrect' ? MISTAKE_TYPES[0] : null
+        }
+      }
+    }))
+  }
+
+  function setMistake(studentId: string, questionId: string, mistakeType: string) {
+    setStudentResults(prev => prev.map(student => {
+      if (student.studentId !== studentId) return student
+      return {
+        ...student,
+        mistakes: {
+          ...student.mistakes,
+          [questionId]: mistakeType
         }
       }
     }))
@@ -83,7 +110,6 @@ export default function TestGradingModal({ test, onClose, onSaved }: TestGrading
   async function handleSave() {
     setSaving(true)
     try {
-      // Flatten the grid into the array the API expects
       const payloadResponses: any[] = []
       studentResults.forEach(student => {
         Object.entries(student.responses).forEach(([questionId, status]) => {
@@ -91,7 +117,8 @@ export default function TestGradingModal({ test, onClose, onSaved }: TestGrading
             payloadResponses.push({
               studentId: student.studentId,
               questionId,
-              status
+              status,
+              mistakeType: status === 'Incorrect' ? student.mistakes[questionId] : null
             })
           }
         })
@@ -196,15 +223,29 @@ export default function TestGradingModal({ test, onClose, onSaved }: TestGrading
                         </td>
                         {questions.map((q) => {
                           const status = r.responses[q.id]
+                          const mistake = r.mistakes?.[q.id]
                           return (
-                            <td key={q.id} className="px-1 py-1.5 text-center">
-                              <button
-                                onClick={() => toggleResponse(r.studentId, q.id)}
-                                className={`w-8 h-8 rounded border flex items-center justify-center mx-auto transition-colors ${getStatusColor(status)}`}
-                                title={`Toggle Q for ${r.studentName}`}
-                              >
-                                {renderStatusIcon(status)}
-                              </button>
+                            <td key={q.id} className="px-1 py-1.5 text-center min-w-[70px]">
+                              <div className="flex flex-col items-center gap-1">
+                                <button
+                                  onClick={() => toggleResponse(r.studentId, q.id)}
+                                  className={`w-8 h-8 rounded border flex items-center justify-center transition-colors ${getStatusColor(status)}`}
+                                  title={`Toggle Q for ${r.studentName}`}
+                                >
+                                  {renderStatusIcon(status)}
+                                </button>
+                                {status === 'Incorrect' && (
+                                  <select
+                                    value={mistake || MISTAKE_TYPES[0]}
+                                    onChange={(e) => setMistake(r.studentId, q.id, e.target.value)}
+                                    className="text-[9px] w-[65px] p-0.5 border border-red-200 bg-red-50 text-red-700 rounded outline-none"
+                                  >
+                                    {MISTAKE_TYPES.map(m => (
+                                      <option key={m} value={m}>{m}</option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
                             </td>
                           )
                         })}

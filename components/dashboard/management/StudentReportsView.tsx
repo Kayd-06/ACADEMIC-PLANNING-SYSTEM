@@ -55,6 +55,7 @@ export default function StudentReportsView() {
   const [uploadedReports, setUploadedReports] = useState<UploadedReport[]>([])
   const [topPerformers, setTopPerformers] = useState<TopPerformer[]>([])
   const [attentionSubjects, setAttentionSubjects] = useState<AttentionSubject[]>([])
+  const [mistakeData, setMistakeData] = useState<{label: string, value: number}[]>([])
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({ classes: [], subjects: [], terms: [] })
   const [loading, setLoading] = useState(true)
 
@@ -90,13 +91,21 @@ export default function StudentReportsView() {
           setTopPerformers(data.topPerformers || [])
           setAttentionSubjects(data.attentionSubjects || [])
           setFilterOptions(data.filterOptions || { classes: [], subjects: [], terms: [] })
-        }
         setLoading(false)
       })
       .catch(err => {
         console.error('Failed to fetch dashboard data', err)
         setLoading(false)
       })
+
+    fetch(`/api/analytics/mistakes`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          setMistakeData(data.mistakeAnalysis || [])
+        }
+      })
+      .catch(err => console.error('Failed to fetch mistake analytics', err))
   }, [selectedClass, selectedSubject, selectedTerm])
 
   const filteredReports = uploadedReports.filter(rep => {
@@ -338,6 +347,32 @@ export default function StudentReportsView() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Mistake Analysis */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <h2 className="text-sm font-bold text-slate-900 mb-6">Mistake Analysis</h2>
+            {mistakeData.length === 0 ? (
+              <div className="p-6 text-center text-sm font-medium text-slate-400 border border-dashed border-slate-200 rounded-xl">No mistake data yet.</div>
+            ) : (
+              <div className="space-y-4">
+                {mistakeData.map((m, idx) => {
+                  const maxVal = Math.max(...mistakeData.map(d => d.value))
+                  const pct = Math.round((m.value / maxVal) * 100)
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex justify-between text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                        <span>{m.label}</span>
+                        <span className="text-indigo-600">{m.value}</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                        <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${pct}%` }}></div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
         </div>
