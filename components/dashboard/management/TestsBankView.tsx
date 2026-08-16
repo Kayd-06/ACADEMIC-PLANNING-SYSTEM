@@ -27,6 +27,7 @@ import {
 import UploadPdfModal from '@/components/dashboard/UploadPdfModal'
 import ExportQuestionsModal from '@/components/dashboard/ExportQuestionsModal'
 import TestGradingModal from '@/components/dashboard/TestGradingModal'
+import ManageTestQuestionsModal from '@/components/dashboard/ManageTestQuestionsModal'
 import { getLocalToday } from '@/lib/scheduleUtils'
 import { formatDate } from '@/lib/date'
 
@@ -86,6 +87,8 @@ export default function TestsBankView() {
 
   const [questionForm, setQuestionForm] = useState({
     subject: 'Physics',
+    chapterId: '',
+    conceptId: '',
     topic: '',
     difficulty: 'Medium' as 'Easy' | 'Medium' | 'Hard',
     type: 'MCQ' as 'MCQ' | 'Numerical' | 'Integer' | 'Subjective',
@@ -96,14 +99,18 @@ export default function TestsBankView() {
     negativeMarks: '0'
   })
 
+  const [availableSubjects, setAvailableSubjects] = useState<any[]>([])
+  const [availableChapters, setAvailableChapters] = useState<any[]>([])
+  const [availableConcepts, setAvailableConcepts] = useState<any[]>([])
+
   const [availableBatches, setAvailableBatches] = useState<{ id: string; name: string }[]>([])
   const [availablePrograms, setAvailablePrograms] = useState<string[]>([])
 
-  // "All Tests" tab filters
   const [testFacultyFilter, setTestFacultyFilter] = useState('All')
   const [testProgramFilter, setTestProgramFilter] = useState('All')
   const [uploadingPaperFor, setUploadingPaperFor] = useState<string | null>(null)
   const [gradingTest, setGradingTest] = useState<any | null>(null)
+  const [manageQuestionsTest, setManageQuestionsTest] = useState<any | null>(null)
 
   // Pagination for questions
   const [questionPage, setQuestionPage] = useState(1)
@@ -150,6 +157,12 @@ export default function TestsBankView() {
       if (Array.isArray(pData)) {
         setAvailablePrograms(pData.map((p: any) => p.name).filter(Boolean))
       }
+
+      const sRes = await fetch('/api/subjects')
+      const sData = await sRes.json()
+      if (!sData.error && Array.isArray(sData)) {
+        setAvailableSubjects(sData)
+      }
     } catch (err) {
       console.error(err)
     } finally {
@@ -160,6 +173,39 @@ export default function TestsBankView() {
   useEffect(() => {
     fetchStatsAndData()
   }, [])
+
+  useEffect(() => {
+    if (!questionForm.subject || availableSubjects.length === 0) {
+      setAvailableChapters([])
+      return
+    }
+    const subj = availableSubjects.find(s => s.name === questionForm.subject)
+    if (!subj?.id) {
+      setAvailableChapters([])
+      return
+    }
+    fetch(`/api/curriculum/chapters?subjectId=${subj.id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.error) setAvailableChapters(data)
+        else setAvailableChapters([])
+      })
+      .catch(() => setAvailableChapters([]))
+  }, [questionForm.subject, availableSubjects])
+
+  useEffect(() => {
+    if (!questionForm.chapterId) {
+      setAvailableConcepts([])
+      return
+    }
+    fetch(`/api/curriculum/concepts?chapterId=${questionForm.chapterId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.error) setAvailableConcepts(data)
+        else setAvailableConcepts([])
+      })
+      .catch(() => setAvailableConcepts([]))
+  }, [questionForm.chapterId])
 
   // Submit test helper to support retry
   async function submitTest(payload: any) {
@@ -232,6 +278,8 @@ export default function TestsBankView() {
         setShowQuestionModal(false)
         setQuestionForm({
           subject: 'Physics',
+          chapterId: '',
+          conceptId: '',
           topic: '',
           difficulty: 'Medium',
           type: 'MCQ',
@@ -703,6 +751,13 @@ export default function TestsBankView() {
                                 >
                                   Grade
                                 </button>
+                                <button
+                                  onClick={() => setManageQuestionsTest(t)}
+                                  className="px-2.5 py-1 text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-200 rounded-lg transition-colors"
+                                  title="Attach Questions"
+                                >
+                                  Questions
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -1075,15 +1130,49 @@ export default function TestsBankView() {
                     </select>
                   </div>
 
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Topic *</label>
-                    <input 
-                      type="text" required
-                      value={questionForm.topic}
-                      onChange={(e) => setQuestionForm({...questionForm, topic: e.target.value})}
-                      placeholder="e.g. Thermodynamics"
-                      className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors"
-                    />
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Chapter</label>
+                    <select
+                      value={questionForm.chapterId}
+                      onChange={(e) => {
+                        const chapter = availableChapters.find(c => c.id === e.target.value)
+                        setQuestionForm({ ...questionForm, chapterId: e.target.value, conceptId: '', topic: chapter ? chapter.name : '' })
+                      }}
+                      className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer"
+                    >
+                      <option value="">Select Chapter...</option>
+                      {availableChapters.map(ch => (
+                        <option key={ch.id} value={ch.id}>{ch.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-0.5">Concept / Topic *</label>
+                    {availableConcepts.length > 0 ? (
+                      <select
+                        value={questionForm.conceptId}
+                        onChange={(e) => {
+                          const concept = availableConcepts.find(c => c.id === e.target.value)
+                          setQuestionForm({ ...questionForm, conceptId: e.target.value, topic: concept ? concept.name : questionForm.topic })
+                        }}
+                        className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors cursor-pointer"
+                      >
+                        <option value="">Select Concept...</option>
+                        {availableConcepts.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input 
+                        type="text" required
+                        value={questionForm.topic}
+                        onChange={(e) => setQuestionForm({...questionForm, topic: e.target.value})}
+                        placeholder="e.g. Thermodynamics"
+                        className="w-full mt-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-slate-400 transition-colors"
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -1201,6 +1290,13 @@ export default function TestsBankView() {
           test={gradingTest}
           onClose={() => setGradingTest(null)}
           onSaved={fetchStatsAndData}
+        />
+      )}
+
+      {manageQuestionsTest && (
+        <ManageTestQuestionsModal
+          test={manageQuestionsTest}
+          onClose={() => setManageQuestionsTest(null)}
         />
       )}
 
