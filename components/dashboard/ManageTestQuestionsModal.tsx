@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, RefreshCw, Search, CheckCircle2 } from 'lucide-react'
+import { X, RefreshCw, Search, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useAlert } from '@/components/dashboard/AlertProvider'
 
 interface ManageTestQuestionsModalProps {
@@ -18,32 +18,39 @@ export default function ManageTestQuestionsModal({ test, onClose }: ManageTestQu
   const [allQuestions, setAllQuestions] = useState<any[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
+  const [error, setError] = useState('')
 
-  useEffect(() => {
-    let cancelled = false
+  const loadModalData = () => {
     setLoading(true)
+    setError('')
     
     Promise.all([
       fetch('/api/tests/questions').then(r => r.json()),
       fetch(`/api/tests/${test.id}/questions`).then(r => r.json())
     ])
     .then(([allQ, attachedQ]) => {
-      if (cancelled) return
-      if (!allQ.error) {
-        // Filter questions by subject so we only see relevant ones
+      if (attachedQ?.error) {
+        throw new Error(attachedQ.error)
+      }
+      if (allQ?.error) {
+        throw new Error(allQ.error)
+      }
+      if (Array.isArray(allQ)) {
         const subjectQuestions = allQ.filter((q: any) => q.subject.includes(test.subject) || test.subject.includes(q.subject))
         setAllQuestions(subjectQuestions.length > 0 ? subjectQuestions : allQ) 
       }
-      if (!attachedQ.error && Array.isArray(attachedQ)) {
+      if (Array.isArray(attachedQ)) {
         const ids = new Set<string>(attachedQ.map((q: any) => q.id))
         setSelectedIds(ids)
       }
     })
-    .catch(err => console.error(err))
-    .finally(() => { if (!cancelled) setLoading(false) })
-    
-    return () => { cancelled = true }
-  }, [test])
+    .catch(err => setError(err.message || 'Failed to load questions'))
+    .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadModalData()
+  }, [test.id])
 
   async function handleSave() {
     setSaving(true)
@@ -112,8 +119,22 @@ export default function ManageTestQuestionsModal({ test, onClose }: ManageTestQu
           <div className="p-6 flex-1 overflow-y-auto">
             {loading ? (
               <div className="flex flex-col items-center justify-center h-40 text-slate-400">
-                <RefreshCw className="w-7 h-7 animate-spin mb-3" />
+                <RefreshCw className="w-7 h-7 animate-spin mb-3 text-blue-600" />
                 <p className="text-sm font-medium">Loading questions...</p>
+              </div>
+            ) : error ? (
+              <div className="max-w-md mx-auto my-6 bg-white p-6 rounded-2xl border border-rose-100 text-center shadow-sm">
+                <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-3">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">Unable to load questions</h3>
+                <p className="text-xs text-slate-500 mt-1 mb-4">{error}</p>
+                <button
+                  onClick={loadModalData}
+                  className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Try Again
+                </button>
               </div>
             ) : filteredQuestions.length === 0 ? (
               <p className="text-sm text-slate-500 text-center py-8">No questions found matching your search.</p>

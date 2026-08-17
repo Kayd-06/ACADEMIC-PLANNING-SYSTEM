@@ -10,20 +10,7 @@ export const dynamic = 'force-dynamic'
 // tests.paperUrl directly to the client — so every verb here re-checks the
 // same ownership rule: management must match the test's school; a teacher
 // must be the test's own creator.
-async function loadAuthorizedTest(testId: string, session: any) {
-  const [test] = await db.select().from(tests).where(eq(tests.id, testId))
-  if (!test) return null
-
-  const role = (session.user as any).role
-  const userId = (session.user as any).id as string
-  const schoolId = getSchoolId(session)
-
-  if (role !== 'teacher' && role !== 'management') return null
-  if (schoolId && test.schoolId !== schoolId) return null
-  if (role === 'teacher' && test.createdByUserId !== userId) return null
-
-  return test
-}
+import { loadAuthorizedTest } from '@/lib/db/queries/tests-auth'
 
 // POST — attach a test-paper PDF (owning teacher or management only)
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -32,7 +19,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id } = await params
-    const test = await loadAuthorizedTest(id, session)
+    const { test, forbidden } = await loadAuthorizedTest(id, session)
+    if (forbidden) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (!test) return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
 
     const formData = await req.formData()
@@ -63,7 +51,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id } = await params
-    const test = await loadAuthorizedTest(id, session)
+    const { test, forbidden } = await loadAuthorizedTest(id, session)
+    if (forbidden) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (!test) return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
     if (!test.paperUrl) return NextResponse.json({ error: 'No paper attached to this test.' }, { status: 404 })
 
@@ -92,7 +81,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id } = await params
-    const test = await loadAuthorizedTest(id, session)
+    const { test, forbidden } = await loadAuthorizedTest(id, session)
+    if (forbidden) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (!test) return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
 
     await db.update(tests)

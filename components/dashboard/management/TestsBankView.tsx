@@ -745,9 +745,8 @@ export default function TestsBankView() {
                                 )}
                                 <button
                                   onClick={() => setGradingTest(t)}
-                                  disabled={!isGradable}
-                                  className="px-2.5 py-1 text-[10px] font-bold text-white bg-[#0b1320] hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-40"
-                                  title={isGradable ? 'Grade this test' : 'Upcoming — not gradable yet'}
+                                  className="px-2.5 py-1 text-[10px] font-bold text-white bg-[#0b1320] hover:bg-slate-800 rounded-lg transition-colors"
+                                  title="Grade this test"
                                 >
                                   Grade
                                 </button>

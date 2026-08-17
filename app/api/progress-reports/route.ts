@@ -28,10 +28,12 @@ async function recomputeBatchRanks(batch: string, termType: string, academicYear
     const allReportsInBatch = await db.select().from(progressReports).where(and(...conditions))
     if (allReportsInBatch.length === 0) return
 
-    // Sort descending by percentage numeric value (e.g., parseInt("82%") -> 82)
+    // Sort descending by percentage numeric value (e.g. "82.5%" -> 82.5)
+    const parsePct = (val?: string | null) => parseFloat(String(val || '0').replace(/%/g, '').trim()) || 0
+
     const sorted = [...allReportsInBatch].sort((a, b) => {
-      const pctA = parseInt(a.percentage || '0', 10) || 0
-      const pctB = parseInt(b.percentage || '0', 10) || 0
+      const pctA = parsePct(a.percentage)
+      const pctB = parsePct(b.percentage)
       return pctB - pctA
     })
 
@@ -39,8 +41,8 @@ async function recomputeBatchRanks(batch: string, termType: string, academicYear
     for (let i = 0; i < sorted.length; i++) {
       const rankOrdinal = getOrdinalRank(i + 1, totalStudents)
       
-      const currentPct = parseInt(sorted[i].percentage || '0', 10) || 0
-      const countLessOrEqual = sorted.filter(r => (parseInt(r.percentage || '0', 10) || 0) <= currentPct).length
+      const currentPct = parsePct(sorted[i].percentage)
+      const countLessOrEqual = sorted.filter(r => parsePct(r.percentage) <= currentPct).length
       const percentile = totalStudents > 0 ? (Math.round((countLessOrEqual / totalStudents) * 10000) / 100).toString() : '0'
 
       if (sorted[i].rank !== rankOrdinal || sorted[i].percentile !== percentile) {
@@ -88,21 +90,26 @@ export async function GET(req: NextRequest) {
     cohortGroups.set(key, list)
   }
 
+  const parsePct = (val?: string | null) => parseFloat(String(val || '0').replace(/%/g, '').trim()) || 0
+
   for (const [key, cohortList] of cohortGroups.entries()) {
-    const [b, t, a] = key.split(':::')
-    // Check if we need to sync ranks in DB or just update in memory
     const sortedCohort = [...cohortList].sort((x, y) => {
-      const px = parseInt(x.percentage || '0', 10) || 0
-      const py = parseInt(y.percentage || '0', 10) || 0
+      const px = parsePct(x.percentage)
+      const py = parsePct(y.percentage)
       return py - px
     })
     const total = sortedCohort.length
     for (let i = 0; i < sortedCohort.length; i++) {
       const trueRank = getOrdinalRank(i + 1, total)
+      const currentPct = parsePct(sortedCohort[i].percentage)
+      const countLessOrEqual = sortedCohort.filter(r => parsePct(r.percentage) <= currentPct).length
+      const truePercentile = total > 0 ? (Math.round((countLessOrEqual / total) * 10000) / 100).toString() : '0'
+
       sortedCohort[i].rank = trueRank
-      // Asynchronously sync correct rank if DB had stale or static rank
-      if (sortedCohort[i].rank !== trueRank || trueRank.includes('2nd') && total === 1) {
-        db.update(progressReports).set({ rank: trueRank }).where(eq(progressReports.id, sortedCohort[i].id)).catch(() => {})
+      sortedCohort[i].percentile = truePercentile
+
+      if (sortedCohort[i].rank !== trueRank || sortedCohort[i].percentile !== truePercentile) {
+        db.update(progressReports).set({ rank: trueRank, percentile: truePercentile }).where(eq(progressReports.id, sortedCohort[i].id)).catch(() => {})
       }
     }
   }

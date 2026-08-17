@@ -46,8 +46,28 @@ export default function ProgressReportView() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [batches, setBatches] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [recalculating, setRecalculating] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
+
+  const handleRecalculate = async () => {
+    setRecalculating(true)
+    try {
+      const res = await fetch('/api/progress-reports/recalculate', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setSuccessMsg(data.message || 'Recalculated ranks & percentiles successfully!')
+        setTimeout(() => setSuccessMsg(''), 4000)
+        fetchReports()
+      } else {
+        setErrorMsg(data.error || 'Recalculation failed')
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error triggering recalculation')
+    } finally {
+      setRecalculating(false)
+    }
+  }
 
   // SINGLE STUDENT REPORT PDF MODAL STATE
   const [showPdfModal, setShowPdfModal] = useState(false)
@@ -362,6 +382,15 @@ export default function ProgressReportView() {
         <div className="flex items-center gap-3">
           <button onClick={() => fetchReports()} className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-gray-700 border border-gray-200 bg-white rounded-xl shadow-sm hover:bg-gray-50 font-semibold transition-all">
             <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
+          <button
+            onClick={handleRecalculate}
+            disabled={recalculating}
+            className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-indigo-700 border border-indigo-200 bg-indigo-50/50 rounded-xl shadow-sm hover:bg-indigo-100 font-semibold transition-all disabled:opacity-50"
+            title="Recalculate ranks and percentiles across all cohorts"
+          >
+            <Award className={`w-4 h-4 ${recalculating ? 'animate-spin' : ''}`} />
+            {recalculating ? 'Recalculating...' : 'Recalculate Ranks'}
           </button>
           <button onClick={() => {
             setEditingId(null)

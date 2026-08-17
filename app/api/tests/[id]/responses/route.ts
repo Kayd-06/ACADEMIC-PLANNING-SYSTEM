@@ -12,20 +12,7 @@ export const dynamic = 'force-dynamic'
 
 const VALID_STATUSES: ResponseStatus[] = ['Correct', 'Incorrect', 'Unattempted']
 
-async function loadAuthorizedTest(testId: string, session: any) {
-  const [test] = await db.select().from(tests).where(eq(tests.id, testId))
-  if (!test) return null
-
-  const role = (session.user as any).role
-  const userId = (session.user as any).id as string
-  const schoolId = getSchoolId(session)
-
-  if (role !== 'teacher' && role !== 'management') return null
-  if (schoolId && test.schoolId !== schoolId) return null
-  if (role === 'teacher' && test.createdByUserId !== userId) return null
-
-  return test
-}
+import { loadAuthorizedTest } from '@/lib/db/queries/tests-auth'
 
 // batchId is preferred once a test has one (real FK, not string match);
 // falls back to the free-text batch for tests scheduled before Part 1.
@@ -44,7 +31,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id } = await params
-    const test = await loadAuthorizedTest(id, session)
+    const { test, forbidden } = await loadAuthorizedTest(id, session)
+    if (forbidden) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (!test) return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
 
     const [attachedQuestions, roster, grid] = await Promise.all([
@@ -90,12 +78,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id } = await params
-    const test = await loadAuthorizedTest(id, session)
+    const { test, forbidden } = await loadAuthorizedTest(id, session)
+    if (forbidden) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (!test) return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
-
-    if (test.date > getLocalToday()) {
-      return NextResponse.json({ error: 'This test cannot be graded before its scheduled date.' }, { status: 409 })
-    }
 
     const body = await req.json()
     const responses = body.responses

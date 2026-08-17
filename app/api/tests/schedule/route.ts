@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db, tests, users } from '@/lib/db'
-import { eq, and, asc } from 'drizzle-orm'
+import { db, tests, users, teacherBatches, batches } from '@/lib/db'
+import { eq, and, asc, or, inArray } from 'drizzle-orm'
 import { auth, getSchoolId } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { findTeacherFaculty } from '@/lib/db/queries/faculty'
 
 function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): Date {
   const time = timeStr ? timeStr.trim() : '00:00'
@@ -42,17 +43,50 @@ export async function GET(req: NextRequest) {
     const schoolId = getSchoolId(session)
     const { searchParams } = new URL(req.url)
     const batch = searchParams.get('batch')
+    const batchIdParam = searchParams.get('batchId')
     const status = searchParams.get('status')
     const program = searchParams.get('program')
     const teacherId = searchParams.get('teacherId')
 
     const conditions: any[] = []
     if (schoolId) conditions.push(eq(tests.schoolId, schoolId))
-    if (batch && batch !== 'All') conditions.push(eq(tests.batch, batch))
+    if (batchIdParam && batchIdParam !== 'All') {
+      conditions.push(eq(tests.batchId, batchIdParam))
+    } else if (batch && batch !== 'All') {
+      conditions.push(or(eq(tests.batch, batch), eq(tests.batchId, batch)))
+    }
     if (status && status !== 'All') conditions.push(eq(tests.status, status))
     if (program && program !== 'All') conditions.push(eq(tests.program, program))
     if (role === 'teacher') {
-      conditions.push(eq(tests.createdByUserId, userId))
+      const profile = await findTeacherFaculty(userId, session.user.email ?? '', schoolId)
+      const teacherBatchConditions: any[] = [eq(tests.createdByUserId, userId)]
+
+      if (profile) {
+        const [batchAssignments, directBatches] = await Promise.all([
+          db.select({ name: teacherBatches.batchName }).from(teacherBatches).where(eq(teacherBatches.teacherId, profile.id)),
+          db.select({ id: batches.id, name: batches.name }).from(batches).where(eq(batches.teacherId, profile.id)),
+        ])
+
+        const assignedBatchNames = [...new Set([
+          ...batchAssignments.map(b => b.name),
+          ...directBatches.map(b => b.name)
+        ].filter(Boolean))]
+
+        const assignedBatchIds = [...new Set([
+          ...directBatches.map(b => b.id)
+        ].filter(Boolean))]
+
+        if (assignedBatchNames.length > 0) {
+          teacherBatchConditions.push(inArray(tests.batch, assignedBatchNames))
+        }
+        if (assignedBatchIds.length > 0) {
+          teacherBatchConditions.push(inArray(tests.batchId, assignedBatchIds))
+        }
+      }
+
+      if (teacherBatchConditions.length > 1) {
+        conditions.push(or(...teacherBatchConditions))
+      }
     } else if (teacherId && teacherId !== 'All') {
       conditions.push(eq(tests.createdByUserId, teacherId))
     }

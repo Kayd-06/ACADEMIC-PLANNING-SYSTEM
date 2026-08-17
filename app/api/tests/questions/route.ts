@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, questions, users } from '@/lib/db'
-import { eq, and, ilike, or, desc } from 'drizzle-orm'
+import { eq, and, ilike, or, desc, inArray, isNull } from 'drizzle-orm'
 import { auth, getSchoolId } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-// GET — fetch question bank questions. Teachers see only their own;
+// GET — fetch question bank questions. Teachers see their own questions + management-created questions;
 // management sees every question in the school plus each row's faculty name.
 export async function GET(req: NextRequest) {
   try {
@@ -34,7 +34,9 @@ export async function GET(req: NextRequest) {
       )
     }
     if (role === 'teacher') {
-      conditions.push(eq(questions.createdByUserId, userId))
+      const managementRows = await db.select({ id: users.id }).from(users).where(eq(users.role, 'management'))
+      const allowedUserIds = [userId, ...managementRows.map(u => u.id)]
+      conditions.push(or(inArray(questions.createdByUserId, allowedUserIds), isNull(questions.createdByUserId)))
     } else if (teacherId && teacherId !== 'All') {
       conditions.push(eq(questions.createdByUserId, teacherId))
     }
@@ -110,8 +112,8 @@ export async function POST(req: NextRequest) {
       marks: marks ? Number(marks) : 4,
       negativeMarks: negativeMarks ? Number(negativeMarks) : 0,
       unattemptedMarks: unattemptedMarks ? Number(unattemptedMarks) : 0,
-      chapterId: chapterId || null,
-      conceptId: conceptId || null,
+      chapterId: chapterId?.trim() || null,
+      conceptId: conceptId?.trim() || null,
       source: source?.trim() || 'Custom',
       createdByUserId: userId,
       schoolId,
@@ -161,8 +163,8 @@ export async function PUT(req: NextRequest) {
       marks: marks ? Number(marks) : 4,
       negativeMarks: negativeMarks ? Number(negativeMarks) : 0,
       unattemptedMarks: unattemptedMarks ? Number(unattemptedMarks) : 0,
-      chapterId: chapterId || null,
-      conceptId: conceptId || null,
+      chapterId: chapterId?.trim() || null,
+      conceptId: conceptId?.trim() || null,
       source: source?.trim() || 'Custom',
       updatedAt: new Date(),
     }).where(and(...conditions)).returning()

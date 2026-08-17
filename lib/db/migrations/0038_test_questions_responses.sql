@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS test_question_responses (
 	question_id uuid NOT NULL REFERENCES questions(id) ON DELETE cascade,
 	student_id uuid NOT NULL REFERENCES students(id) ON DELETE cascade,
 	status response_status NOT NULL,
+	mistake_type varchar(50),
 	marks_awarded integer NOT NULL DEFAULT 0,
 	graded_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
 	school_id uuid REFERENCES schools(id) ON DELETE cascade,
@@ -31,3 +32,6 @@ CREATE TABLE IF NOT EXISTS test_question_responses (
 	updated_at timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT test_question_responses_unique UNIQUE(test_id, question_id, student_id)
 );
+--> statement-breakpoint
+ALTER TABLE test_question_responses ADD COLUMN IF NOT EXISTS mistake_type varchar(50);
+

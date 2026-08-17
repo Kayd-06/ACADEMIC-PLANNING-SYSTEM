@@ -176,6 +176,13 @@
       "when": 1786981800000,
       "tag": "0038_test_questions_responses",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787000000000,
+      "tag": "0039_add_mistake_type",
+      "breakpoints": true
     }
   ]
 }

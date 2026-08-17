@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { tests, users, batches } from '@/lib/db/schema'
+import { tests, users, batches, schools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 
 jest.mock('@/lib/auth', () => ({
@@ -23,11 +23,17 @@ async function createUser(name: string, role: 'teacher' | 'management') {
   return u
 }
 
+async function createSchool(name = 'Test School') {
+  const [s] = await db.insert(schools).values({ name }).returning()
+  return s
+}
+
 describe('tests/schedule ownership', () => {
   // Scoped-by-ID cleanup only — never db.delete(tests)/db.delete(users) with no WHERE
   // (both are DB-Guard-protected tables; an unscoped delete silently no-ops and leaks fixtures).
   const createdTestIds: string[] = []
   const createdUserIds: string[] = []
+  const createdSchoolIds: string[] = []
 
   async function createUserAndTrack(name: string, role: 'teacher' | 'management') {
     const u = await createUser(name, role)
@@ -44,51 +50,62 @@ describe('tests/schedule ownership', () => {
       if (id) await db.delete(users).where(eq(users.id, id))
     }
     createdUserIds.length = 0
+    for (const id of createdSchoolIds) {
+      if (id) await db.delete(schools).where(eq(schools.id, id))
+    }
+    createdSchoolIds.length = 0
     // batches is not DB-Guard-protected, so an unscoped delete here is safe.
     await db.delete(batches)
     jest.clearAllMocks()
   })
 
   it('POST stamps createdByUserId with the creating teacher', async () => {
-    const teacher = await createUserAndTrack('Teacher One', 'teacher')
-    ;(auth as jest.Mock).mockResolvedValue({ user: { id: teacher.id, role: 'teacher', schoolId: null } })
+    const teacher = await createUserAndTrack('Teacher A', 'teacher')
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: teacher.id, role: 'teacher' } })
 
     const res = await POST(req('http://localhost/api/tests/schedule', {
       method: 'POST',
-      body: JSON.stringify({ title: 'Quiz', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', time: '10:00 AM', duration: 60, totalMarks: 100 }),
+      body: JSON.stringify({
+        title: 'A Test', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', time: '10:00 AM', duration: 60, totalMarks: 100,
+      }),
     }))
-    const body = await res.json()
+
     expect(res.status).toBe(201)
-    expect(body.createdByUserId).toBe(teacher.id)
+    const body = await res.json()
     createdTestIds.push(body.id)
+    expect(body.createdByUserId).toBe(teacher.id)
   })
 
   it('GET for a teacher only returns their own tests, never another teacher\'s', async () => {
-    const teacherA = await createUserAndTrack('Teacher A', 'teacher')
-    const teacherB = await createUserAndTrack('Teacher B', 'teacher')
+    const teacherA = await createUserAndTrack('Teacher A2', 'teacher')
+    const teacherB = await createUserAndTrack('Teacher B2', 'teacher')
+
     const inserted = await db.insert(tests).values([
-      { title: 'A Test', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', createdByUserId: teacherA.id },
-      { title: 'B Test', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', createdByUserId: teacherB.id },
+      { title: 'A Owned', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', createdByUserId: teacherA.id },
+      { title: 'B Owned', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', createdByUserId: teacherB.id },
     ]).returning()
     createdTestIds.push(...inserted.map(t => t.id))
 
-    ;(auth as jest.Mock).mockResolvedValue({ user: { id: teacherA.id, role: 'teacher', schoolId: null } })
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: teacherA.id, role: 'teacher' } })
+
     const res = await GET(req('http://localhost/api/tests/schedule'))
     const body = await res.json()
-    expect(body).toHaveLength(1)
-    expect(body[0].title).toBe('A Test')
+    expect(body.map((t: any) => t.title)).toEqual(['A Owned'])
   })
 
   it('GET for management returns every test in the school, including legacy owner-less rows', async () => {
     const teacher = await createUserAndTrack('Teacher C', 'teacher')
     const manager = await createUserAndTrack('Manager A', 'management')
+    const testSchool = await createSchool('Sched Test School 1')
+    createdSchoolIds.push(testSchool.id)
+
     const inserted = await db.insert(tests).values([
-      { title: 'Owned Test', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', createdByUserId: teacher.id },
-      { title: 'Legacy Test', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', createdByUserId: null },
+      { title: 'Owned Test', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', createdByUserId: teacher.id, schoolId: testSchool.id },
+      { title: 'Legacy Test', batch: 'Batch A', subject: 'Physics', date: '2026-08-01', createdByUserId: null, schoolId: testSchool.id },
     ]).returning()
     createdTestIds.push(...inserted.map(t => t.id))
 
-    ;(auth as jest.Mock).mockResolvedValue({ user: { id: manager.id, role: 'management', schoolId: null } })
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: manager.id, role: 'management', schoolId: testSchool.id } })
     const res = await GET(req('http://localhost/api/tests/schedule'))
     const body = await res.json()
     expect(body.map((t: any) => t.title).sort()).toEqual(['Legacy Test', 'Owned Test'])
@@ -129,13 +146,16 @@ describe('tests/schedule ownership', () => {
   it('GET includes facultyName and supports the program query filter', async () => {
     const teacher = await createUserAndTrack('Teacher H', 'teacher')
     const manager = await createUserAndTrack('Manager B', 'management')
+    const testSchool = await createSchool('Sched Test School 2')
+    createdSchoolIds.push(testSchool.id)
+
     const inserted = await db.insert(tests).values([
-      { title: 'JEE Test', batch: 'Batch A', program: 'JEE 2026', subject: 'Physics', date: '2026-08-01', createdByUserId: teacher.id },
-      { title: 'NEET Test', batch: 'Batch A', program: 'NEET 2026', subject: 'Biology', date: '2026-08-01', createdByUserId: teacher.id },
+      { title: 'JEE Test', batch: 'Batch A', program: 'JEE 2026', subject: 'Physics', date: '2026-08-01', createdByUserId: teacher.id, schoolId: testSchool.id },
+      { title: 'NEET Test', batch: 'Batch A', program: 'NEET 2026', subject: 'Biology', date: '2026-08-01', createdByUserId: teacher.id, schoolId: testSchool.id },
     ]).returning()
     createdTestIds.push(...inserted.map(t => t.id))
 
-    ;(auth as jest.Mock).mockResolvedValue({ user: { id: manager.id, role: 'management', schoolId: null } })
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: manager.id, role: 'management', schoolId: testSchool.id } })
 
     const allRes = await GET(req('http://localhost/api/tests/schedule'))
     const allBody = await allRes.json()

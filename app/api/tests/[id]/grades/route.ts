@@ -8,24 +8,7 @@ import { notifyRoleInSchool } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
-async function loadAuthorizedTest(testId: string, session: any) {
-  const [test] = await db.select().from(tests).where(eq(tests.id, testId))
-  if (!test) return { test: null, forbidden: false }
-
-  const role = (session.user as any).role
-  const userId = (session.user as any).id as string
-  const schoolId = getSchoolId(session)
-
-  if (schoolId && test.schoolId !== schoolId) return { test: null, forbidden: false }
-  if (role !== 'teacher' && role !== 'management') return { test, forbidden: true }
-  // Row-level ownership mismatch is treated as "not found" rather than
-  // "forbidden" — consistent with the rest of the tests API (schedule,
-  // questions routes), which fold ownership into the lookup condition so a
-  // non-owning teacher gets 404, not 403.
-  if (role === 'teacher' && test.createdByUserId !== userId) return { test: null, forbidden: false }
-
-  return { test, forbidden: false }
-}
+import { loadAuthorizedTest } from '@/lib/db/queries/tests-auth'
 
 // Dense ranking over present, graded students only — an absent or ungraded
 // student gets no rank at all rather than being sorted to the bottom.
@@ -119,10 +102,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { test, forbidden } = await loadAuthorizedTest(id, session)
     if (!test) return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
     if (forbidden) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-    if (test.date > getLocalToday()) {
-      return NextResponse.json({ error: 'This test cannot be graded before its scheduled date.' }, { status: 409 })
-    }
 
     const body = await req.json()
     const grades = body.grades

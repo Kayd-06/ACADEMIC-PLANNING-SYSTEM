@@ -930,9 +930,8 @@ export default function TeacherTestsView() {
                                 )}
                                 <button
                                   onClick={() => setGradingTest(t)}
-                                  disabled={t.date > getLocalToday()}
-                                  className="px-2 py-1 text-[9px] font-bold text-white bg-[#0b1320] hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-40"
-                                  title={t.date > getLocalToday() ? 'Upcoming — not gradable yet' : 'Grade this test'}
+                                  className="px-2 py-1 text-[9px] font-bold text-white bg-[#0b1320] hover:bg-slate-800 rounded-lg transition-colors"
+                                  title="Grade this test"
                                 >
                                   Grade
                                 </button>
