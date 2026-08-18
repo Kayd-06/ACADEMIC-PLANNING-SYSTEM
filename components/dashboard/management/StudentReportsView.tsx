@@ -50,7 +50,10 @@ interface FilterOptions {
   terms: string[]
 }
 
+import StudentFullReportsView from '@/components/dashboard/reports/StudentFullReportsView'
+
 export default function StudentReportsView() {
+  const [mainTab, setMainTab] = useState<'hub' | 'uploaded'>('hub')
   const [performanceData, setPerformanceData] = useState<PerformanceTrend[]>([])
   const [uploadedReports, setUploadedReports] = useState<UploadedReport[]>([])
   const [topPerformers, setTopPerformers] = useState<TopPerformer[]>([])
@@ -163,10 +166,35 @@ export default function StudentReportsView() {
         </div>
       )}
 
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Student Reports & Analytics</h1>
-        <p className="text-[13px] text-slate-500 mt-1">Review uploaded grade reports and performance trends across classes</p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Student Reports & Analytics</h1>
+          <p className="text-[13px] text-slate-500 mt-1">Unified 5-in-1 Student Progress Reports and Class Analytics</p>
+        </div>
+        <div className="bg-slate-200/70 p-1 rounded-xl flex gap-1">
+          <button
+            onClick={() => setMainTab('hub')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              mainTab === 'hub' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Student Reports Hub (5-in-1)
+          </button>
+          <button
+            onClick={() => setMainTab('uploaded')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              mainTab === 'uploaded' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Uploaded Reports Overview
+          </button>
+        </div>
       </div>
+
+      {mainTab === 'hub' ? (
+        <StudentFullReportsView />
+      ) : (
+        <>
 
       {/* Filters Bar */}
       <div className="flex flex-wrap items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm mb-6 gap-4">
@@ -378,6 +406,8 @@ export default function StudentReportsView() {
 
         </div>
       </div>
+      </>
+      )}
 
       {selectedReportId && (
         <ReportDetailModal reportId={selectedReportId} onClose={() => setSelectedReportId(null)} />

@@ -20,7 +20,10 @@ function downloadSampleFormat() {
   XLSX.writeFile(wb, 'student_report_template.xlsx')
 }
 
+import StudentFullReportsView from '@/components/dashboard/reports/StudentFullReportsView'
+
 export default function TeacherStudentReportsView() {
+  const [mainTab, setMainTab] = useState<'hub' | 'uploaded'>('hub')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [reports, setReports] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -149,15 +152,42 @@ export default function TeacherStudentReportsView() {
       </AnimatePresence>
 
       <div className={`transition-all duration-300 ${isModalOpen ? 'blur-sm pointer-events-none select-none opacity-50' : ''}`}>
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Student Reports</h1>
-            <p className="text-[13px] text-slate-500 mt-1">Upload and manage grade reports for your classes</p>
+            <h1 className="text-2xl font-bold text-slate-900">Student Reports & Analytics</h1>
+            <p className="text-[13px] text-slate-500 mt-1">Search student analytics and manage class grade reports</p>
           </div>
-          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-[#0b1320] hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm">
-            <Plus className="w-4 h-4" /> Upload Report
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="bg-slate-200/70 p-1 rounded-xl flex gap-1">
+              <button
+                onClick={() => setMainTab('hub')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                  mainTab === 'hub' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Student Reports Hub (5-in-1)
+              </button>
+              <button
+                onClick={() => setMainTab('uploaded')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                  mainTab === 'uploaded' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Uploaded Reports Overview
+              </button>
+            </div>
+            {mainTab === 'uploaded' && (
+              <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-[#0b1320] hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm">
+                <Plus className="w-4 h-4" /> Upload Report
+              </button>
+            )}
+          </div>
         </div>
+
+        {mainTab === 'hub' ? (
+          <StudentFullReportsView />
+        ) : (
+          <>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8 min-h-[400px] flex flex-col">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
@@ -212,6 +242,8 @@ export default function TeacherStudentReportsView() {
             </table>
           )}
         </div>
+        </>
+        )}
       </div>
 
       <AnimatePresence>
