@@ -151,7 +151,10 @@ function BatchSwitcher() {
     if (name === 'All Batches') localStorage.removeItem('selectedBatch')
     else localStorage.setItem('selectedBatch', name)
     window.dispatchEvent(new Event('batchChanged'))
-    if (pathname !== '/management/students') router.push('/management/students')
+    window.dispatchEvent(new Event('teacherBatchChanged'))
+    if (pathname.startsWith('/management') && pathname !== '/management/students') {
+      router.push('/management/students')
+    }
   }
 
   return (
@@ -476,28 +479,26 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
       <div className="px-6 pb-6 pt-6 mb-2 flex items-center gap-3">
         <motion.div
           whileHover={{ rotate: 5, scale: 1.05 }}
-          className="w-10 h-10 rounded-xl bg-[#0b1320] flex items-center justify-center text-white text-sm font-bold shadow-sm"
+          className="w-10 h-10 rounded-xl bg-[#0b1320] flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0 uppercase tracking-wider overflow-hidden"
         >
-          {initials}
+          {initials || 'FP'}
         </motion.div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[15px] font-bold text-slate-900 tracking-tight truncate">EduAdmin Pro</p>
-          <p className="text-[12px] font-medium text-slate-500 truncate">{userRole === 'Academic Administration' ? 'School Management' : userRole}</p>
+          <p className="text-[12px] font-semibold text-slate-500 truncate">
+            {userRole === 'Academic Administration' ? 'School Management' : userRole.includes('Faculty') ? 'Faculty Portal' : userRole}
+          </p>
         </div>
       </div>
 
       {/* School switcher — management only */}
       {userRole === 'Academic Administration' && <SchoolSwitcher />}
 
-      {/* Program switcher — management only */}
-      {userRole === 'Academic Administration' && <ProgramSwitcher />}
+      {/* Program switcher */}
+      <ProgramSwitcher />
 
-      {/* Batch switcher — management only */}
-      {userRole === 'Academic Administration' && <BatchSwitcher />}
-
-      {/* Program & batch switchers — teacher only, scoped to their own assignments */}
-      {userRole.startsWith('Faculty') && <TeacherProgramSwitcher />}
-      {userRole.startsWith('Faculty') && <TeacherBatchSwitcher />}
+      {/* Batch switcher */}
+      <BatchSwitcher />
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
@@ -525,7 +526,7 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
 
       {/* Bottom */}
       <div className="px-4 py-6 border-t border-slate-200 space-y-1">
-        {userRole !== 'Faculty' && (
+        {!userRole.includes('Faculty') && userRole !== 'teacher' && (
           <motion.button
             onClick={() => setShowRecruitmentModal(true)}
             whileHover={{ scale: 1.02 }}

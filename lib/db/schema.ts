@@ -1115,3 +1115,47 @@ export const feePayments = pgTable('fee_payments', {
 export type FeePayment = typeof feePayments.$inferSelect
 export type NewFeePayment = typeof feePayments.$inferInsert
 
+export const studentRatingEnum = pgEnum('student_rating', ['Unsatisfactory', 'Satisfactory', 'Good', 'Very Good', 'Excellent'])
+
+export const dailyStudentRatings = pgTable('daily_student_ratings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  facultyId: uuid('faculty_id').references(() => users.id, { onDelete: 'cascade' }),
+  batchId: uuid('batch_id').references(() => batches.id, { onDelete: 'cascade' }),
+  batch: varchar('batch', { length: 100 }).notNull(),
+  studentId: uuid('student_id').notNull().references(() => students.id, { onDelete: 'cascade' }),
+  date: varchar('date', { length: 10 }).notNull(),
+  attitude: studentRatingEnum('attitude').notNull(),
+  behaviour: studentRatingEnum('behaviour').notNull(),
+  focus: studentRatingEnum('focus').notNull(),
+  interaction: studentRatingEnum('interaction').notNull(),
+  notes: text('notes'),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  studentDateUnique: uniqueIndex('daily_student_ratings_student_date_unique').on(table.studentId, table.date),
+}))
+
+export type DailyStudentRating = typeof dailyStudentRatings.$inferSelect
+export type NewDailyStudentRating = typeof dailyStudentRatings.$inferInsert
+
+export const ptmReports = pgTable('ptm_reports', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  facultyId: uuid('faculty_id').references(() => users.id, { onDelete: 'cascade' }),
+  studentId: uuid('student_id').notNull().references(() => students.id, { onDelete: 'cascade' }),
+  batchId: uuid('batch_id').references(() => batches.id, { onDelete: 'set null' }),
+  batch: varchar('batch', { length: 100 }),
+  date: varchar('date', { length: 10 }).notNull(),
+  parentName: varchar('parent_name', { length: 255 }),
+  parentAttended: boolean('parent_attended').notNull().default(true),
+  discussionNotes: text('discussion_notes').notNull().default(''),
+  actionItems: text('action_items').notNull().default(''),
+  followUpDate: varchar('follow_up_date', { length: 10 }),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type PtmReport = typeof ptmReports.$inferSelect
+export type NewPtmReport = typeof ptmReports.$inferInsert
+

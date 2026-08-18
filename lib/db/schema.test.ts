@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db } from './index'
-import { users, emailVerifications, passwordResets, schools, students, studentReports, studentReportEntries, tests, questions, testGrades, batches, subjects, chapters, concepts } from './schema'
+import { users, emailVerifications, passwordResets, schools, students, studentReports, studentReportEntries, tests, questions, testGrades, batches, subjects, chapters, concepts, dailyStudentRatings, ptmReports } from './schema'
 
 describe('schema', () => {
   it('can query all tables without error', async () => {
@@ -14,6 +14,8 @@ describe('schema', () => {
     await expect(db.select().from(tests)).resolves.toEqual(expect.any(Array))
     await expect(db.select().from(questions)).resolves.toEqual(expect.any(Array))
     await expect(db.select().from(testGrades)).resolves.toEqual(expect.any(Array))
+    await expect(db.select().from(dailyStudentRatings)).resolves.toEqual(expect.any(Array))
+    await expect(db.select().from(ptmReports)).resolves.toEqual(expect.any(Array))
   })
 
   describe('batch integrity', () => {
