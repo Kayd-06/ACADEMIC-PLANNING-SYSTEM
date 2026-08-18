@@ -158,19 +158,23 @@ export default function TeacherStudentReportsView() {
             <p className="text-[13px] text-slate-500 mt-1">Search student analytics and manage class grade reports</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="bg-slate-200/70 p-1 rounded-xl flex gap-1">
+            <div className="bg-slate-100 p-1.5 rounded-2xl flex gap-1 border border-slate-200">
               <button
                 onClick={() => setMainTab('hub')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                  mainTab === 'hub' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  mainTab === 'hub'
+                    ? 'bg-slate-900 text-white shadow-md'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
                 Student Reports Hub (5-in-1)
               </button>
               <button
                 onClick={() => setMainTab('uploaded')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                  mainTab === 'uploaded' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  mainTab === 'uploaded'
+                    ? 'bg-slate-900 text-white shadow-md'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
                 Uploaded Reports Overview

@@ -171,11 +171,13 @@ export default function StudentReportsView() {
           <h1 className="text-2xl font-bold text-slate-900">Student Reports & Analytics</h1>
           <p className="text-[13px] text-slate-500 mt-1">Unified 5-in-1 Student Progress Reports and Class Analytics</p>
         </div>
-        <div className="bg-slate-200/70 p-1 rounded-xl flex gap-1">
+        <div className="bg-slate-100 p-1.5 rounded-2xl flex gap-1 border border-slate-200">
           <button
             onClick={() => setMainTab('hub')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              mainTab === 'hub' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              mainTab === 'hub'
+                ? 'bg-slate-900 text-white shadow-md'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
             Student Reports Hub (5-in-1)
@@ -183,7 +185,9 @@ export default function StudentReportsView() {
           <button
             onClick={() => setMainTab('uploaded')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              mainTab === 'uploaded' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              mainTab === 'uploaded'
+                ? 'bg-slate-900 text-white shadow-md'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
             Uploaded Reports Overview
