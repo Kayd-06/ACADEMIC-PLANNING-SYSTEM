@@ -12,7 +12,7 @@ import {
   dailyStudentRatings,
   ptmReports,
 } from '@/lib/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,9 +27,12 @@ export async function GET(
     }
 
     const { id: studentId } = await params
+    const schoolId = (session.user as any).schoolId as string | null
 
-    // 1. Fetch Student Details
-    const [student] = await db.select().from(students).where(eq(students.id, studentId))
+    // 1. Fetch Student Details, scoped to the caller's school
+    const studentConditions = [eq(students.id, studentId)]
+    if (schoolId) studentConditions.push(eq(students.schoolId, schoolId))
+    const [student] = await db.select().from(students).where(and(...studentConditions))
     if (!student) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
@@ -63,7 +66,11 @@ export async function GET(
       .leftJoin(concepts, eq(concepts.id, questions.conceptId))
       .where(eq(testQuestionResponses.studentId, studentId))
 
-    // 3. Fetch Test Grades for Overall Performance & Rank calculation
+    // 3. Fetch Test Grades for Overall Performance & Rank calculation, scoped
+    // to the student's batch WITHIN their own school (batch names are not
+    // globally unique across schools).
+    const batchConditions = [eq(students.batch, student.batch)]
+    if (schoolId) batchConditions.push(eq(students.schoolId, schoolId))
     const allGrades = await db
       .select({
         studentId: testGrades.studentId,
@@ -73,7 +80,7 @@ export async function GET(
       })
       .from(testGrades)
       .innerJoin(students, eq(students.id, testGrades.studentId))
-      .where(eq(students.batch, student.batch))
+      .where(and(...batchConditions))
 
     // Batch rank & percentile
     const studentTotalMarks = allGrades
@@ -90,6 +97,7 @@ export async function GET(
     const rankIndex = sortedTotals.findIndex((val) => val <= studentTotalMarks)
     const rank = rankIndex >= 0 ? rankIndex + 1 : totalStudentsInBatch
     const percentile = Math.max(0, Math.round(((totalStudentsInBatch - rank) / totalStudentsInBatch) * 100))
+    const topPercent = Math.min(100, Math.max(1, Math.ceil((rank / totalStudentsInBatch) * 100)))
 
     // Calculate Subject, Chapter, and Concept Breakdown
     const subjectStats = new Map<string, { name: string; marksObtained: number; maxMarks: number; correct: number; total: number }>()
@@ -253,8 +261,8 @@ export async function GET(
         rollNo: student.rollNo,
         batch: student.batch,
         programName: student.program || 'Standard',
-        guardianName: 'Parent/Guardian',
-        guardianPhone: student.phone || 'N/A',
+        guardianName: student.parentContact || 'N/A',
+        guardianPhone: student.phone || student.parentContact || 'N/A',
       },
       performanceReport: {
         overallPercentage,
@@ -264,6 +272,7 @@ export async function GET(
         rank,
         totalStudentsInBatch,
         percentile,
+        topPercent,
         subjectBreakdown: Array.from(subjectStats.values()).map((s) => ({
           subject: s.name,
           marksObtained: s.marksObtained,

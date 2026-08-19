@@ -260,7 +260,7 @@ export default function StudentFullReportsView({ initialStudentId }: StudentFull
                   <p className="text-2xl font-black text-amber-300 mt-0.5">
                     #{reportData.performanceReport.rank}
                   </p>
-                  <p className="text-[10px] text-slate-300">Top {reportData.performanceReport.percentile}%</p>
+                  <p className="text-[10px] text-slate-300">Top {reportData.performanceReport.topPercent}%</p>
                 </div>
 
                 <div className="text-center px-3 border-l border-white/10">
