@@ -20,5 +20,6 @@ declare module 'next-auth/jwt' {
   interface JWT {
     id: string
     role: 'teacher' | 'management'
+    verifiedAt?: number
   }
 }

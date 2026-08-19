@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useSession } from 'next-auth/react'
 import MyProfileModal from '@/components/dashboard/teacher/MyProfileModal'
 import { getBlobUrl } from '@/lib/blob'
+import { swrFetch, invalidateSwrCache } from '@/lib/clientCache'
 
 const SEARCH_DEBOUNCE_MS = 350
 
@@ -86,15 +87,31 @@ export default function TopHeader({ initials }: TopHeaderProps) {
 
   const fetchNotifications = async () => {
     try {
-      const res = await fetch('/api/notifications')
-      if (res.ok) {
-        const data = await res.json()
+      // Short TTL: long enough that a Sidebar/TopHeader remount from
+      // switching sections paints instantly from cache instead of a blank
+      // bell, short enough that the 30s poll below still hits the network
+      // almost every tick.
+      const { data: cached, promise } = swrFetch('topheader:notifications', async () => {
+        const res = await fetch('/api/notifications')
+        if (!res.ok) throw new Error('Failed to fetch notifications')
+        return res.json()
+      }, 20_000)
+      const apply = (data: any) => {
         setNotifications(data.items || [])
         setUnreadCount(data.unreadCount || 0)
       }
+      if (cached) apply(cached)
+      apply(await promise)
     } catch (e) {
       console.error(e)
     }
+  }
+
+  // User-triggered mutations must never show stale (e.g. already-read)
+  // notifications, so bypass the cache and force a fresh fetch.
+  const refetchNotificationsAfterMutation = () => {
+    invalidateSwrCache('topheader:notifications')
+    fetchNotifications()
   }
 
   const markAsRead = async (id: string) => {
@@ -105,7 +122,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
         body: JSON.stringify({ id })
       })
       if (res.ok) {
-        fetchNotifications()
+        refetchNotificationsAfterMutation()
       }
     } catch (e) {
       console.error(e)
@@ -120,7 +137,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
         body: JSON.stringify({ all: true })
       })
       if (res.ok) {
-        fetchNotifications()
+        refetchNotificationsAfterMutation()
       }
     } catch (e) {
       console.error(e)
@@ -133,7 +150,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
         method: 'DELETE'
       })
       if (res.ok) {
-        fetchNotifications()
+        refetchNotificationsAfterMutation()
       }
     } catch (e) {
       console.error(e)
@@ -146,7 +163,7 @@ export default function TopHeader({ initials }: TopHeaderProps) {
         method: 'DELETE'
       })
       if (res.ok) {
-        fetchNotifications()
+        refetchNotificationsAfterMutation()
       }
     } catch (e) {
       console.error(e)
@@ -273,18 +290,24 @@ export default function TopHeader({ initials }: TopHeaderProps) {
     if (role !== 'teacher') return
     const schoolId = (session?.user as any)?.schoolId
     if (!schoolId) { setSchoolName(null); return }
-    fetch('/api/school').then(r => r.json()).then(d => {
-      if (!d.error) setSchoolName(d.name ?? null)
-    }).catch(() => {})
+    const { data: cached, promise } = swrFetch(`topheader:school:${schoolId}`, () =>
+      fetch('/api/school').then(r => r.json()), 5 * 60_000
+    )
+    const apply = (d: any) => { if (!d.error) setSchoolName(d.name ?? null) }
+    if (cached) apply(cached)
+    promise.then(apply).catch(() => {})
   }, [role, (session?.user as any)?.schoolId])
 
   // Fetch the teacher's own faculty photo, if set, so the header avatar isn't
   // stuck on initials once they've uploaded a profileImgUrl
   useEffect(() => {
     if (role !== 'teacher') return
-    fetch('/api/teacher/profile').then(r => r.json()).then(d => {
-      setTeacherPhotoUrl(d?.profile?.profileImgUrl || null)
-    }).catch(() => {})
+    const { data: cached, promise } = swrFetch('topheader:teacher-profile', () =>
+      fetch('/api/teacher/profile').then(r => r.json()), 5 * 60_000
+    )
+    const apply = (d: any) => setTeacherPhotoUrl(d?.profile?.profileImgUrl || null)
+    if (cached) apply(cached)
+    promise.then(apply).catch(() => {})
   }, [role])
 
   // Close profile menu, notifications, and search results on outside click

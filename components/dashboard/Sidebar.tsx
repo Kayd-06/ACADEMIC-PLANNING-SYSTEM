@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { LogOut, Plus, X, Building2, ChevronDown, Check, Loader2, ArrowRightLeft, Users, GraduationCap } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { swrFetch, invalidateSwrCache } from '@/lib/clientCache'
 
 type ProgramEntry = { id: string; name: string }
 
@@ -26,10 +27,12 @@ function ProgramSwitcher() {
   const ref = useRef<HTMLDivElement>(null)
 
   const fetchPrograms = () => {
-    fetch('/api/programs')
-      .then(r => r.ok ? r.json() : [])
-      .then(d => { if (Array.isArray(d)) setProgramList(d.map((p: any) => ({ id: p._id, name: p.name }))) })
-      .catch(() => {})
+    const { data, promise } = swrFetch('sidebar:programs', () =>
+      fetch('/api/programs').then(r => r.ok ? r.json() : [])
+    )
+    const apply = (d: any) => { if (Array.isArray(d)) setProgramList(d.map((p: any) => ({ id: p._id, name: p.name }))) }
+    if (data) apply(data)
+    promise.then(apply).catch(() => {})
   }
 
   useEffect(() => {
@@ -117,16 +120,18 @@ function BatchSwitcher() {
     const program = readSelectedProgram()
     setProgramFilter(program)
     const url = program ? `/api/batches?programId=${program.id}` : '/api/batches'
-    fetch(url)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => { if (Array.isArray(d)) setBatchList(d.map((b: any) => ({ id: b._id, name: b.name, enrolledCount: b.enrolledCount ?? 0 }))) })
-      .catch(() => {})
+    const { data, promise } = swrFetch(`sidebar:batches:${url}`, () =>
+      fetch(url).then(r => r.ok ? r.json() : [])
+    )
+    const apply = (d: any) => { if (Array.isArray(d)) setBatchList(d.map((b: any) => ({ id: b._id, name: b.name, enrolledCount: b.enrolledCount ?? 0 }))) }
+    if (data) apply(data)
+    promise.then(apply).catch(() => {})
   }
 
   useEffect(() => {
     setSelected(localStorage.getItem('selectedBatch') || 'All Batches')
     fetchBatches()
-    const onUpdate = () => fetchBatches()
+    const onUpdate = () => { invalidateSwrCache('sidebar:batches:'); fetchBatches() }
     const onChanged = () => setSelected(localStorage.getItem('selectedBatch') || 'All Batches')
     const onProgramChanged = () => fetchBatches()
     window.addEventListener('batchesUpdated', onUpdate)
@@ -220,10 +225,12 @@ function TeacherProgramSwitcher() {
 
   useEffect(() => {
     setSelected(localStorage.getItem('teacherSelectedProgram') || '')
-    fetch('/api/teacher/my-assignments')
-      .then(r => r.ok ? r.json() : { programs: [] })
-      .then(d => setProgramList(Array.isArray(d.programs) ? d.programs : []))
-      .catch(() => {})
+    const { data, promise } = swrFetch('sidebar:teacher-my-assignments', () =>
+      fetch('/api/teacher/my-assignments').then(r => r.ok ? r.json() : { programs: [] })
+    )
+    const apply = (d: any) => setProgramList(Array.isArray(d.programs) ? d.programs : [])
+    if (data) apply(data)
+    promise.then(apply).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -286,10 +293,12 @@ function TeacherBatchSwitcher() {
 
   useEffect(() => {
     setSelected(localStorage.getItem('teacherSelectedBatch') || '')
-    fetch('/api/teacher/my-assignments')
-      .then(r => r.ok ? r.json() : { batches: [] })
-      .then(d => setBatchList(Array.isArray(d.batches) ? d.batches : []))
-      .catch(() => {})
+    const { data, promise } = swrFetch('sidebar:teacher-my-assignments', () =>
+      fetch('/api/teacher/my-assignments').then(r => r.ok ? r.json() : { batches: [] })
+    )
+    const apply = (d: any) => setBatchList(Array.isArray(d.batches) ? d.batches : [])
+    if (data) apply(data)
+    promise.then(apply).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -356,13 +365,15 @@ function SchoolSwitcher() {
   const sessionLoading = status === 'loading'
 
   useEffect(() => {
-    fetch('/api/admin/schools')
-      .then(r => {
+    const { data, promise } = swrFetch('sidebar:admin-schools', () =>
+      fetch('/api/admin/schools').then(r => {
         if (!r.ok) return r.text().then(txt => { throw new Error(txt || 'Failed to fetch') })
         return r.json()
       })
-      .then(d => { if (d && !d.error) setSchools(d) })
-      .catch(err => console.error('SchoolSwitcher fetch error:', err))
+    )
+    const apply = (d: any) => { if (d && !d.error) setSchools(d) }
+    if (data) apply(data)
+    promise.then(apply).catch(err => console.error('SchoolSwitcher fetch error:', err))
   }, [])
 
   useEffect(() => {
