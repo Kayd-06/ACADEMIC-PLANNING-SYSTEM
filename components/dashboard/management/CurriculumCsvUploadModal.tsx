@@ -8,6 +8,8 @@ interface ParsedRow {
   chapterName: string
   chapterCode: string
   board: string
+  classLevel: string
+  program: string
   expectedHours: string
   conceptName: string
   conceptCode: string
@@ -23,17 +25,17 @@ interface CurriculumCsvUploadModalProps {
 }
 
 export const TEMPLATE_HEADERS = [
-  'Chapter Name', 'Chapter Code', 'Board', 'Expected Hours', 'Concept Name', 'Concept Code',
+  'Chapter Name', 'Chapter Code', 'Board', 'Class', 'Program', 'Expected Hours', 'Concept Name', 'Concept Code',
 ]
 
 export function downloadTemplate() {
   const data = [
     TEMPLATE_HEADERS,
-    ['Laws of Motion', 'PHY-CH3', 'CBSE', '12', "Newton's First Law", 'C1'],
-    ['Laws of Motion', '', '', '', "Newton's Second Law", 'C2'],
-    ['Laws of Motion', '', '', '', "Newton's Third Law", 'C3'],
-    ['Optics', 'PHY-CH4', 'CBSE', '10', 'Refraction', ''],
-    ['Thermodynamics', 'PHY-CH5', 'CBSE', '8', '', ''],
+    ['Laws of Motion', 'PHY-CH3', 'CBSE', '11', 'JEE', '12', "Newton's First Law", 'C1'],
+    ['Laws of Motion', '', '', '', '', '', "Newton's Second Law", 'C2'],
+    ['Laws of Motion', '', '', '', '', '', "Newton's Third Law", 'C3'],
+    ['Optics', 'PHY-CH4', 'CBSE', '12', 'NEET', '10', 'Refraction', ''],
+    ['Thermodynamics', 'PHY-CH5', 'CBSE', '11', 'JEE', '8', '', ''],
   ]
   const ws = XLSX.utils.aoa_to_sheet(data)
   ws['!cols'] = TEMPLATE_HEADERS.map((h) => ({ wch: Math.max(14, Math.min(28, h.length + 4)) }))
@@ -91,6 +93,8 @@ export default function CurriculumCsvUploadModal({ subjects, defaultSubjectId, o
               chapterName: get(['chaptername', 'chapter']),
               chapterCode: get(['chaptercode']),
               board: get(['board']),
+              classLevel: get(['class', 'classlevel']),
+              program: get(['program']),
               expectedHours: get(['expectedhours', 'hours']),
               conceptName: get(['conceptname', 'concept']),
               conceptCode: get(['conceptcode']),
@@ -199,7 +203,7 @@ export default function CurriculumCsvUploadModal({ subjects, defaultSubjectId, o
         </div>
 
         <p className="text-[11px] text-slate-400 leading-relaxed">
-          One row per concept — repeat the chapter columns on every row belonging to that chapter. A row with only chapter columns (no concept) is fine too.
+          One row per concept — repeat the chapter columns on every row belonging to that chapter. A row with only chapter columns (no concept) is fine too. Program must match an existing program's name exactly (case-insensitive) — leave it blank to skip linking a program.
         </p>
 
         {error && (
@@ -237,7 +241,7 @@ export default function CurriculumCsvUploadModal({ subjects, defaultSubjectId, o
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 sticky top-0 border-b border-slate-150">
                   <tr>
-                    {['Chapter Name', 'Chapter Code', 'Board', 'Hours', 'Concept Name', 'Concept Code'].map((h) => (
+                    {['Chapter Name', 'Chapter Code', 'Board', 'Class', 'Program', 'Hours', 'Concept Name', 'Concept Code'].map((h) => (
                       <th key={h} className="px-3.5 py-2 text-left font-bold text-slate-400 uppercase tracking-wider text-[9px] bg-slate-50">{h}</th>
                     ))}
                   </tr>
@@ -252,6 +256,8 @@ export default function CurriculumCsvUploadModal({ subjects, defaultSubjectId, o
                         </td>
                         <td className="px-3.5 py-2 font-semibold text-slate-500">{r.chapterCode || '—'}</td>
                         <td className="px-3.5 py-2 font-semibold text-slate-500">{r.board || '—'}</td>
+                        <td className="px-3.5 py-2 font-semibold text-slate-500">{r.classLevel || '—'}</td>
+                        <td className="px-3.5 py-2 font-semibold text-slate-500">{r.program || '—'}</td>
                         <td className="px-3.5 py-2 font-semibold text-slate-500">{r.expectedHours || '—'}</td>
                         <td className="px-3.5 py-2 text-slate-600">{r.conceptName || '—'}</td>
                         <td className="px-3.5 py-2 text-slate-450">{r.conceptCode || '—'}</td>

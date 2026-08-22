@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { chapters, concepts, type NewChapter, type NewConcept } from '@/lib/db/schema'
+import { chapters, concepts, programs, type NewChapter, type NewConcept } from '@/lib/db/schema'
 import { eq, and, ilike } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
@@ -10,6 +10,8 @@ interface RawRow {
   chapterName: string
   chapterCode?: string
   board?: string
+  classLevel?: string
+  program?: string
   expectedHours?: string
   conceptName?: string
   conceptCode?: string
@@ -25,6 +27,8 @@ interface ChapterGroup {
   name: string
   code: string
   board: string
+  classLevel: string
+  program: string
   expectedHours: string
   rowLabel: string
 }
@@ -55,9 +59,16 @@ export async function POST(req: NextRequest) {
 
     const errors: ImportError[] = []
 
+    // Programs are matched by name (case-insensitive) within the caller's
+    // school — a row can name a program without knowing its id.
+    const schoolPrograms = schoolId
+      ? await db.select({ id: programs.id, name: programs.name }).from(programs).where(eq(programs.schoolId, schoolId))
+      : []
+    const programIdByName = new Map(schoolPrograms.map((p) => [p.name.trim().toLowerCase(), p.id]))
+
     // Pass 1 — group rows into unique chapters by name (case-insensitive),
-    // merging in code/board/expectedHours from whichever row first supplies
-    // a non-empty value.
+    // merging in code/board/classLevel/program/expectedHours from whichever
+    // row first supplies a non-empty value.
     const chapterGroups = new Map<string, ChapterGroup>()
     rows.forEach((r, i) => {
       const name = r.chapterName?.trim() || ''
@@ -68,13 +79,17 @@ export async function POST(req: NextRequest) {
       const key = name.toLowerCase()
       const code = r.chapterCode?.trim() || ''
       const board = r.board?.trim() || ''
+      const classLevel = r.classLevel?.trim() || ''
+      const program = r.program?.trim() || ''
       const expectedHours = r.expectedHours?.trim() || ''
       const existing = chapterGroups.get(key)
       if (!existing) {
-        chapterGroups.set(key, { name, code, board, expectedHours, rowLabel: `Row ${i + 1}` })
+        chapterGroups.set(key, { name, code, board, classLevel, program, expectedHours, rowLabel: `Row ${i + 1}` })
       } else {
         if (!existing.code && code) existing.code = code
         if (!existing.board && board) existing.board = board
+        if (!existing.classLevel && classLevel) existing.classLevel = classLevel
+        if (!existing.program && program) existing.program = program
         if (!existing.expectedHours && expectedHours) existing.expectedHours = expectedHours
       }
     })
@@ -84,12 +99,19 @@ export async function POST(req: NextRequest) {
     const chapterResults = await Promise.allSettled(
       Array.from(chapterGroups.values()).map(async (group) => {
         const hours = group.expectedHours ? Number(group.expectedHours) : null
+        if (group.program && !programIdByName.has(group.program.toLowerCase())) {
+          throw new Error(`Program "${group.program}" was not found for this school`)
+        }
         const data: Partial<NewChapter> = {
           name: group.name,
           code: group.code,
           board: group.board || null,
+          classLevel: group.classLevel || null,
           expectedHours: hours !== null && !Number.isNaN(hours) ? hours : null,
         }
+        // Only touch programId when the row actually named one, so re-importing
+        // a chapter without a Program column doesn't blow away an existing link.
+        if (group.program) data.programId = programIdByName.get(group.program.toLowerCase())
         const matchCondition = schoolId
           ? and(eq(chapters.subjectId, subjectId), ilike(chapters.name, group.name), eq(chapters.schoolId, schoolId))
           : and(eq(chapters.subjectId, subjectId), ilike(chapters.name, group.name))

@@ -427,6 +427,9 @@ export const chapters = pgTable('chapters', {
   description: text('description').notNull().default(''),
   code: varchar('code', { length: 50 }).notNull().default(''),
   board: varchar('board', { length: 50 }),
+  // Class level this chapter is taught at: 9 | 10 | 11 | 12 | Repeater
+  // (same values as batches.classLevel), free text like `board`.
+  classLevel: varchar('class_level', { length: 20 }),
   orderIndex: integer('order_index').notNull().default(0),
   expectedHours: integer('expected_hours'),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),

@@ -4,12 +4,15 @@ import { Plus, Pencil, Trash2, Loader2, Upload } from 'lucide-react'
 import CurriculumCsvUploadModal from './CurriculumCsvUploadModal'
 
 interface SubjectOption { id: string; name: string }
+interface ProgramOption { id: string; name: string }
 interface Chapter {
   id: string
   subjectId: string
   name: string
   code: string
   board: string | null
+  classLevel: string | null
+  programId: string | null
   expectedHours: number | null
 }
 interface Concept {
@@ -20,12 +23,14 @@ interface Concept {
 }
 
 const BOARDS = ['', 'CBSE', 'ICSE', 'ISC']
+const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Repeater']
 
 const inputClass = 'w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors'
 const labelClass = 'block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1'
 
 export default function CurriculumManagerView() {
   const [subjects, setSubjects] = useState<SubjectOption[]>([])
+  const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [selectedSubjectId, setSelectedSubjectId] = useState('')
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [selectedChapterId, setSelectedChapterId] = useState('')
@@ -33,7 +38,7 @@ export default function CurriculumManagerView() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const [chapterForm, setChapterForm] = useState({ name: '', code: '', board: '', expectedHours: '' })
+  const [chapterForm, setChapterForm] = useState({ name: '', code: '', board: '', classLevel: '', programId: '', expectedHours: '' })
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null)
 
   const [conceptForm, setConceptForm] = useState({ name: '', code: '' })
@@ -51,6 +56,14 @@ export default function CurriculumManagerView() {
         if (options.length > 0) setSelectedSubjectId((prev) => prev || options[0].id)
       })
       .catch(() => setError('Failed to load subjects'))
+
+    fetch('/api/programs')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!Array.isArray(data)) return
+        setPrograms(data.filter((p: any) => p.id).map((p: any) => ({ id: p.id, name: p.name })))
+      })
+      .catch(() => {})
   }, [])
 
   const loadChapters = useCallback(async (subjectId: string) => {
@@ -91,13 +104,20 @@ export default function CurriculumManagerView() {
   }, [selectedChapterId, loadConcepts])
 
   function resetChapterForm() {
-    setChapterForm({ name: '', code: '', board: '', expectedHours: '' })
+    setChapterForm({ name: '', code: '', board: '', classLevel: '', programId: '', expectedHours: '' })
     setEditingChapterId(null)
   }
 
   function startEditChapter(c: Chapter) {
     setEditingChapterId(c.id)
-    setChapterForm({ name: c.name, code: c.code, board: c.board ?? '', expectedHours: c.expectedHours ? String(c.expectedHours) : '' })
+    setChapterForm({
+      name: c.name,
+      code: c.code,
+      board: c.board ?? '',
+      classLevel: c.classLevel ?? '',
+      programId: c.programId ?? '',
+      expectedHours: c.expectedHours ? String(c.expectedHours) : '',
+    })
   }
 
   async function submitChapter(e: React.FormEvent) {
@@ -108,6 +128,8 @@ export default function CurriculumManagerView() {
       name: chapterForm.name.trim(),
       code: chapterForm.code.trim(),
       board: chapterForm.board || null,
+      classLevel: chapterForm.classLevel || null,
+      programId: chapterForm.programId || null,
       expectedHours: chapterForm.expectedHours ? Number(chapterForm.expectedHours) : null,
     }
     const url = editingChapterId ? `/api/curriculum/chapters?id=${editingChapterId}` : '/api/curriculum/chapters'
@@ -203,6 +225,13 @@ export default function CurriculumManagerView() {
             <select value={chapterForm.board} onChange={(e) => setChapterForm((f) => ({ ...f, board: e.target.value }))} className={inputClass}>
               {BOARDS.map((b) => <option key={b} value={b}>{b || 'No board'}</option>)}
             </select>
+            <select value={chapterForm.classLevel} onChange={(e) => setChapterForm((f) => ({ ...f, classLevel: e.target.value }))} className={inputClass}>
+              {CLASS_LEVELS.map((c) => <option key={c} value={c}>{c ? `Class ${c}` : 'No class'}</option>)}
+            </select>
+            <select value={chapterForm.programId} onChange={(e) => setChapterForm((f) => ({ ...f, programId: e.target.value }))} className={inputClass}>
+              <option value="">No program</option>
+              {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
             <input type="number" placeholder="Expected hours" value={chapterForm.expectedHours} onChange={(e) => setChapterForm((f) => ({ ...f, expectedHours: e.target.value }))} className={inputClass} />
             <div className="col-span-2 flex gap-2">
               <button type="submit" className="flex items-center gap-1.5 px-3 py-2 bg-[#0b1320] text-white text-xs font-bold rounded-lg hover:bg-slate-800 transition-colors">
@@ -226,7 +255,12 @@ export default function CurriculumManagerView() {
               >
                 <div>
                   <p className="text-sm font-semibold text-slate-800">{c.name}</p>
-                  <p className="text-[11px] text-slate-400">{c.code || 'No code'}{c.board ? ` · ${c.board}` : ''}</p>
+                  <p className="text-[11px] text-slate-400">
+                    {c.code || 'No code'}
+                    {c.board ? ` · ${c.board}` : ''}
+                    {c.classLevel ? ` · Class ${c.classLevel}` : ''}
+                    {c.programId ? ` · ${programs.find((p) => p.id === c.programId)?.name ?? 'Program'}` : ''}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1">
                   <button type="button" onClick={(e) => { e.stopPropagation(); startEditChapter(c) }} className="p-1.5 text-slate-400 hover:text-slate-700">

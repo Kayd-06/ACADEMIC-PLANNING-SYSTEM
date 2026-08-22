@@ -10,7 +10,7 @@ import type { NewChapter } from '@/lib/db/schema'
 
 export const dynamic = 'force-dynamic'
 
-const CHAPTER_FIELDS = ['subjectId', 'programId', 'name', 'code', 'board', 'description', 'orderIndex', 'expectedHours'] as const
+const CHAPTER_FIELDS = ['subjectId', 'programId', 'name', 'code', 'board', 'classLevel', 'description', 'orderIndex', 'expectedHours'] as const
 
 function pickChapterFields(body: any): Partial<NewChapter> {
   const data: Record<string, any> = {}

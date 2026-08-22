@@ -1,0 +1,1 @@
+ALTER TABLE chapters ADD COLUMN IF NOT EXISTS class_level VARCHAR(20);

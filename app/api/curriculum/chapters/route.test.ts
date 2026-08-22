@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { chapters, subjects } from '@/lib/db/schema'
+import { chapters, subjects, programs } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }))
@@ -11,13 +11,15 @@ function req(url: string, init?: RequestInit) {
   return new Request(url, init) as any
 }
 
-const createdIds = { chapters: [] as string[], subjects: [] as string[] }
+const createdIds = { chapters: [] as string[], subjects: [] as string[], programs: [] as string[] }
 
 afterEach(async () => {
   for (const id of createdIds.chapters) await db.delete(chapters).where(eq(chapters.id, id))
   for (const id of createdIds.subjects) await db.delete(subjects).where(eq(subjects.id, id))
+  for (const id of createdIds.programs) await db.delete(programs).where(eq(programs.id, id))
   createdIds.chapters.length = 0
   createdIds.subjects.length = 0
+  createdIds.programs.length = 0
   jest.clearAllMocks()
 })
 
@@ -69,6 +71,24 @@ describe('POST /api/curriculum/chapters', () => {
     expect(res.status).toBe(201)
     expect(body.code).toBe('CHM-04')
     expect(body.board).toBe('CBSE')
+  })
+
+  it('creates a chapter with a class level and program', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const [subject] = await db.insert(subjects).values({ name: 'Chapter Class/Program Physics' }).returning()
+    createdIds.subjects.push(subject.id)
+    const [program] = await db.insert(programs).values({ name: 'JEE Advanced' }).returning()
+    createdIds.programs.push(program.id)
+
+    const res = await POST(req('http://localhost/api/curriculum/chapters', {
+      method: 'POST',
+      body: JSON.stringify({ subjectId: subject.id, name: 'Kinematics', classLevel: '11', programId: program.id }),
+    }))
+    const body = await res.json()
+    if (res.status === 201) createdIds.chapters.push(body.id)
+    expect(res.status).toBe(201)
+    expect(body.classLevel).toBe('11')
+    expect(body.programId).toBe(program.id)
   })
 })
 
