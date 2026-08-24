@@ -43,6 +43,7 @@ export default function MeetingsView() {
   // New Meeting Form
   const [newMeeting, setNewMeeting] = useState({ title: '', date: '', time: '', type: 'General', attendees: '' })
   const [newAgenda, setNewAgenda] = useState<{itemTitle: string, description: string, status: string}[]>([])
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetchMeetings()
@@ -89,24 +90,35 @@ export default function MeetingsView() {
 
   async function handleCreateMeeting(e: React.FormEvent) {
     e.preventDefault()
-    if (!newMeeting.title || !newMeeting.date || !newMeeting.time) return
+    setError('')
+    if (!newMeeting.title || !newMeeting.date || !newMeeting.time) {
+      setError('Title, date, and time are required')
+      return
+    }
     
-    const res = await fetch('/api/meetings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...newMeeting,
-        agendaItems: newAgenda.filter(a => a.itemTitle.trim() !== '')
+    try {
+      const res = await fetch('/api/meetings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newMeeting,
+          agendaItems: newAgenda.filter(a => a.itemTitle.trim() !== '')
+        })
       })
-    })
 
-    if (res.ok) {
-      const created = await res.json()
-      setMeetings([created, ...meetings])
-      setSelectedMeetingId(created.id)
-      setShowNewModal(false)
-      setNewMeeting({ title: '', date: '', time: '', type: 'General', attendees: '' })
-      setNewAgenda([])
+      if (res.ok) {
+        const created = await res.json()
+        setMeetings([created, ...meetings])
+        setSelectedMeetingId(created.id)
+        setShowNewModal(false)
+        setNewMeeting({ title: '', date: '', time: '', type: 'General', attendees: '' })
+        setNewAgenda([])
+      } else {
+        const errData = await res.json()
+        setError(errData.error || 'Failed to save meeting')
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred')
     }
   }
 
@@ -308,6 +320,11 @@ export default function MeetingsView() {
               </div>
               
               <div className="p-6 overflow-y-auto flex-1">
+                {error && (
+                  <div className="mb-4 p-3 bg-rose-50 text-rose-600 text-sm font-bold rounded-lg border border-rose-200">
+                    {error}
+                  </div>
+                )}
                 <form id="meetingForm" onSubmit={handleCreateMeeting} className="space-y-6">
                   <div className="space-y-4">
                     <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Meeting Details</h4>
