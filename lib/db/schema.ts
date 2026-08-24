@@ -1162,3 +1162,35 @@ export const ptmReports = pgTable('ptm_reports', {
 export type PtmReport = typeof ptmReports.$inferSelect
 export type NewPtmReport = typeof ptmReports.$inferInsert
 
+// ── Meetings ──────────────────────────────────────────────────────────────────
+
+export const meetings = pgTable('meetings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  date: varchar('date', { length: 10 }).notNull(),
+  time: varchar('time', { length: 20 }).notNull(),
+  type: varchar('type', { length: 100 }).notNull().default('General'),
+  attendees: text('attendees').notNull().default(''),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type Meeting = typeof meetings.$inferSelect
+export type NewMeeting = typeof meetings.$inferInsert
+
+export const meetingAgendaStatusEnum = pgEnum('meeting_agenda_status', ['Not Started', 'In Progress', 'Completed'])
+
+export const meetingAgendaItems = pgTable('meeting_agenda_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  meetingId: uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
+  itemTitle: varchar('item_title', { length: 255 }).notNull(),
+  description: text('description').notNull().default(''),
+  status: meetingAgendaStatusEnum('status').notNull().default('Not Started'),
+  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type MeetingAgendaItem = typeof meetingAgendaItems.$inferSelect
+export type NewMeetingAgendaItem = typeof meetingAgendaItems.$inferInsert
