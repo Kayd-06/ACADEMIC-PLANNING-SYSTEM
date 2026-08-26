@@ -28,16 +28,16 @@ interface Concept {
 }
 
 interface MasterSheetRow {
-  chapterId: string
-  conceptId: string | null
-  board: string | null
-  program: string | null
-  classLevel: string | null
+  id: string
+  board: string
+  program: string
+  classLevel: string
   subject: string
   chapterName: string
   chapterCode: string
-  conceptName: string | null
-  conceptCode: string | null
+  expectedHours: number | null
+  conceptName: string
+  conceptCode: string
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -248,10 +248,12 @@ export default function CurriculumManagerView() {
       const params = new URLSearchParams()
       if (board)      params.set('board',      board)
       if (classLevel) params.set('classLevel', classLevel)
-      if (programId)  params.set('programId',  programId)
-      if (subjectId)  params.set('subjectId',  subjectId)
+      const programName = programs.find(p => p.id === programId)?.name
+      if (programName) params.set('program', programName)
+      const subjectName = subjects.find(s => s.id === subjectId)?.name
+      if (subjectName) params.set('subject', subjectName)
 
-      const res  = await fetch(`/api/curriculum/master-sheet?${params.toString()}`)
+      const res  = await fetch(`/api/curriculum/master-curriculum?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load master sheet')
       setMasterRows(Array.isArray(data) ? data : [])
@@ -629,7 +631,7 @@ export default function CurriculumManagerView() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {masterRows.map((row, idx) => (
-                      <tr key={`${row.chapterId}-${row.conceptId ?? idx}`} className="hover:bg-slate-50/60 transition-colors">
+                      <tr key={row.id} className="hover:bg-slate-50/60 transition-colors">
                         {/* Board */}
                         <td className="px-3.5 py-2.5 pl-4">
                           {row.board ? (

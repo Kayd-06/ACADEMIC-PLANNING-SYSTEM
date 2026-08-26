@@ -93,9 +93,33 @@ export default function ProgressReportView() {
   const fetchReports = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/progress-reports?batch=${encodeURIComponent(selectedBatch)}&termType=${encodeURIComponent(selectedTerm)}`)
+      const res = await fetch(`/api/reports/generated?batchId=${encodeURIComponent(selectedBatch === 'All' ? '' : selectedBatch)}&term=${encodeURIComponent(selectedTerm === 'All' ? '' : selectedTerm)}`)
       const data = await res.json()
-      if (Array.isArray(data)) setReports(data)
+      if (Array.isArray(data)) {
+        const mapped = data.map((d: any) => ({
+          id: d.id,
+          studentName: d.student?.name || 'Unknown',
+          rollNo: d.student?.rollNo || '',
+          batch: d.student?.batch?.name || 'Unknown',
+          termType: d.term,
+          academicYear: d.academicYear,
+          percentage: d.overallPercentage || '0%',
+          rank: d.rankInBatch?.toString() || 'N/A',
+          percentile: d.overallPercentage || '0%',
+          teacherRemarks: d.teacherRemarks || '',
+          principalRemarks: d.principalRemarks || '',
+          teacherName: 'Class Teacher',
+          generatedAt: d.generatedAt,
+          subjects: (d.subjects || []).map((s: any) => ({
+            id: s.id,
+            subjectName: s.subjectName,
+            marksObtained: Number(s.marksObtained),
+            totalMarks: Number(s.maxMarks),
+            grade: s.grade,
+          }))
+        }))
+        setReports(mapped)
+      }
     } catch (e) {
       console.error(e)
     } finally {
@@ -151,20 +175,27 @@ export default function ProgressReportView() {
     const percentage = totalMax > 0 ? `${Math.round((totalObtained / totalMax) * 100)}%` : '0%'
 
     const payload = {
-      ...form,
-      percentage,
-      rank: editingId ? (reports.find(r => r.id === editingId)?.rank || '3rd') : '3rd',
+      // NOTE: For the mock creation, we need studentId which we don't have in this simple form.
+      // We will pass studentName and let the backend handle it or fail if this is a mocked UI flow.
+      studentId: form.rollNo || '00000000-0000-0000-0000-000000000000', // Mock UUID for demo
+      reportTitle: `${form.termType} Report`,
+      academicYear: form.academicYear,
+      term: form.termType,
+      teacherRemarks: form.teacherRemarks,
+      principalRemarks: form.principalRemarks,
+      overallPercentage: percentage,
+      classRank: editingId ? (reports.find(r => r.id === editingId)?.rank || '3rd') : '3rd',
       subjects: subjects.map(s => ({
         subjectName: s.subjectName,
         marksObtained: Number(s.marksObtained),
-        totalMarks: Number(s.totalMarks),
+        maxMarks: Number(s.totalMarks),
         grade: s.grade || 'B',
       })),
     }
 
     try {
-      const url = editingId ? `/api/progress-reports?id=${editingId}` : '/api/progress-reports'
-      const method = editingId ? 'PUT' : 'POST'
+      const url = editingId ? `/api/reports/generated?id=${editingId}` : '/api/reports/generated'
+      const method = editingId ? 'PATCH' : 'POST'
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -211,7 +242,7 @@ export default function ProgressReportView() {
 
   const handleDelete = async (report: ProgressReport) => {
     if (!confirm(`Delete progress report for ${report.studentName} (${report.termType} ${report.academicYear})?`)) return
-    const res = await fetch(`/api/progress-reports?id=${report.id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/reports/generated?id=${report.id}`, { method: 'DELETE' })
     if (res.ok) fetchReports()
   }
 

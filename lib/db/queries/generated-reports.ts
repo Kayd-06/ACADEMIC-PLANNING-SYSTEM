@@ -3,6 +3,8 @@ import { db } from '../index'
 import {
   generatedStudentReports,
   reportSubjectAnalytics,
+  students,
+  batches,
   type GeneratedStudentReport,
   type NewGeneratedStudentReport,
   type ReportSubjectAnalytics,
@@ -73,11 +75,27 @@ export async function listGeneratedReports(
 
   const where = conditions.length > 0 ? and(...conditions) : undefined
 
-  return db
-    .select()
+  const rows = await db
+    .select({
+      report: generatedStudentReports,
+      studentName: students.name,
+      studentRollNo: students.rollNo,
+      batchName: batches.name,
+    })
     .from(generatedStudentReports)
+    .leftJoin(students, eq(generatedStudentReports.studentId, students.id))
+    .leftJoin(batches, eq(generatedStudentReports.batchId, batches.id))
     .where(where)
     .orderBy(desc(generatedStudentReports.createdAt))
+
+  return rows.map(r => ({
+    ...r.report,
+    student: {
+      name: r.studentName,
+      rollNo: r.studentRollNo,
+      batch: r.batchName ? { name: r.batchName } : null
+    }
+  })) as any
 }
 
 export async function getGeneratedReportById(

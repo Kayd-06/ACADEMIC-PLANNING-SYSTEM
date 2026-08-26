@@ -1,6 +1,6 @@
 import { eq, and, asc } from 'drizzle-orm'
 import { db } from '../index'
-import { chapters, concepts, subjects, programs, type Chapter, type NewChapter, type Concept, type NewConcept } from '../schema'
+import { chapters, concepts, subjects, programs, masterCurriculum, type Chapter, type NewChapter, type Concept, type NewConcept } from '../schema'
 
 export async function listChaptersBySubject(subjectId: string, schoolId?: string | null): Promise<Chapter[]> {
   const conditions: any[] = [eq(chapters.subjectId, subjectId)]
@@ -14,17 +14,72 @@ export async function listChaptersBySubject(subjectId: string, schoolId?: string
 
 export async function createChapter(data: NewChapter): Promise<Chapter> {
   const rows = await db.insert(chapters).values(data).returning()
-  return rows[0]
+  const chapter = rows[0]
+  if (chapter) {
+    let subjectName = '', programName = ''
+    if (chapter.subjectId) {
+      const [s] = await db.select({ name: subjects.name }).from(subjects).where(eq(subjects.id, chapter.subjectId))
+      if (s) subjectName = s.name
+    }
+    if (chapter.programId) {
+      const [p] = await db.select({ name: programs.name }).from(programs).where(eq(programs.id, chapter.programId))
+      if (p) programName = p.name
+    }
+    await db.insert(masterCurriculum).values({
+      schoolId: chapter.schoolId || '00000000-0000-0000-0000-000000000000',
+      board: chapter.board || '',
+      program: programName,
+      classLevel: chapter.classLevel || '',
+      subject: subjectName,
+      chapterName: chapter.name,
+      chapterCode: chapter.code,
+      chapterOrderIndex: chapter.orderIndex || 0,
+      expectedHours: chapter.expectedHours || 0,
+      conceptName: '',
+      conceptCode: '',
+      conceptOrderIndex: 0
+    })
+  }
+  return chapter
 }
 
 export async function updateChapter(id: string, data: Partial<NewChapter>, schoolId?: string | null): Promise<Chapter | null> {
   const condition = schoolId ? and(eq(chapters.id, id), eq(chapters.schoolId, schoolId)) : eq(chapters.id, id)
+  const [old] = await db.select().from(chapters).where(condition)
+  if (!old) return null
   const rows = await db.update(chapters).set(data).where(condition).returning()
-  return rows[0] ?? null
+  const chapter = rows[0]
+  if (chapter) {
+    const updates: any = {}
+    if (data.board !== undefined) updates.board = data.board || ''
+    if (data.classLevel !== undefined) updates.classLevel = data.classLevel || ''
+    if (data.name !== undefined) updates.chapterName = data.name || ''
+    if (data.code !== undefined) updates.chapterCode = data.code || ''
+    if (data.orderIndex !== undefined) updates.chapterOrderIndex = data.orderIndex || 0
+    if (data.expectedHours !== undefined) updates.expectedHours = data.expectedHours || 0
+    if (data.subjectId) {
+       const [s] = await db.select({ name: subjects.name }).from(subjects).where(eq(subjects.id, data.subjectId))
+       if (s) updates.subject = s.name
+    }
+    if (data.programId) {
+       const [p] = await db.select({ name: programs.name }).from(programs).where(eq(programs.id, data.programId))
+       if (p) updates.program = p.name
+    }
+    if (Object.keys(updates).length > 0) {
+      const mcCond = schoolId ? and(eq(masterCurriculum.chapterCode, old.code), eq(masterCurriculum.schoolId, schoolId)) : eq(masterCurriculum.chapterCode, old.code)
+      await db.update(masterCurriculum).set(updates).where(mcCond)
+    }
+  }
+  return chapter ?? null
 }
 
 export async function deleteChapter(id: string, schoolId?: string | null): Promise<void> {
   const condition = schoolId ? and(eq(chapters.id, id), eq(chapters.schoolId, schoolId)) : eq(chapters.id, id)
+  const [old] = await db.select().from(chapters).where(condition)
+  if (old) {
+    const mcCond = schoolId ? and(eq(masterCurriculum.chapterCode, old.code), eq(masterCurriculum.schoolId, schoolId)) : eq(masterCurriculum.chapterCode, old.code)
+    await db.delete(masterCurriculum).where(mcCond)
+  }
   await db.delete(chapters).where(condition)
 }
 
@@ -40,17 +95,67 @@ export async function listConceptsByChapter(chapterId: string, schoolId?: string
 
 export async function createConcept(data: NewConcept): Promise<Concept> {
   const rows = await db.insert(concepts).values(data).returning()
-  return rows[0]
+  const concept = rows[0]
+  if (concept) {
+    const condition = concept.schoolId ? and(eq(chapters.id, concept.chapterId), eq(chapters.schoolId, concept.schoolId)) : eq(chapters.id, concept.chapterId)
+    const [chapter] = await db.select().from(chapters).where(condition)
+    if (chapter) {
+      let subjectName = '', programName = ''
+      if (chapter.subjectId) {
+        const [s] = await db.select({ name: subjects.name }).from(subjects).where(eq(subjects.id, chapter.subjectId))
+        if (s) subjectName = s.name
+      }
+      if (chapter.programId) {
+        const [p] = await db.select({ name: programs.name }).from(programs).where(eq(programs.id, chapter.programId))
+        if (p) programName = p.name
+      }
+      const emptyCond = and(eq(masterCurriculum.chapterCode, chapter.code), eq(masterCurriculum.conceptCode, ''))
+      await db.delete(masterCurriculum).where(emptyCond)
+      await db.insert(masterCurriculum).values({
+        schoolId: concept.schoolId || chapter.schoolId || '00000000-0000-0000-0000-000000000000',
+        board: chapter.board || '',
+        program: programName,
+        classLevel: chapter.classLevel || '',
+        subject: subjectName,
+        chapterName: chapter.name,
+        chapterCode: chapter.code,
+        chapterOrderIndex: chapter.orderIndex || 0,
+        expectedHours: chapter.expectedHours || 0,
+        conceptName: concept.name,
+        conceptCode: concept.code,
+        conceptOrderIndex: concept.orderIndex || 0
+      })
+    }
+  }
+  return concept
 }
 
 export async function updateConcept(id: string, data: Partial<NewConcept>, schoolId?: string | null): Promise<Concept | null> {
   const condition = schoolId ? and(eq(concepts.id, id), eq(concepts.schoolId, schoolId)) : eq(concepts.id, id)
+  const [old] = await db.select().from(concepts).where(condition)
+  if (!old) return null
   const rows = await db.update(concepts).set(data).where(condition).returning()
-  return rows[0] ?? null
+  const concept = rows[0]
+  if (concept) {
+    const updates: any = {}
+    if (data.name !== undefined) updates.conceptName = data.name || ''
+    if (data.code !== undefined) updates.conceptCode = data.code || ''
+    if (data.orderIndex !== undefined) updates.conceptOrderIndex = data.orderIndex || 0
+    if (Object.keys(updates).length > 0) {
+      const mcCond = schoolId ? and(eq(masterCurriculum.conceptCode, old.code), eq(masterCurriculum.schoolId, schoolId)) : eq(masterCurriculum.conceptCode, old.code)
+      await db.update(masterCurriculum).set(updates).where(mcCond)
+    }
+  }
+  return concept ?? null
 }
 
 export async function deleteConcept(id: string, schoolId?: string | null): Promise<void> {
   const condition = schoolId ? and(eq(concepts.id, id), eq(concepts.schoolId, schoolId)) : eq(concepts.id, id)
+  const [old] = await db.select().from(concepts).where(condition)
+  if (old) {
+    const mcCond = schoolId ? and(eq(masterCurriculum.conceptCode, old.code), eq(masterCurriculum.schoolId, schoolId)) : eq(masterCurriculum.conceptCode, old.code)
+    await db.delete(masterCurriculum).where(mcCond)
+  }
   await db.delete(concepts).where(condition)
 }
 
