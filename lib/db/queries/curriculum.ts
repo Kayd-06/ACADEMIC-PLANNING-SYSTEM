@@ -82,7 +82,65 @@ export async function listMasterSheetRows(
   filters: MasterSheetFilters = {},
   schoolId?: string | null,
 ): Promise<MasterSheetRow[]> {
-  // Build WHERE conditions incrementally
+  const { masterCurriculum } = await import('../schema')
+
+  // Check if master_curriculum has data for this school
+  const mcCondition = schoolId ? eq(masterCurriculum.schoolId, schoolId) : undefined
+  const [mcExists] = await db.select({ id: masterCurriculum.id }).from(masterCurriculum).where(mcCondition).limit(1)
+
+  if (mcExists) {
+    // We have data in the new table — use it!
+    // We need to resolve subjectId and programId to names since the flat table only stores names
+    let subjectName: string | undefined
+    let programName: string | undefined
+
+    if (filters.subjectId) {
+      const [s] = await db.select({ name: subjects.name }).from(subjects).where(eq(subjects.id, filters.subjectId))
+      if (s) subjectName = s.name
+    }
+    if (filters.programId) {
+      const [p] = await db.select({ name: programs.name }).from(programs).where(eq(programs.id, filters.programId))
+      if (p) programName = p.name
+    }
+
+    const mcConditions: any[] = []
+    if (schoolId) mcConditions.push(eq(masterCurriculum.schoolId, schoolId))
+    if (filters.board) mcConditions.push(eq(masterCurriculum.board, filters.board))
+    if (filters.classLevel) mcConditions.push(eq(masterCurriculum.classLevel, filters.classLevel))
+    if (subjectName) mcConditions.push(eq(masterCurriculum.subject, subjectName))
+    if (programName) mcConditions.push(eq(masterCurriculum.program, programName))
+
+    const mcWhere = mcConditions.length > 0 ? and(...mcConditions) : undefined
+
+    const mcRows = await db
+      .select()
+      .from(masterCurriculum)
+      .where(mcWhere)
+      .orderBy(
+        asc(masterCurriculum.subject),
+        asc(masterCurriculum.program),
+        asc(masterCurriculum.classLevel),
+        asc(masterCurriculum.chapterOrderIndex),
+        asc(masterCurriculum.chapterName),
+        asc(masterCurriculum.conceptOrderIndex),
+        asc(masterCurriculum.conceptName),
+      )
+
+    return mcRows.map(r => ({
+      chapterId: r.id, // We map the masterCurriculum ID to chapterId so the UI export still works
+      conceptId: r.id,
+      board: r.board,
+      program: r.program,
+      classLevel: r.classLevel,
+      subject: r.subject,
+      chapterName: r.chapterName,
+      chapterCode: r.chapterCode,
+      conceptName: r.conceptName,
+      conceptCode: r.conceptCode,
+    }))
+  }
+
+  // ── Fallback (existing JOIN approach) ───────────────────────────────────────
   const conditions: ReturnType<typeof eq>[] = []
   if (schoolId) conditions.push(eq(chapters.schoolId, schoolId))
   if (filters.board) conditions.push(eq(chapters.board, filters.board))
@@ -106,11 +164,8 @@ export async function listMasterSheetRows(
       conceptCode: concepts.code,
     })
     .from(chapters)
-    // JOIN subjects to get subject name
     .innerJoin(subjects, eq(chapters.subjectId, subjects.id))
-    // LEFT JOIN programs (a chapter may not be linked to a program)
     .leftJoin(programs, eq(chapters.programId, programs.id))
-    // LEFT JOIN concepts (a chapter may have zero concepts)
     .leftJoin(concepts, eq(concepts.chapterId, chapters.id))
     .where(where)
     .orderBy(
@@ -136,3 +191,4 @@ export async function listMasterSheetRows(
     conceptCode: r.conceptCode ?? null,
   }))
 }
+

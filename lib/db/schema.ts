@@ -1,5 +1,5 @@
 // Database schema definitions - updated with dailyReports and progressReports
-import { pgTable, uuid, text, varchar, timestamp, pgEnum, boolean, uniqueIndex, integer, jsonb } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, varchar, timestamp, pgEnum, boolean, uniqueIndex, index, integer, jsonb } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 export const userRoleEnum = pgEnum('user_role', ['teacher', 'management'])
@@ -467,6 +467,95 @@ export const batchSyllabus = pgTable('batch_syllabus', {
 
 export type BatchSyllabus = typeof batchSyllabus.$inferSelect
 export type NewBatchSyllabus = typeof batchSyllabus.$inferInsert
+
+// ── Master Curriculum (denormalized, Excel master sheet aligned) ───────────────
+// Flat, self-contained row that matches 100% of the legacy Excel master sheet.
+// Stores board/program/classLevel/subject as plain strings for exact Excel fidelity.
+// A composite unique index on (schoolId, board, program, classLevel, subject, conceptCode)
+// (partial — excludes blank conceptCodes) acts as the upsert key.
+export const masterCurriculum = pgTable('master_curriculum', {
+  id: uuid('id').defaultRandom().primaryKey(),
+
+  // ── Master Excel Hierarchy Fields (Mandatory) ──
+  board:      varchar('board',       { length: 50  }).notNull(),
+  program:    varchar('program',     { length: 100 }).notNull(),
+  classLevel: varchar('class_level', { length: 50  }).notNull(),
+  subject:    varchar('subject',     { length: 100 }).notNull(),
+
+  // ── Chapter Level ──
+  chapterName:       varchar('chapter_name',        { length: 255 }).notNull(),
+  chapterCode:       varchar('chapter_code',        { length: 50  }).notNull().default(''),
+  chapterOrderIndex: integer('chapter_order_index').notNull().default(0),
+  expectedHours:     integer('expected_hours').default(0),
+
+  // ── Concept Level ──
+  conceptName:       varchar('concept_name',        { length: 255 }).notNull(),
+  conceptCode:       varchar('concept_code',        { length: 50  }).notNull().default(''),
+  conceptOrderIndex: integer('concept_order_index').notNull().default(0),
+  // Importance weight: Low | Medium | High | Critical
+  importanceWeight:  varchar('importance_weight',   { length: 20  }).default('Medium'),
+
+  // ── School scoping & Audit ──
+  schoolId:  uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+  isActive:  boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  // Composite unique index for upsert — partial (excludes blank concept codes)
+  conceptUnique: uniqueIndex('curriculum_concept_unique')
+    .on(table.schoolId, table.board, table.program, table.classLevel, table.subject, table.conceptCode)
+    .where(sql`${table.conceptCode} <> ''`),
+  // Indexes for common filter queries
+  boardIdx:      index('mc_board_idx').on(table.board),
+  programIdx:    index('mc_program_idx').on(table.program),
+  classLevelIdx: index('mc_class_level_idx').on(table.classLevel),
+  subjectIdx:    index('mc_subject_idx').on(table.subject),
+  schoolIdx:     index('mc_school_idx').on(table.schoolId),
+}))
+
+export type MasterCurriculum    = typeof masterCurriculum.$inferSelect
+export type NewMasterCurriculum = typeof masterCurriculum.$inferInsert
+
+// ── Batch Concept Progress ────────────────────────────────────────────────────
+// Tracks batch-level completion of individual curriculum concepts.
+// Replaces the chapter-level batchSyllabus with concept-level granularity.
+// Status: NOT_STARTED | IN_PROGRESS | COMPLETED
+export const batchConceptProgress = pgTable('batch_concept_progress', {
+  id:           uuid('id').defaultRandom().primaryKey(),
+  batchId:      uuid('batch_id').notNull().references(() => batches.id, { onDelete: 'cascade' }),
+  curriculumId: uuid('curriculum_id').notNull().references(() => masterCurriculum.id, { onDelete: 'cascade' }),
+  status:       varchar('status', { length: 20 }).notNull().default('NOT_STARTED'),
+  // Planned dates (YYYY-MM-DD strings, consistent with rest of codebase)
+  plannedStartDate:      varchar('planned_start_date',      { length: 10 }),
+  plannedEndDate:        varchar('planned_end_date',        { length: 10 }),
+  actualCompletionDate:  varchar('actual_completion_date',  { length: 10 }),
+  teacherId: uuid('teacher_id').references(() => faculty.id, { onDelete: 'set null' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  // One row per (batch, curriculum concept)
+  batchConceptUnique: uniqueIndex('batch_concept_progress_unique').on(table.batchId, table.curriculumId),
+}))
+
+export type BatchConceptProgress    = typeof batchConceptProgress.$inferSelect
+export type NewBatchConceptProgress = typeof batchConceptProgress.$inferInsert
+
+// ── Student Concept Progress ──────────────────────────────────────────────────
+// Per-student mastery tracking for each curriculum concept (per architecture diagram).
+// Status: NOT_STARTED | LEARNING | MASTERED | NEEDS_REVIEW
+export const studentConceptProgress = pgTable('student_concept_progress', {
+  id:           uuid('id').defaultRandom().primaryKey(),
+  studentId:    uuid('student_id').notNull().references(() => students.id, { onDelete: 'cascade' }),
+  curriculumId: uuid('curriculum_id').notNull().references(() => masterCurriculum.id, { onDelete: 'cascade' }),
+  status:       varchar('status', { length: 20 }).notNull().default('NOT_STARTED'),
+  masteryScore: integer('mastery_score').default(0), // 0-100
+  lastPracticeDate: varchar('last_practice_date', { length: 10 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  studentConceptUnique: uniqueIndex('student_concept_progress_unique').on(table.studentId, table.curriculumId),
+}))
+
+export type StudentConceptProgress    = typeof studentConceptProgress.$inferSelect
+export type NewStudentConceptProgress = typeof studentConceptProgress.$inferInsert
 
 export const counselingSessionTypeEnum = pgEnum('counseling_session_type', ['Academic', 'Career', 'Personal', 'Disciplinary', 'Parent Meeting'])
 export const counselingSessionStatusEnum = pgEnum('counseling_session_status', ['Scheduled', 'Completed', 'No-Show', 'Cancelled'])
@@ -1194,3 +1283,76 @@ export const meetingAgendaItems = pgTable('meeting_agenda_items', {
 
 export type MeetingAgendaItem = typeof meetingAgendaItems.$inferSelect
 export type NewMeetingAgendaItem = typeof meetingAgendaItems.$inferInsert
+
+// ── Generated Student Reports (Report Card Engine) ────────────────────────────
+// Primary record for generated student term reports, progress cards, and analytics.
+// Replaces the existing `progressReports` table for new report generation.
+// Status: DRAFT | PUBLISHED | SENT_TO_PARENT
+// ReportType: COMPREHENSIVE | MID_TERM | FINAL | MOCK_TEST | QUARTERLY
+export const generatedStudentReports = pgTable('generated_student_reports', {
+  id:        uuid('id').defaultRandom().primaryKey(),
+  schoolId:  uuid('school_id').notNull().references(() => schools.id, { onDelete: 'cascade' }),
+  studentId: uuid('student_id').notNull().references(() => students.id, { onDelete: 'cascade' }),
+  batchId:   uuid('batch_id').references(() => batches.id, { onDelete: 'set null' }),
+
+  reportTitle:  varchar('report_title', { length: 255 }).notNull(),
+  reportType:   varchar('report_type',  { length: 50  }).notNull().default('COMPREHENSIVE'),
+  academicYear: varchar('academic_year',{ length: 20  }).notNull(),
+  term:         varchar('term',         { length: 50  }).notNull(),
+
+  // ── Aggregate Metrics ──
+  overallPercentage:          varchar('overall_percentage',           { length: 10 }).notNull().default('0%'),
+  overallGrade:               varchar('overall_grade',                { length: 10 }).notNull().default('N/A'),
+  classRank:                  varchar('class_rank',                   { length: 20 }).default('-'),
+  batchRank:                  varchar('batch_rank',                   { length: 20 }).default('-'),
+  attendancePercentage:       integer('attendance_percentage').default(0),
+  syllabusCoveragePercentage: integer('syllabus_coverage_percentage').default(0),
+
+  // ── Teacher & Principal Feedback ──
+  strengthAreas:    text('strength_areas').default(''),
+  improvementAreas: text('improvement_areas').default(''),
+  teacherRemarks:   text('teacher_remarks').default(''),
+  principalRemarks: text('principal_remarks').default(''),
+
+  // ── Export ──
+  pdfUrl:  text('pdf_url'),
+  status:  varchar('status', { length: 20 }).notNull().default('DRAFT'),
+
+  generatedBy: uuid('generated_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt:   timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt:   timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schoolIdx:   index('gsr_school_idx').on(table.schoolId),
+  studentIdx:  index('gsr_student_idx').on(table.studentId),
+  batchIdx:    index('gsr_batch_idx').on(table.batchId),
+  termIdx:     index('gsr_term_idx').on(table.academicYear, table.term),
+}))
+
+export type GeneratedStudentReport    = typeof generatedStudentReports.$inferSelect
+export type NewGeneratedStudentReport = typeof generatedStudentReports.$inferInsert
+
+// ── Report Subject Analytics ───────────────────────────────────────────────────
+// Fine-grained per-subject breakdown inside a generated student report card.
+// One row per subject per report.
+export const reportSubjectAnalytics = pgTable('report_subject_analytics', {
+  id:       uuid('id').defaultRandom().primaryKey(),
+  reportId: uuid('report_id').notNull().references(() => generatedStudentReports.id, { onDelete: 'cascade' }),
+  subjectName: varchar('subject_name', { length: 100 }).notNull(),
+
+  marksObtained: integer('marks_obtained').notNull().default(0),
+  maxMarks:      integer('max_marks').notNull().default(100),
+  grade:         varchar('grade', { length: 10 }).notNull().default('A'),
+
+  // ── Syllabus coverage ──
+  totalChaptersTaught:    integer('total_chapters_taught').default(0),
+  completedChaptersCount: integer('completed_chapters_count').default(0),
+  conceptsMasteredCount:  integer('concepts_mastered_count').default(0),
+  conceptsTotalCount:     integer('concepts_total_count').default(0),
+
+  subjectTeacherRemarks: text('subject_teacher_remarks').default(''),
+}, (table) => ({
+  reportSubjectUnique: uniqueIndex('rsa_report_subject_unique').on(table.reportId, table.subjectName),
+}))
+
+export type ReportSubjectAnalytics    = typeof reportSubjectAnalytics.$inferSelect
+export type NewReportSubjectAnalytics = typeof reportSubjectAnalytics.$inferInsert

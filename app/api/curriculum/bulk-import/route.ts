@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { chapters, concepts, programs, type NewChapter, type NewConcept } from '@/lib/db/schema'
+import { chapters, concepts, subjects, programs, type NewChapter, type NewConcept } from '@/lib/db/schema'
 import { eq, and, ilike } from 'drizzle-orm'
+import { upsertMasterCurriculumRows, type MasterCurriculumImportRow } from '@/lib/db/queries/master-curriculum'
 
 export const dynamic = 'force-dynamic'
 
@@ -171,9 +172,40 @@ export async function POST(req: NextRequest) {
       console.error('Curriculum bulk import failures:', errors)
     }
 
+    // ── Dual-write into master_curriculum (non-fatal) ─────────────────────
+    let mcResult: { inserted: number; updated: number; errors: { row: string; message: string }[] } =
+      { inserted: 0, updated: 0, errors: [] }
+    if (schoolId) {
+      try {
+        // Resolve subject name
+        const [subjectRow] = await db.select({ name: subjects.name }).from(subjects).where(eq(subjects.id, subjectId))
+        const subjectName = subjectRow?.name ?? ''
+
+        const mcRows: MasterCurriculumImportRow[] = rows
+          .filter(r => r.chapterName?.trim() && r.conceptName?.trim())
+          .map(r => ({
+            board:        r.board?.trim()         ?? '',
+            program:      r.program?.trim()       ?? '',
+            classLevel:   r.classLevel?.trim()    ?? '',
+            subject:      subjectName,
+            chapterName:  r.chapterName.trim(),
+            chapterCode:  r.chapterCode?.trim()   ?? '',
+            expectedHours: r.expectedHours ? Number(r.expectedHours) : 0,
+            conceptName:  r.conceptName!.trim(),
+            conceptCode:  r.conceptCode?.trim()   ?? '',
+          }))
+
+        mcResult = await upsertMasterCurriculumRows(mcRows, schoolId)
+      } catch (err: any) {
+        console.error('master_curriculum dual-write error (non-fatal):', err.message)
+        mcResult.errors.push({ row: 'bulk', message: err.message })
+      }
+    }
+
     return NextResponse.json({
       chapters: { succeeded: chaptersSucceeded, failed: chapterGroups.size - chaptersSucceeded, total: chapterGroups.size },
       concepts: { succeeded: conceptsSucceeded, failed: conceptRowsWithIndex.length - conceptsSucceeded, total: conceptRowsWithIndex.length },
+      masterCurriculum: { inserted: mcResult.inserted, errors: mcResult.errors },
       errors,
     }, { status: 201 })
   } catch (error: any) {
