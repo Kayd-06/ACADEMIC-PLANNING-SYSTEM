@@ -184,6 +184,7 @@ export async function upsertMasterCurriculumRows(
               masterCurriculum.subject,
               masterCurriculum.conceptCode,
             ],
+            targetWhere: sql`concept_code <> ''`,
             set: {
               chapterName:       values.chapterName,
               chapterCode:       values.chapterCode,
