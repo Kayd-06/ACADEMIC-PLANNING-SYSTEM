@@ -16,9 +16,11 @@ interface ParsedRow {
 }
 
 interface SubjectOption { id: string; name: string }
+interface ProgramOption { id: string; name: string }
 
 interface CurriculumCsvUploadModalProps {
   subjects: SubjectOption[]
+  programs: ProgramOption[]          // real programs from DB
   defaultSubjectId: string
   onClose: () => void
   onImported: (subjectId: string) => void
@@ -28,23 +30,27 @@ export const TEMPLATE_HEADERS = [
   'Chapter Name', 'Chapter Code', 'Board', 'Class', 'Program', 'Expected Hours', 'Concept Name', 'Concept Code',
 ]
 
-export function downloadTemplate() {
+// Accept optional real names so the sample rows are not hardcoded.
+export function downloadTemplate(firstProgram = 'JEE', firstSubject = 'Physics') {
   const data = [
     TEMPLATE_HEADERS,
-    ['Laws of Motion', 'PHY-CH3', 'CBSE', '11', 'JEE', '12', "Newton's First Law", 'C1'],
-    ['Laws of Motion', '', '', '', '', '', "Newton's Second Law", 'C2'],
-    ['Laws of Motion', '', '', '', '', '', "Newton's Third Law", 'C3'],
-    ['Optics', 'PHY-CH4', 'CBSE', '12', 'NEET', '10', 'Refraction', ''],
-    ['Thermodynamics', 'PHY-CH5', 'CBSE', '11', 'JEE', '8', '', ''],
+    // Chapter-only row (no concept)
+    [`${firstSubject} Ch.1: Introduction`, `${firstSubject.slice(0,3).toUpperCase()}-11-CH01`, 'CBSE', '11', firstProgram, '8', '', ''],
+    // Chapter with three concepts
+    [`${firstSubject} Ch.2: Core Concepts`,  `${firstSubject.slice(0,3).toUpperCase()}-11-CH02`, 'CBSE', '11', firstProgram, '12', 'Concept 1: Basics',    `${firstSubject.slice(0,3).toUpperCase()}-11-CH02-CP01`],
+    [`${firstSubject} Ch.2: Core Concepts`,  '',                                                  '',     '',   '',            '',   'Concept 2: Advanced', `${firstSubject.slice(0,3).toUpperCase()}-11-CH02-CP02`],
+    [`${firstSubject} Ch.2: Core Concepts`,  '',                                                  '',     '',   '',            '',   'Concept 3: Practice', `${firstSubject.slice(0,3).toUpperCase()}-11-CH02-CP03`],
+    // Class 12 row with State Board
+    [`${firstSubject} Ch.3: Advanced`,       `${firstSubject.slice(0,3).toUpperCase()}-12-CH03`, 'State Board', '12', firstProgram, '10', 'Concept 1: Overview', `${firstSubject.slice(0,3).toUpperCase()}-12-CH03-CP01`],
   ]
   const ws = XLSX.utils.aoa_to_sheet(data)
-  ws['!cols'] = TEMPLATE_HEADERS.map((h) => ({ wch: Math.max(14, Math.min(28, h.length + 4)) }))
+  ws['!cols'] = TEMPLATE_HEADERS.map(h => ({ wch: Math.max(16, Math.min(30, h.length + 4)) }))
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Curriculum')
   XLSX.writeFile(wb, 'curriculum_import_template.xlsx')
 }
 
-export default function CurriculumCsvUploadModal({ subjects, defaultSubjectId, onClose, onImported }: CurriculumCsvUploadModalProps) {
+export default function CurriculumCsvUploadModal({ subjects, programs, defaultSubjectId, onClose, onImported }: CurriculumCsvUploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [subjectId, setSubjectId] = useState(defaultSubjectId)
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([])
@@ -197,7 +203,13 @@ export default function CurriculumCsvUploadModal({ subjects, defaultSubjectId, o
             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Format template</span>
           </div>
-          <button onClick={downloadTemplate} className="text-xs text-indigo-655 font-bold hover:text-indigo-700 transition-colors flex items-center gap-1.5 cursor-pointer">
+          <button
+            onClick={() => downloadTemplate(
+              programs[0]?.name ?? 'JEE',
+              subjects.find(s => s.id === subjectId)?.name ?? subjects[0]?.name ?? 'Physics',
+            )}
+            className="text-xs text-indigo-655 font-bold hover:text-indigo-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
             <Download className="w-3.5 h-3.5" /> Download Sample CSV
           </button>
         </div>
