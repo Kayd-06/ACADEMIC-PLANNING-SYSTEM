@@ -9,8 +9,12 @@ import {
   concepts,
   dailyStudentRatings,
   ptmReports,
+  subjects,
+  batchSyllabus,
+  attendanceEntries,
+  attendanceSessions,
 } from '@/lib/db/schema'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, and, gte, lte, sql } from 'drizzle-orm'
 
 export interface SubjectBreakdownEntry {
   subject: string
@@ -32,6 +36,19 @@ export interface TopicMasteryEntry {
   mastery: number
   category: 'Chapter' | 'Concept'
   parent: string
+}
+
+export interface StudentAnalyticsRange {
+  fromDate: string
+  toDate: string
+}
+
+export interface SubjectCoverageEntry {
+  subject: string
+  totalChaptersTaught: number
+  completedChaptersCount: number
+  conceptsTotalCount: number
+  conceptsMasteredCount: number
 }
 
 export interface StudentAnalyticsResult {
@@ -83,6 +100,12 @@ export interface StudentAnalyticsResult {
       date: string | Date | null
     }>
   }
+  attendance: {
+    percentage: number
+    presentCount: number
+    totalSessions: number
+  }
+  subjectCoverage: SubjectCoverageEntry[]
   teacherFeedbackSummary: {
     dailyRatingsCount: number
     ratings: {
@@ -111,6 +134,7 @@ export interface StudentAnalyticsResult {
 export async function computeStudentAnalytics(
   studentId: string,
   schoolId: string | null,
+  range?: StudentAnalyticsRange,
 ): Promise<StudentAnalyticsResult | null> {
   // 1. Fetch Student Details, scoped to the caller's school
   const studentConditions = [eq(students.id, studentId)]
@@ -119,6 +143,11 @@ export async function computeStudentAnalytics(
   if (!student) return null
 
   // 2. Fetch All Test Responses for the Student
+  const responseConditions = [eq(testQuestionResponses.studentId, studentId)]
+  if (range) {
+    responseConditions.push(gte(tests.date, range.fromDate))
+    responseConditions.push(lte(tests.date, range.toDate))
+  }
   const responses = await db
     .select({
       responseId: testQuestionResponses.id,
@@ -145,11 +174,15 @@ export async function computeStudentAnalytics(
     .innerJoin(questions, eq(questions.id, testQuestionResponses.questionId))
     .leftJoin(chapters, eq(chapters.id, questions.chapterId))
     .leftJoin(concepts, eq(concepts.id, questions.conceptId))
-    .where(eq(testQuestionResponses.studentId, studentId))
+    .where(and(...responseConditions))
 
   // 3. Fetch Test Grades for Batch Rank & Percentile (same batch, same school)
   const batchConditions = [eq(students.batch, student.batch)]
   if (schoolId) batchConditions.push(eq(students.schoolId, schoolId))
+  if (range) {
+    batchConditions.push(gte(tests.date, range.fromDate))
+    batchConditions.push(lte(tests.date, range.toDate))
+  }
   const allGrades = await db
     .select({
       studentId: testGrades.studentId,
@@ -159,6 +192,7 @@ export async function computeStudentAnalytics(
     })
     .from(testGrades)
     .innerJoin(students, eq(students.id, testGrades.studentId))
+    .innerJoin(tests, eq(tests.id, testGrades.testId))
     .where(and(...batchConditions))
 
   const studentTotalMarks = allGrades
@@ -180,7 +214,7 @@ export async function computeStudentAnalytics(
   // Subject, Chapter, Concept Breakdown
   const subjectStats = new Map<string, { name: string; marksObtained: number; maxMarks: number; correct: number; total: number }>()
   const chapterStats = new Map<string, { title: string; subject: string; correct: number; total: number }>()
-  const conceptStats = new Map<string, { title: string; chapter: string; correct: number; total: number }>()
+  const conceptStats = new Map<string, { title: string; chapter: string; subject: string; correct: number; total: number }>()
 
   let totalMarksAttempted = 0
   let totalMarksObtained = 0
@@ -244,7 +278,7 @@ export async function computeStudentAnalytics(
     if (r.conceptName) {
       const conTitle = r.conceptName
       if (!conceptStats.has(conTitle)) {
-        conceptStats.set(conTitle, { title: conTitle, chapter: r.chapterName || 'General', correct: 0, total: 0 })
+        conceptStats.set(conTitle, { title: conTitle, chapter: r.chapterName || 'General', subject: subjName, correct: 0, total: 0 })
       }
       const conStat = conceptStats.get(conTitle)!
       conStat.total++
@@ -324,6 +358,70 @@ export async function computeStudentAnalytics(
   const ptmAttendedCount = ptmRows.filter((p) => p.parentAttended).length
   const ptmAttendanceRate = ptmRows.length > 0 ? Math.round((ptmAttendedCount / ptmRows.length) * 100) : 0
 
+  // 5. Attendance % over range (or all-time when no range given)
+  const attendanceConditions = [eq(attendanceEntries.studentId, studentId)]
+  if (range) {
+    attendanceConditions.push(gte(attendanceSessions.date, range.fromDate))
+    attendanceConditions.push(lte(attendanceSessions.date, range.toDate))
+  }
+  if (schoolId) attendanceConditions.push(eq(attendanceSessions.schoolId, schoolId))
+  const attendanceRows = await db
+    .select({ status: attendanceEntries.status })
+    .from(attendanceEntries)
+    .innerJoin(attendanceSessions, eq(attendanceSessions.id, attendanceEntries.sessionId))
+    .where(and(...attendanceConditions))
+
+  const presentCount = attendanceRows.filter((r) => r.status === 'Present').length
+  const totalSessions = attendanceRows.length
+  const attendancePercentage = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0
+
+  // 6. Syllabus chapter coverage per subject, scoped to the student's batch
+  let chapterCoverageBySubject = new Map<string, { total: number; completed: number }>()
+  if (student.batchId) {
+    const syllabusRows = await db
+      .select({
+        subjectName: subjects.name,
+        status: batchSyllabus.status,
+      })
+      .from(batchSyllabus)
+      .innerJoin(chapters, eq(chapters.id, batchSyllabus.chapterId))
+      .innerJoin(subjects, eq(subjects.id, chapters.subjectId))
+      .where(eq(batchSyllabus.batchId, student.batchId))
+
+    for (const row of syllabusRows) {
+      const bucket = chapterCoverageBySubject.get(row.subjectName) ?? { total: 0, completed: 0 }
+      bucket.total++
+      if (row.status === 'Completed') bucket.completed++
+      chapterCoverageBySubject.set(row.subjectName, bucket)
+    }
+  }
+
+  // 7. Concept mastery counts per subject, reusing the >=75 "mastered" threshold
+  const conceptCoverageBySubject = new Map<string, { total: number; mastered: number }>()
+  conceptStats.forEach((cs) => {
+    const bucket = conceptCoverageBySubject.get(cs.subject) ?? { total: 0, mastered: 0 }
+    bucket.total++
+    const mastery = cs.total > 0 ? Math.round((cs.correct / cs.total) * 100) : 0
+    if (mastery >= 75) bucket.mastered++
+    conceptCoverageBySubject.set(cs.subject, bucket)
+  })
+
+  const allCoverageSubjects = new Set<string>([
+    ...chapterCoverageBySubject.keys(),
+    ...conceptCoverageBySubject.keys(),
+  ])
+  const subjectCoverage: SubjectCoverageEntry[] = Array.from(allCoverageSubjects).map((subject) => {
+    const chapterInfo = chapterCoverageBySubject.get(subject)
+    const conceptInfo = conceptCoverageBySubject.get(subject)
+    return {
+      subject,
+      totalChaptersTaught: chapterInfo?.total ?? 0,
+      completedChaptersCount: chapterInfo?.completed ?? 0,
+      conceptsTotalCount: conceptInfo?.total ?? 0,
+      conceptsMasteredCount: conceptInfo?.mastered ?? 0,
+    }
+  })
+
   return {
     student: {
       id: student.id,
@@ -383,6 +481,12 @@ export async function computeStudentAnalytics(
       averageTopics,
       weakTopics,
     },
+    attendance: {
+      percentage: attendancePercentage,
+      presentCount,
+      totalSessions,
+    },
+    subjectCoverage,
     errorLogs: {
       mistakeTypeSummary: mistakeTypeCounts,
       recentErrors: responses
