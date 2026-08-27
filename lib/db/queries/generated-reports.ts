@@ -233,6 +233,52 @@ export async function upsertReportSubjectAnalytics(
     .returning()
 }
 
+export async function getReportByStudentTerm(
+  studentId: string,
+  academicYear: string,
+  term: string,
+  schoolId?: string | null,
+): Promise<GeneratedStudentReport | null> {
+  const conditions = [
+    eq(generatedStudentReports.studentId, studentId),
+    eq(generatedStudentReports.academicYear, academicYear),
+    eq(generatedStudentReports.term, term),
+  ]
+  if (schoolId) conditions.push(eq(generatedStudentReports.schoolId, schoolId))
+
+  const [report] = await db
+    .select()
+    .from(generatedStudentReports)
+    .where(and(...conditions))
+
+  return report ?? null
+}
+
+export async function replaceReportSubjectAnalytics(
+  reportId: string,
+  subjects: SubjectAnalyticsPayload[],
+): Promise<ReportSubjectAnalytics[]> {
+  await db.delete(reportSubjectAnalytics).where(eq(reportSubjectAnalytics.reportId, reportId))
+
+  if (subjects.length === 0) return []
+
+  return db
+    .insert(reportSubjectAnalytics)
+    .values(subjects.map((s) => ({
+      reportId,
+      subjectName:            s.subjectName,
+      marksObtained:          s.marksObtained,
+      maxMarks:               s.maxMarks,
+      grade:                  s.grade,
+      totalChaptersTaught:    s.totalChaptersTaught    ?? 0,
+      completedChaptersCount: s.completedChaptersCount ?? 0,
+      conceptsMasteredCount:  s.conceptsMasteredCount  ?? 0,
+      conceptsTotalCount:     s.conceptsTotalCount     ?? 0,
+      subjectTeacherRemarks:  s.subjectTeacherRemarks  ?? '',
+    })))
+    .returning()
+}
+
 export async function deleteGeneratedReport(
   id: string,
   schoolId?: string | null,
