@@ -1,18 +1,21 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { listReports } from '@/lib/db/queries/student-reports'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const reports =
-      session.user.role === 'management'
-        ? await listReports()
-        : await listReports({ teacherId: session.user.id })
+    const schoolId = getSchoolId(session)
+    if (!schoolId) return NextResponse.json({ error: 'No active school selected' }, { status: 400 })
+
+    const reports = await listReports({
+      schoolId,
+      teacherId: session.user.role === 'teacher' ? session.user.id : undefined,
+    })
 
     const formatted = reports.map((r) => ({
       _id: r.id,

@@ -586,33 +586,49 @@ export const counselingSessions = pgTable('counseling_sessions', {
 export type CounselingSession = typeof counselingSessions.$inferSelect
 export type NewCounselingSession = typeof counselingSessions.$inferInsert
 
-export const studentReports = pgTable('student_reports', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  teacherId: uuid('teacher_id').notNull(),
-  teacherName: varchar('teacher_name', { length: 255 }).notNull(),
-  className: varchar('class_name', { length: 255 }).notNull(),
-  subject: varchar('subject', { length: 255 }).notNull(),
-  term: varchar('term', { length: 255 }).notNull(),
-  schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-})
+export const studentReports = pgTable(
+  'student_reports',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    teacherId: uuid('teacher_id').notNull(),
+    teacherName: varchar('teacher_name', { length: 255 }).notNull(),
+    className: varchar('class_name', { length: 255 }).notNull(),
+    subject: varchar('subject', { length: 255 }).notNull(),
+    term: varchar('term', { length: 255 }).notNull(),
+    importedByRole: varchar('imported_by_role', { length: 20 }).notNull().default('teacher'),
+    sourceFileName: varchar('source_file_name', { length: 255 }),
+    schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    schoolIndex: index('student_reports_school_idx').on(table.schoolId),
+    teacherIndex: index('student_reports_teacher_idx').on(table.teacherId),
+    filtersIndex: index('student_reports_filters_idx').on(table.schoolId, table.className, table.subject, table.term),
+  })
+)
 
 export type StudentReport = typeof studentReports.$inferSelect
 export type NewStudentReport = typeof studentReports.$inferInsert
 
-export const studentReportEntries = pgTable('student_report_entries', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  reportId: uuid('report_id')
-    .notNull()
-    .references(() => studentReports.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 255 }).notNull(),
-  rollNo: varchar('roll_no', { length: 255 }).notNull().default(''),
-  marks: integer('marks').notNull(),
-  maxMarks: integer('max_marks').notNull().default(100),
-  grade: varchar('grade', { length: 10 }).notNull(),
-  attendance: integer('attendance'),
-  remarks: varchar('remarks', { length: 1000 }),
-})
+export const studentReportEntries = pgTable(
+  'student_report_entries',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    reportId: uuid('report_id')
+      .notNull()
+      .references(() => studentReports.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    rollNo: varchar('roll_no', { length: 255 }).notNull().default(''),
+    marks: integer('marks').notNull(),
+    maxMarks: integer('max_marks').notNull().default(100),
+    grade: varchar('grade', { length: 10 }).notNull(),
+    attendance: integer('attendance'),
+    remarks: varchar('remarks', { length: 1000 }),
+  },
+  (table) => ({
+    reportIndex: index('student_report_entries_report_idx').on(table.reportId),
+  })
+)
 
 export type StudentReportEntry = typeof studentReportEntries.$inferSelect
 export type NewStudentReportEntry = typeof studentReportEntries.$inferInsert

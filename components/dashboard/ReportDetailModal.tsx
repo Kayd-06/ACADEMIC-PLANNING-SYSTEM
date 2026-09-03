@@ -20,6 +20,8 @@ interface ReportEntry {
 interface ReportDetail {
   _id: string
   teacherName: string
+  importedByRole: string
+  sourceFileName: string | null
   className: string
   subject: string
   term: string
@@ -39,8 +41,6 @@ export default function ReportDetailModal({ reportId, onClose }: ReportDetailMod
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    setError('')
     fetch(`/api/student-reports/${reportId}`)
       .then(async (res) => {
         if (!res.ok) {
@@ -65,7 +65,8 @@ export default function ReportDetailModal({ reportId, onClose }: ReportDetailMod
             </h2>
             {report && (
               <p className="text-[12px] text-slate-500 mt-0.5">
-                {report.term} · Uploaded by {report.teacherName} · {report.date}
+                {report.term} · Imported by {report.teacherName}{report.importedByRole === 'management' ? ' (Management)' : ''} · {report.date}
+                {report.sourceFileName && <> · {report.sourceFileName}</>}
               </p>
             )}
           </div>

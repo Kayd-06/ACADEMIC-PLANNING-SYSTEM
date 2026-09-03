@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { listReports, getDashboardData } from '@/lib/db/queries/student-reports'
 import { formatDate } from '@/lib/date'
 
@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
     const subjectParam = url.searchParams.get('subject') || undefined
     const termParam = url.searchParams.get('term') || undefined
     const teacherId = session.user.role === 'teacher' ? session.user.id : undefined
-    const schoolId = (session.user as any).schoolId as string | undefined
+    const schoolId = getSchoolId(session)
+    if (!schoolId) return NextResponse.json({ error: 'No active school selected' }, { status: 400 })
 
     const filters = { schoolId, teacherId, class: classParam, subject: subjectParam, term: termParam }
 

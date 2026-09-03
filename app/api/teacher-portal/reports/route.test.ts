@@ -33,10 +33,25 @@ describe('POST /api/teacher-portal/reports', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects non-teacher roles', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { id: 'x', role: 'management' } })
-    const res = await POST(req('http://localhost/api/teacher-portal/reports', { method: 'POST', body: JSON.stringify({ className: 'A', subject: 'B', term: 'C', students: [{ name: 'X', marks: 1, grade: 'A' }] }) }))
-    expect(res.status).toBe(403)
+  it('allows management users to import reports', async () => {
+    const [manager] = await db
+      .insert(users)
+      .values({ name: 'Academic Admin', email: 'admin-import@example.com', password: 'x', role: 'management' })
+      .returning()
+    ;(auth as jest.Mock).mockResolvedValue({ user: { id: manager.id, name: manager.name, role: 'management' } })
+
+    const res = await POST(req('http://localhost/api/teacher-portal/reports', {
+      method: 'POST',
+      body: JSON.stringify({
+        className: 'Grade 10-A', subject: 'Physics', term: 'Finals', sourceFileName: 'marks.xlsx',
+        students: [{ name: 'Student A', rollNo: '1', marks: 81, maxMarks: 100 }],
+      }),
+    }))
+    expect(res.status).toBe(201)
+
+    const [report] = await db.select().from(studentReports)
+    expect(report.importedByRole).toBe('management')
+    expect(report.sourceFileName).toBe('marks.xlsx')
   })
 
   it('saves a report with the session teacherId, without requiring attendance', async () => {
@@ -63,6 +78,7 @@ describe('POST /api/teacher-portal/reports', () => {
     const entries = await db.select().from(studentReportEntries)
     expect(entries).toHaveLength(1)
     expect(entries[0].attendance).toBeNull()
+    expect(entries[0].grade).toBe('B')
   })
 
   it('saves attendance and remarks when the payload includes them', async () => {

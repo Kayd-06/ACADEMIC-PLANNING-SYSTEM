@@ -21,6 +21,8 @@ export interface CreateReportInput {
   schoolId?: string
   teacherId: string
   teacherName: string
+  importedByRole?: 'teacher' | 'management'
+  sourceFileName?: string | null
   className: string
   subject: string
   term: string
@@ -50,6 +52,8 @@ export async function createReport(data: CreateReportInput): Promise<ReportWithE
       schoolId: data.schoolId || null,
       teacherId: data.teacherId,
       teacherName: data.teacherName,
+      importedByRole: data.importedByRole ?? 'teacher',
+      sourceFileName: data.sourceFileName ?? null,
       className: data.className,
       subject: data.subject,
       term: data.term,
@@ -60,21 +64,29 @@ export async function createReport(data: CreateReportInput): Promise<ReportWithE
     return { ...report, entries: [] }
   }
 
-  const entries = await db
-    .insert(studentReportEntries)
-    .values(
-      data.entries.map((e) => ({
-        reportId: report.id,
-        name: e.name,
-        rollNo: e.rollNo ?? '',
-        marks: e.marks,
-        maxMarks: e.maxMarks ?? 100,
-        grade: e.grade,
-        attendance: e.attendance ?? null,
-        remarks: e.remarks ?? null,
-      }))
-    )
-    .returning()
+  let entries: StudentReportEntry[]
+  try {
+    entries = await db
+      .insert(studentReportEntries)
+      .values(
+        data.entries.map((e) => ({
+          reportId: report.id,
+          name: e.name,
+          rollNo: e.rollNo ?? '',
+          marks: e.marks,
+          maxMarks: e.maxMarks ?? 100,
+          grade: e.grade,
+          attendance: e.attendance ?? null,
+          remarks: e.remarks ?? null,
+        }))
+      )
+      .returning()
+  } catch (error) {
+    // Neon HTTP does not support interactive transactions. Compensate so a
+    // failed row insert never leaves an empty report header behind.
+    await db.delete(studentReports).where(eq(studentReports.id, report.id))
+    throw error
+  }
 
   return { ...report, entries }
 }
@@ -95,6 +107,8 @@ export async function listReports(filters: ListReportsFilters = {}): Promise<Stu
       className: studentReports.className,
       subject: studentReports.subject,
       term: studentReports.term,
+      importedByRole: studentReports.importedByRole,
+      sourceFileName: studentReports.sourceFileName,
       schoolId: studentReports.schoolId,
       createdAt: studentReports.createdAt,
       studentCount: sql<number>`count(${studentReportEntries.id})::int`,
@@ -108,6 +122,8 @@ export async function listReports(filters: ListReportsFilters = {}): Promise<Stu
       studentReports.className,
       studentReports.subject,
       studentReports.term,
+      studentReports.importedByRole,
+      studentReports.sourceFileName,
       studentReports.schoolId,
       studentReports.createdAt
     )

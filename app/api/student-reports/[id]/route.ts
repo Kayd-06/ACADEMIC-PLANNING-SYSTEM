@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { students } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
@@ -13,10 +13,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const schoolId = getSchoolId(session)
+    if (!schoolId) return NextResponse.json({ error: 'No active school selected' }, { status: 400 })
 
     const { id } = await params
     const report = await getReportById(id)
     if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (report.schoolId !== schoolId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     if (session.user.role === 'teacher' && report.teacherId !== session.user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -25,7 +28,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Resolve each entry's roll number to the real student record so we can
     // compute their live attendance % and assignment average, rather than
     // only showing the marks captured at upload time for this one report.
-    const schoolId = report.schoolId
     const rollNos = report.entries.map((e) => e.rollNo).filter(Boolean)
     const studentCond = [eq(students.class, report.className)]
     if (schoolId) studentCond.push(eq(students.schoolId, schoolId))
@@ -67,6 +69,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       _id: report.id,
       teacherName: report.teacherName,
+      importedByRole: report.importedByRole,
+      sourceFileName: report.sourceFileName,
       className: report.className,
       subject: report.subject,
       term: report.term,

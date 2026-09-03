@@ -1,10 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Download, Search, AlertTriangle, ChevronRight, Award, CheckCircle, Loader2 } from 'lucide-react'
+import { Download, Search, AlertTriangle, ChevronRight, Award, CheckCircle, Loader2, Upload } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import ReportDetailModal from '@/components/dashboard/ReportDetailModal'
 import ExportFormatModal from '@/components/dashboard/ExportFormatModal'
 import { downloadTabularReportPDF } from '@/lib/pdf/reportPdfGenerator'
+import StudentReportImportModal from '@/components/dashboard/StudentReportImportModal'
 
 interface PerformanceTrend {
   _id: string
@@ -72,6 +73,8 @@ export default function StudentReportsView() {
 
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
   const [showExportModal, setShowExportModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -79,7 +82,6 @@ export default function StudentReportsView() {
   }
 
   useEffect(() => {
-    setLoading(true)
     const params = new URLSearchParams()
     if (selectedClass !== 'All Classes') params.set('class', selectedClass)
     if (selectedSubject !== 'All Subjects') params.set('subject', selectedSubject)
@@ -110,7 +112,7 @@ export default function StudentReportsView() {
         }
       })
       .catch(err => console.error('Failed to fetch mistake analytics', err))
-  }, [selectedClass, selectedSubject, selectedTerm])
+  }, [selectedClass, selectedSubject, selectedTerm, refreshKey])
 
   const filteredReports = uploadedReports.filter(rep => {
     if (!searchQuery) return true
@@ -124,7 +126,7 @@ export default function StudentReportsView() {
 
   const handleExport = async (format: 'PDF' | 'CSV') => {
     if (filteredReports.length === 0) { showToast('No reports to export'); return }
-    const headers = ['Teacher', 'Class', 'Subject', 'Term', 'Date', 'Students']
+    const headers = ['Imported by', 'Class', 'Subject', 'Term', 'Date', 'Students']
 
     if (format === 'CSV') {
       const rows = filteredReports.map(r => [r.name, r.className, r.subject, r.term, r.date, r.students])
@@ -171,26 +173,31 @@ export default function StudentReportsView() {
           <h1 className="text-2xl font-bold text-slate-900">Student Reports & Analytics</h1>
           <p className="text-[13px] text-slate-500 mt-1">Unified 5-in-1 Student Progress Reports and Class Analytics</p>
         </div>
-        <div className="bg-slate-100 p-1.5 rounded-2xl flex gap-1 border border-slate-200">
-          <button
-            onClick={() => setMainTab('hub')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              mainTab === 'hub'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-            }`}
-          >
-            Student Reports Hub (5-in-1)
-          </button>
-          <button
-            onClick={() => setMainTab('uploaded')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              mainTab === 'uploaded'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-            }`}
-          >
-            Uploaded Reports Overview
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="bg-slate-100 p-1.5 rounded-2xl flex gap-1 border border-slate-200">
+            <button
+              onClick={() => setMainTab('hub')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                mainTab === 'hub'
+                  ? 'bg-slate-900 text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              Student Reports Hub (5-in-1)
+            </button>
+            <button
+              onClick={() => setMainTab('uploaded')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                mainTab === 'uploaded'
+                  ? 'bg-slate-900 text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              Uploaded Reports Overview
+            </button>
+          </div>
+          <button onClick={() => setShowImportModal(true)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-indigo-700">
+            <Upload className="h-4 w-4" /> Import report
           </button>
         </div>
       </div>
@@ -203,15 +210,15 @@ export default function StudentReportsView() {
       {/* Filters Bar */}
       <div className="flex flex-wrap items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm mb-6 gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <select value={selectedClass} onChange={(e) => { setSelectedClass(e.target.value); setCurrentPage(1) }} className="px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors outline-none cursor-pointer">
+          <select value={selectedClass} onChange={(e) => { setLoading(true); setSelectedClass(e.target.value); setCurrentPage(1) }} className="px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors outline-none cursor-pointer">
             <option>All Classes</option>
             {filterOptions.classes.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select value={selectedTerm} onChange={(e) => { setSelectedTerm(e.target.value); setCurrentPage(1) }} className="px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors outline-none cursor-pointer">
+          <select value={selectedTerm} onChange={(e) => { setLoading(true); setSelectedTerm(e.target.value); setCurrentPage(1) }} className="px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors outline-none cursor-pointer">
             <option>All Terms</option>
             {filterOptions.terms.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
-          <select value={selectedSubject} onChange={(e) => { setSelectedSubject(e.target.value); setCurrentPage(1) }} className="px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors outline-none cursor-pointer">
+          <select value={selectedSubject} onChange={(e) => { setLoading(true); setSelectedSubject(e.target.value); setCurrentPage(1) }} className="px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors outline-none cursor-pointer">
             <option>All Subjects</option>
             {filterOptions.subjects.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -287,7 +294,7 @@ export default function StudentReportsView() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-slate-50/50">
-                    {['Teacher', 'Class / Subject', 'Term', 'Uploaded', 'Students'].map(h => (
+                    {['Imported by', 'Class / Subject', 'Term', 'Uploaded', 'Students'].map(h => (
                       <th key={h} className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">{h}</th>
                     ))}
                   </tr>
@@ -415,6 +422,19 @@ export default function StudentReportsView() {
 
       {selectedReportId && (
         <ReportDetailModal reportId={selectedReportId} onClose={() => setSelectedReportId(null)} />
+      )}
+
+      {showImportModal && (
+        <StudentReportImportModal
+          onClose={() => setShowImportModal(false)}
+          onImported={(result) => {
+            setShowImportModal(false)
+            setMainTab('uploaded')
+            setLoading(true)
+            setRefreshKey((value) => value + 1)
+            showToast(result.message)
+          }}
+        />
       )}
 
     </div>
