@@ -59,6 +59,10 @@ export async function POST(req: NextRequest) {
         meetingId: newMeeting.id,
         itemTitle: item.itemTitle,
         description: item.description || '',
+        discussion: item.discussion || '',
+        action: item.action || '',
+        responsibility: item.responsibility || '',
+        targetDate: item.targetDate || '',
         status: item.status || 'Not Started',
         schoolId
       }))
@@ -86,9 +90,18 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json()
 
     if (agendaItemId) {
-      const { status } = body
-      if (!status) return NextResponse.json({ error: 'Status is required' }, { status: 400 })
-      const [updated] = await db.update(meetingAgendaItems).set({ status, updatedAt: new Date() }).where(eq(meetingAgendaItems.id, agendaItemId)).returning()
+      const { status, itemTitle, description, discussion, action, responsibility, targetDate } = body
+      
+      const updates: any = { updatedAt: new Date() }
+      if (status !== undefined) updates.status = status
+      if (itemTitle !== undefined) updates.itemTitle = itemTitle
+      if (description !== undefined) updates.description = description
+      if (discussion !== undefined) updates.discussion = discussion
+      if (action !== undefined) updates.action = action
+      if (responsibility !== undefined) updates.responsibility = responsibility
+      if (targetDate !== undefined) updates.targetDate = targetDate
+
+      const [updated] = await db.update(meetingAgendaItems).set(updates).where(eq(meetingAgendaItems.id, agendaItemId)).returning()
       return NextResponse.json(updated)
     }
 

@@ -1,0 +1,10 @@
+#!/usr/bin/expect -f
+set timeout 5
+spawn npx drizzle-kit generate
+expect {
+    -re ".*\?.*" {
+        send "\r"
+        exp_continue
+    }
+    eof
+}

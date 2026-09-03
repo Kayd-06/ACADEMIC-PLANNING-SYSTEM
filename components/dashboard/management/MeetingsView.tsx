@@ -1,13 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, Calendar, Clock, Users, FileText, ChevronRight, CheckCircle2, Circle, AlertCircle, Loader2, Trash2 } from 'lucide-react'
+import { Plus, Search, Calendar, Clock, Users, FileText, ChevronRight, CheckCircle2, Circle, AlertCircle, Loader2, Trash2, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface AgendaItem {
   id: string
   itemTitle: string
   description: string
+  discussion: string
+  action: string
+  responsibility: string
+  targetDate: string
   status: 'Not Started' | 'In Progress' | 'Completed'
 }
 
@@ -39,11 +43,21 @@ export default function MeetingsView() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showNewModal, setShowNewModal] = useState(false)
+  const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null)
   
   // New Meeting Form
   const [newMeeting, setNewMeeting] = useState({ title: '', date: '', time: '', type: 'General', attendees: '' })
-  const [newAgenda, setNewAgenda] = useState<{itemTitle: string, description: string, status: string}[]>([])
   const [error, setError] = useState('')
+
+  // Inline Agenda Form
+  const [showAgendaForm, setShowAgendaForm] = useState(false)
+  const [inlineAgenda, setInlineAgenda] = useState({ itemTitle: '', description: '', discussion: '', action: '', responsibility: '', targetDate: '', status: 'Not Started' })
+  const [agendaError, setAgendaError] = useState('')
+  const [savingAgenda, setSavingAgenda] = useState(false)
+
+  // Edit Agenda Form
+  const [editingAgendaId, setEditingAgendaId] = useState<string | null>(null)
+  const [editAgendaData, setEditAgendaData] = useState<any>(null)
 
   useEffect(() => {
     fetchMeetings()
@@ -88,37 +102,127 @@ export default function MeetingsView() {
     })
   }
 
+  async function handleUpdateAgendaItem(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingAgendaId) return
+
+    setSavingAgenda(true)
+    try {
+      const res = await fetch(`/api/meetings?agendaItemId=${editingAgendaId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editAgendaData)
+      })
+
+      if (res.ok) {
+        const updated = await res.json()
+        setMeetings(prev => prev.map(m => 
+          m.id === selectedMeetingId 
+          ? { ...m, agendaItems: m.agendaItems.map(a => a.id === updated.id ? updated : a) }
+          : m
+        ))
+        setEditingAgendaId(null)
+        setEditAgendaData(null)
+      } else {
+        const errData = await res.json()
+        setAgendaError(errData.error || 'Failed to update agenda item')
+      }
+    } catch (err: any) {
+      setAgendaError(err.message || 'An error occurred')
+    } finally {
+      setSavingAgenda(false)
+    }
+  }
+
+  async function handleDeleteAgendaItem(agendaId: string) {
+    if (!confirm('Are you sure you want to delete this agenda item?')) return
+    try {
+      const res = await fetch(`/api/meetings?agendaItemId=${agendaId}`, {
+        method: 'DELETE'
+      })
+      if (res.ok) {
+        setMeetings(prev => prev.map(m => 
+          m.id === selectedMeetingId 
+          ? { ...m, agendaItems: m.agendaItems.filter(a => a.id !== agendaId) }
+          : m
+        ))
+      }
+    } catch (err: any) {
+      console.error('Failed to delete agenda item', err)
+    }
+  }
+
   async function handleCreateMeeting(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (!newMeeting.title || !newMeeting.date || !newMeeting.time) {
-      setError('Title, date, and time are required')
-      return
-    }
     
     try {
-      const res = await fetch('/api/meetings', {
-        method: 'POST',
+      const url = editingMeetingId ? `/api/meetings?id=${editingMeetingId}` : '/api/meetings'
+      const method = editingMeetingId ? 'PATCH' : 'POST'
+      
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newMeeting,
-          agendaItems: newAgenda.filter(a => a.itemTitle.trim() !== '')
+          agendaItems: []
         })
       })
 
       if (res.ok) {
-        const created = await res.json()
-        setMeetings([created, ...meetings])
-        setSelectedMeetingId(created.id)
+        const saved = await res.json()
+        if (editingMeetingId) {
+          setMeetings(prev => prev.map(m => m.id === editingMeetingId ? { ...m, ...saved } : m))
+        } else {
+          setMeetings([saved, ...meetings])
+          setSelectedMeetingId(saved.id)
+        }
         setShowNewModal(false)
+        setEditingMeetingId(null)
         setNewMeeting({ title: '', date: '', time: '', type: 'General', attendees: '' })
-        setNewAgenda([])
       } else {
         const errData = await res.json()
         setError(errData.error || 'Failed to save meeting')
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred')
+    }
+  }
+
+  async function handleCreateAgendaItem(e: React.FormEvent) {
+    e.preventDefault()
+    setAgendaError('')
+    if (!selectedMeetingId) return
+    if (!inlineAgenda.itemTitle) {
+      setAgendaError('Agenda title is required')
+      return
+    }
+
+    setSavingAgenda(true)
+    try {
+      const res = await fetch('/api/meetings/agenda', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...inlineAgenda, meetingId: selectedMeetingId })
+      })
+
+      if (res.ok) {
+        const created = await res.json()
+        setMeetings(prev => prev.map(m => 
+          m.id === selectedMeetingId 
+          ? { ...m, agendaItems: [...m.agendaItems, created] }
+          : m
+        ))
+        setShowAgendaForm(false)
+        setInlineAgenda({ itemTitle: '', description: '', discussion: '', action: '', responsibility: '', targetDate: '', status: 'Not Started' })
+      } else {
+        const errData = await res.json()
+        setAgendaError(errData.error || 'Failed to save agenda item')
+      }
+    } catch (err: any) {
+      setAgendaError(err.message || 'An error occurred')
+    } finally {
+      setSavingAgenda(false)
     }
   }
 
@@ -138,7 +242,11 @@ export default function MeetingsView() {
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Meetings Log</h2>
             <button 
-              onClick={() => setShowNewModal(true)}
+              onClick={() => {
+                setEditingMeetingId(null)
+                setNewMeeting({ title: '', date: '', time: '', type: 'General', attendees: '' })
+                setShowNewModal(true)
+              }}
               className="p-1.5 bg-[#0b1320] text-white rounded-lg hover:bg-slate-800 transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -151,6 +259,7 @@ export default function MeetingsView() {
               placeholder="Search meetings..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              suppressHydrationWarning
               className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:border-indigo-500 outline-none transition-colors"
             />
           </div>
@@ -167,15 +276,42 @@ export default function MeetingsView() {
                 key={meeting.id}
                 whileHover={{ scale: 1.01 }}
                 onClick={() => setSelectedMeetingId(meeting.id)}
-                className={`p-3 rounded-xl border cursor-pointer transition-all duration-200 ${
+                className={`group p-3 rounded-xl border cursor-pointer transition-all duration-200 relative overflow-hidden ${
                   selectedMeetingId === meeting.id 
                   ? 'bg-indigo-50 border-indigo-200 shadow-sm' 
                   : 'bg-white border-slate-100 hover:border-slate-200 hover:shadow-sm'
                 }`}
               >
                 <div className="flex justify-between items-start mb-1">
-                  <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{meeting.title}</h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold shrink-0">{meeting.type}</span>
+                  <h3 className="text-sm font-bold text-slate-800 line-clamp-1 pr-16">{meeting.title}</h3>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 bg-white/90 backdrop-blur-sm p-1 rounded-lg shadow-sm border border-slate-100 z-10">
+                    <button 
+                      type="button"
+                      onClick={(e) => { 
+                        e.stopPropagation()
+                        setEditingMeetingId(meeting.id)
+                        setNewMeeting({
+                          title: meeting.title,
+                          date: meeting.date,
+                          time: meeting.time,
+                          type: meeting.type,
+                          attendees: meeting.attendees || ''
+                        })
+                        setShowNewModal(true)
+                      }}
+                      className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteMeeting(meeting.id); }}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold shrink-0 group-hover:opacity-0 transition-opacity">{meeting.type}</span>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-slate-500 mt-2">
                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {meeting.date}</span>
@@ -258,31 +394,127 @@ export default function MeetingsView() {
                         transition={{ delay: idx * 0.05 }}
                         className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow group"
                       >
-                        <div className="flex justify-between items-start gap-4">
-                          <div className="flex-1">
-                            <h4 className="text-base font-bold text-slate-900">{item.itemTitle}</h4>
-                            {item.description && <p className="text-sm text-slate-500 mt-1">{item.description}</p>}
-                          </div>
-                          
-                          {/* Status Dropdown */}
-                          <div className="shrink-0 relative">
-                            <select 
-                              value={item.status}
-                              onChange={(e) => updateAgendaStatus(item.id, e.target.value)}
-                              className={`appearance-none pl-8 pr-8 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer outline-none ${STATUS_COLORS[item.status as keyof typeof STATUS_COLORS]}`}
-                            >
-                              <option value="Not Started">Not Started</option>
-                              <option value="In Progress">In Progress</option>
-                              <option value="Completed">Completed</option>
-                            </select>
-                            <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                              {STATUS_ICONS[item.status as keyof typeof STATUS_ICONS]}
+                        {editingAgendaId === item.id ? (
+                          <form onSubmit={handleUpdateAgendaItem} className="space-y-3">
+                            <textarea 
+                              required 
+                              placeholder="Agenda" 
+                              rows={2}
+                              value={editAgendaData.itemTitle} 
+                              onChange={e => setEditAgendaData({...editAgendaData, itemTitle: e.target.value})}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
+                            />
+                            <textarea 
+                              placeholder="Discussion" 
+                              rows={3}
+                              value={editAgendaData.discussion}
+                              onChange={e => setEditAgendaData({...editAgendaData, discussion: e.target.value})}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
+                            />
+                            <textarea 
+                              placeholder="Action" 
+                              rows={2}
+                              value={editAgendaData.action}
+                              onChange={e => setEditAgendaData({...editAgendaData, action: e.target.value})}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
+                            />
+                            <div className="grid grid-cols-2 gap-3">
+                              <input 
+                                placeholder="Responsibility" 
+                                value={editAgendaData.responsibility}
+                                onChange={e => setEditAgendaData({...editAgendaData, responsibility: e.target.value})}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors" 
+                              />
+                              <input 
+                                type="date"
+                                placeholder="Target Date" 
+                                value={editAgendaData.targetDate}
+                                onChange={e => setEditAgendaData({...editAgendaData, targetDate: e.target.value})}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors" 
+                              />
                             </div>
-                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                              <ChevronRight className="w-3 h-3 rotate-90" />
+                            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                              <button type="button" onClick={() => { setEditingAgendaId(null); setEditAgendaData(null); }} className="px-4 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors">Cancel</button>
+                              <button type="submit" disabled={savingAgenda} className="px-5 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2">
+                                {savingAgenda && <Loader2 className="w-3 h-3 animate-spin" />} Save Changes
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="flex-1 space-y-4">
+                              <div>
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Agenda</h4>
+                                <p className="text-base font-bold text-slate-900">{item.itemTitle}</p>
+                              </div>
+                              {item.discussion && (
+                                <div>
+                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Discussion</h4>
+                                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{item.discussion}</p>
+                                </div>
+                              )}
+                              {item.action && (
+                                <div>
+                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Action</h4>
+                                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{item.action}</p>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-8 pt-2">
+                                {item.responsibility && (
+                                  <div>
+                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Responsibility</h4>
+                                    <p className="text-sm font-medium text-slate-800">{item.responsibility}</p>
+                                  </div>
+                                )}
+                                {item.targetDate && (
+                                  <div>
+                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Target Date</h4>
+                                    <p className="text-sm font-medium text-slate-800">{item.targetDate}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="shrink-0 flex flex-col items-end gap-3">
+                              {/* Action Buttons */}
+                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                  onClick={() => { setEditingAgendaId(item.id); setEditAgendaData(item); }}
+                                  className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                  title="Edit Agenda Item"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteAgendaItem(item.id)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                  title="Delete Agenda Item"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+
+                              {/* Status Dropdown */}
+                              <div className="relative mt-auto">
+                                <select 
+                                  value={item.status}
+                                  onChange={(e) => updateAgendaStatus(item.id, e.target.value)}
+                                  className={`appearance-none pl-8 pr-8 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer outline-none ${STATUS_COLORS[item.status as keyof typeof STATUS_COLORS]}`}
+                                >
+                                  <option value="Not Started">Not Started</option>
+                                  <option value="In Progress">In Progress</option>
+                                  <option value="Completed">Completed</option>
+                                </select>
+                                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                                  {STATUS_ICONS[item.status as keyof typeof STATUS_ICONS]}
+                                </div>
+                                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                                  <ChevronRight className="w-3 h-3 rotate-90" />
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        )}
                       </motion.div>
                     ))
                   ) : (
@@ -291,6 +523,65 @@ export default function MeetingsView() {
                     </div>
                   )}
                 </div>
+
+                {showAgendaForm ? (
+                  <div className="bg-white p-5 rounded-xl border border-indigo-200 shadow-sm mt-4">
+                    <h4 className="text-sm font-bold text-indigo-900 mb-4">Add Agenda Item</h4>
+                    {agendaError && <p className="text-rose-500 text-xs font-bold mb-3">{agendaError}</p>}
+                    <form onSubmit={handleCreateAgendaItem} className="space-y-3">
+                      <textarea 
+                        required 
+                        placeholder="Agenda" 
+                        rows={2}
+                        value={inlineAgenda.itemTitle} 
+                        onChange={e => setInlineAgenda({...inlineAgenda, itemTitle: e.target.value})}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
+                      />
+                      <textarea 
+                        placeholder="Discussion" 
+                        rows={3}
+                        value={inlineAgenda.discussion}
+                        onChange={e => setInlineAgenda({...inlineAgenda, discussion: e.target.value})}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
+                      />
+                      <textarea 
+                        placeholder="Action" 
+                        rows={2}
+                        value={inlineAgenda.action}
+                        onChange={e => setInlineAgenda({...inlineAgenda, action: e.target.value})}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
+                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <input 
+                          placeholder="Responsibility" 
+                          value={inlineAgenda.responsibility}
+                          onChange={e => setInlineAgenda({...inlineAgenda, responsibility: e.target.value})}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors" 
+                        />
+                        <input 
+                          type="date"
+                          placeholder="Target Date" 
+                          value={inlineAgenda.targetDate}
+                          onChange={e => setInlineAgenda({...inlineAgenda, targetDate: e.target.value})}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors" 
+                        />
+                      </div>
+                      <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                        <button type="button" onClick={() => setShowAgendaForm(false)} className="px-4 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors">Cancel</button>
+                        <button type="submit" disabled={savingAgenda} className="px-5 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2">
+                          {savingAgenda && <Loader2 className="w-3 h-3 animate-spin" />} Save Item
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => setShowAgendaForm(true)}
+                    className="w-full py-3 mt-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/50 transition-colors flex items-center justify-center gap-2 text-sm font-bold"
+                  >
+                    <Plus className="w-4 h-4" /> Add Agenda Item
+                  </button>
+                )}
               </div>
             </motion.div>
           ) : (
@@ -312,12 +603,14 @@ export default function MeetingsView() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 className="text-lg font-black text-slate-900">Log New Meeting</h3>
-                <button onClick={() => setShowNewModal(false)} className="text-slate-400 hover:text-slate-600">
-                  <Plus className="w-6 h-6 rotate-45" />
-                </button>
-              </div>
+              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+              <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                {editingMeetingId ? 'Edit Meeting' : 'Log New Meeting'}
+              </h3>
+              <button onClick={() => setShowNewModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
               
               <div className="p-6 overflow-y-auto flex-1">
                 {error && (
@@ -357,59 +650,15 @@ export default function MeetingsView() {
                       </div>
                     </div>
                   </div>
-
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Agenda Items</h4>
-                      <button 
-                        type="button" 
-                        onClick={() => setNewAgenda([...newAgenda, { itemTitle: '', description: '', status: 'Not Started' }])}
-                        className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Add Item
-                      </button>
-                    </div>
-                    
-                    {newAgenda.map((item, idx) => (
-                      <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl relative group">
-                        <button type="button" onClick={() => setNewAgenda(newAgenda.filter((_, i) => i !== idx))} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <div className="grid gap-3 pr-6">
-                          <input 
-                            required 
-                            placeholder="Agenda Item Title" 
-                            value={item.itemTitle} 
-                            onChange={e => {
-                              const updated = [...newAgenda]; updated[idx].itemTitle = e.target.value; setNewAgenda(updated);
-                            }}
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors" 
-                          />
-                          <textarea 
-                            placeholder="Description (Optional)" 
-                            rows={2}
-                            value={item.description}
-                            onChange={e => {
-                              const updated = [...newAgenda]; updated[idx].description = e.target.value; setNewAgenda(updated);
-                            }}
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
-                          />
-                        </div>
-                      </div>
-                    ))}
-                    {newAgenda.length === 0 && (
-                      <p className="text-sm text-slate-400 italic">No agenda items added yet.</p>
-                    )}
-                  </div>
                 </form>
               </div>
               
-              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowNewModal(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
-                <button type="submit" form="meetingForm" className="px-6 py-2 bg-[#0b1320] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm">
-                  Save Meeting Log
-                </button>
-              </div>
+                <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
+                  <button type="button" onClick={() => setShowNewModal(false)} className="px-5 py-2 text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors">Cancel</button>
+                  <button type="submit" form="meetingForm" className="px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+                    {editingMeetingId ? 'Save Changes' : 'Create Meeting'}
+                  </button>
+                </div>
             </motion.div>
           </div>
         )}
