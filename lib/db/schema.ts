@@ -1275,7 +1275,10 @@ export const meetings = pgTable('meetings', {
   date: varchar('date', { length: 10 }).notNull(),
   time: varchar('time', { length: 20 }).notNull(),
   type: varchar('type', { length: 100 }).notNull().default('General'),
+  venue: varchar('venue', { length: 255 }).notNull().default(''),
   attendees: text('attendees').notNull().default(''),
+  minutesPreparedBy: varchar('minutes_prepared_by', { length: 255 }).notNull().default(''),
+  nextMeetingDate: varchar('next_meeting_date', { length: 10 }).notNull().default(''),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -1285,6 +1288,7 @@ export type Meeting = typeof meetings.$inferSelect
 export type NewMeeting = typeof meetings.$inferInsert
 
 export const meetingAgendaStatusEnum = pgEnum('meeting_agenda_status', ['Not Started', 'In Progress', 'Completed'])
+export const meetingAgendaPriorityEnum = pgEnum('meeting_agenda_priority', ['Low', 'Medium', 'High'])
 
 export const meetingAgendaItems = pgTable('meeting_agenda_items', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -1295,7 +1299,10 @@ export const meetingAgendaItems = pgTable('meeting_agenda_items', {
   action: text('action').notNull().default(''),
   responsibility: varchar('responsibility', { length: 255 }).notNull().default(''),
   targetDate: varchar('target_date', { length: 20 }).notNull().default(''),
+  communicatedTo: varchar('communicated_to', { length: 255 }).notNull().default(''),
+  communicatedBy: varchar('communicated_by', { length: 255 }).notNull().default(''),
   status: meetingAgendaStatusEnum('status').notNull().default('Not Started'),
+  priority: meetingAgendaPriorityEnum('priority').notNull().default('Medium'),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
