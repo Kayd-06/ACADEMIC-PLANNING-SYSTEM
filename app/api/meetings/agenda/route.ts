@@ -12,21 +12,31 @@ export async function POST(req: NextRequest) {
     const schoolId = (session.user as any).schoolId as string | null
 
     const body = await req.json()
-    const { meetingId, itemTitle, description, discussion, action, responsibility, targetDate, status } = body
+    const { meetingId, itemTitle, description, discussion, action, responsibility, targetDate, communicatedTo, communicatedBy, status, priority } = body
 
     if (!meetingId || !itemTitle) {
       return NextResponse.json({ error: 'Meeting ID and Item Title are required' }, { status: 400 })
+    }
+
+    const requiredFields = { discussion, responsibility, targetDate, communicatedTo, communicatedBy }
+    for (const [field, value] of Object.entries(requiredFields)) {
+      if (!value) {
+        return NextResponse.json({ error: `${field} is required` }, { status: 400 })
+      }
     }
 
     const [newItem] = await db.insert(meetingAgendaItems).values({
       meetingId,
       itemTitle,
       description: description || '',
-      discussion: discussion || '',
+      discussion,
       action: action || '',
-      responsibility: responsibility || '',
-      targetDate: targetDate || '',
+      responsibility,
+      targetDate,
+      communicatedTo,
+      communicatedBy,
       status: status || 'Not Started',
+      priority: priority || 'Medium',
       schoolId
     }).returning()
 
