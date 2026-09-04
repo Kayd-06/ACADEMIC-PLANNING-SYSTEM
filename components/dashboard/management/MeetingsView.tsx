@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, Calendar, Clock, Users, FileText, ChevronRight, CheckCircle2, Circle, AlertCircle, Loader2, Trash2, X, MapPin, Printer } from 'lucide-react'
+import { Plus, Search, Calendar, Clock, Users, FileText, ChevronRight, CheckCircle2, Circle, AlertCircle, Loader2, Trash2, X, MapPin, Printer, Eye, Download } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { downloadMeetingAgendaPDF, downloadMeetingMinutesPDF } from '@/lib/pdf/meetingPdfGenerator'
+import { buildMeetingAgendaPDF, buildMeetingMinutesPDF } from '@/lib/pdf/meetingPdfGenerator'
 
 interface AgendaItem {
   id: string
@@ -72,6 +72,9 @@ export default function MeetingsView() {
   const [editingAgendaId, setEditingAgendaId] = useState<string | null>(null)
   const [editAgendaData, setEditAgendaData] = useState<any>(null)
 
+  const [pdfPreview, setPdfPreview] = useState<{ doc: any; url: string; filename: string; title: string } | null>(null)
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState<'agenda' | 'minutes' | null>(null)
+
   useEffect(() => {
     fetchMeetings()
   }, [])
@@ -128,6 +131,26 @@ export default function MeetingsView() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ priority })
     })
+  }
+
+  async function openPdfPreview(kind: 'agenda' | 'minutes', meeting: Meeting) {
+    setPdfPreviewLoading(kind)
+    try {
+      const { doc, filename } = kind === 'agenda'
+        ? await buildMeetingAgendaPDF(meeting)
+        : await buildMeetingMinutesPDF(meeting)
+      const url = doc.output('bloburl').toString()
+      setPdfPreview({ doc, url, filename, title: kind === 'agenda' ? 'Agenda Preview' : 'Minutes Preview' })
+    } finally {
+      setPdfPreviewLoading(null)
+    }
+  }
+
+  function closePdfPreview() {
+    if (pdfPreview) {
+      try { URL.revokeObjectURL(pdfPreview.url) } catch {}
+    }
+    setPdfPreview(null)
   }
 
   async function handleUpdateAgendaItem(e: React.FormEvent) {
@@ -382,16 +405,18 @@ export default function MeetingsView() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => downloadMeetingAgendaPDF(selectedMeeting)}
-                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+                      onClick={() => openPdfPreview('agenda', selectedMeeting)}
+                      disabled={pdfPreviewLoading === 'agenda'}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors disabled:opacity-60"
                     >
-                      <Printer className="w-3.5 h-3.5" /> Print Agenda
+                      {pdfPreviewLoading === 'agenda' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />} Print Agenda
                     </button>
                     <button
-                      onClick={() => downloadMeetingMinutesPDF(selectedMeeting)}
-                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+                      onClick={() => openPdfPreview('minutes', selectedMeeting)}
+                      disabled={pdfPreviewLoading === 'minutes'}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors disabled:opacity-60"
                     >
-                      <Printer className="w-3.5 h-3.5" /> Print Minutes
+                      {pdfPreviewLoading === 'minutes' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />} Print Minutes
                     </button>
                     <button
                       onClick={() => handleDeleteMeeting(selectedMeeting.id)}
@@ -827,6 +852,46 @@ export default function MeetingsView() {
                 </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pdfPreview && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-3xl h-[85vh] flex flex-col overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-indigo-600" />
+                  <h3 className="text-sm font-bold text-slate-800">{pdfPreview.title}</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => pdfPreview.doc.save(pdfPreview.filename)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download PDF
+                  </button>
+                  <button
+                    onClick={closePdfPreview}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <iframe src={pdfPreview.url} title={pdfPreview.title} className="flex-1 w-full" />
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
