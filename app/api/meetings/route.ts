@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const schoolId = (session.user as any).schoolId as string | null
 
     const body = await req.json()
-    const { title, date, time, type, attendees, agendaItems } = body
+    const { title, date, time, type, venue, attendees, minutesPreparedBy, nextMeetingDate, agendaItems } = body
 
     if (!title || !date || !time) {
       return NextResponse.json({ error: 'Title, date, and time are required' }, { status: 400 })
@@ -50,7 +50,10 @@ export async function POST(req: NextRequest) {
       date,
       time,
       type: type || 'General',
+      venue: venue || '',
       attendees: attendees || '',
+      minutesPreparedBy: minutesPreparedBy || '',
+      nextMeetingDate: nextMeetingDate || '',
       schoolId
     }).returning()
 
@@ -63,7 +66,10 @@ export async function POST(req: NextRequest) {
         action: item.action || '',
         responsibility: item.responsibility || '',
         targetDate: item.targetDate || '',
+        communicatedTo: item.communicatedTo || '',
+        communicatedBy: item.communicatedBy || '',
         status: item.status || 'Not Started',
+        priority: item.priority || 'Medium',
         schoolId
       }))
       await db.insert(meetingAgendaItems).values(itemsToInsert)
@@ -90,8 +96,15 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json()
 
     if (agendaItemId) {
-      const { status, itemTitle, description, discussion, action, responsibility, targetDate } = body
-      
+      const { status, itemTitle, description, discussion, action, responsibility, targetDate, communicatedTo, communicatedBy, priority } = body
+
+      const requiredFields = { discussion, responsibility, targetDate, communicatedTo, communicatedBy }
+      for (const [field, value] of Object.entries(requiredFields)) {
+        if (value !== undefined && !value) {
+          return NextResponse.json({ error: `${field} is required` }, { status: 400 })
+        }
+      }
+
       const updates: any = { updatedAt: new Date() }
       if (status !== undefined) updates.status = status
       if (itemTitle !== undefined) updates.itemTitle = itemTitle
@@ -100,14 +113,17 @@ export async function PATCH(req: NextRequest) {
       if (action !== undefined) updates.action = action
       if (responsibility !== undefined) updates.responsibility = responsibility
       if (targetDate !== undefined) updates.targetDate = targetDate
+      if (communicatedTo !== undefined) updates.communicatedTo = communicatedTo
+      if (communicatedBy !== undefined) updates.communicatedBy = communicatedBy
+      if (priority !== undefined) updates.priority = priority
 
       const [updated] = await db.update(meetingAgendaItems).set(updates).where(eq(meetingAgendaItems.id, agendaItemId)).returning()
       return NextResponse.json(updated)
     }
 
     if (meetingId) {
-      const { title, date, time, type, attendees } = body
-      const [updated] = await db.update(meetings).set({ title, date, time, type, attendees, updatedAt: new Date() }).where(eq(meetings.id, meetingId)).returning()
+      const { title, date, time, type, venue, attendees, minutesPreparedBy, nextMeetingDate } = body
+      const [updated] = await db.update(meetings).set({ title, date, time, type, venue, attendees, minutesPreparedBy, nextMeetingDate, updatedAt: new Date() }).where(eq(meetings.id, meetingId)).returning()
       return NextResponse.json(updated)
     }
 
