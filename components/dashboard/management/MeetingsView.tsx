@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, Calendar, Clock, Users, FileText, ChevronRight, CheckCircle2, Circle, AlertCircle, Loader2, Trash2, X } from 'lucide-react'
+import { Plus, Search, Calendar, Clock, Users, FileText, ChevronRight, CheckCircle2, Circle, AlertCircle, Loader2, Trash2, X, MapPin, Printer } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { downloadMeetingAgendaPDF, downloadMeetingMinutesPDF } from '@/lib/pdf/meetingPdfGenerator'
 
 interface AgendaItem {
   id: string
@@ -12,7 +13,10 @@ interface AgendaItem {
   action: string
   responsibility: string
   targetDate: string
+  communicatedTo: string
+  communicatedBy: string
   status: 'Not Started' | 'In Progress' | 'Completed'
+  priority: 'Low' | 'Medium' | 'High'
 }
 
 interface Meeting {
@@ -21,7 +25,10 @@ interface Meeting {
   date: string
   time: string
   type: string
+  venue: string
   attendees: string
+  minutesPreparedBy: string
+  nextMeetingDate: string
   agendaItems: AgendaItem[]
 }
 
@@ -37,6 +44,12 @@ const STATUS_ICONS = {
   'Completed': <CheckCircle2 className="w-3.5 h-3.5" />
 }
 
+const PRIORITY_COLORS = {
+  'Low': 'bg-slate-50 text-slate-600 border-slate-200',
+  'Medium': 'bg-amber-50 text-amber-600 border-amber-200',
+  'High': 'bg-rose-50 text-rose-600 border-rose-200'
+}
+
 export default function MeetingsView() {
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null)
@@ -46,12 +59,12 @@ export default function MeetingsView() {
   const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null)
   
   // New Meeting Form
-  const [newMeeting, setNewMeeting] = useState({ title: '', date: '', time: '', type: 'General', attendees: '' })
+  const [newMeeting, setNewMeeting] = useState({ title: '', date: '', time: '', type: 'General', venue: '', attendees: '', minutesPreparedBy: '', nextMeetingDate: '' })
   const [error, setError] = useState('')
 
   // Inline Agenda Form
   const [showAgendaForm, setShowAgendaForm] = useState(false)
-  const [inlineAgenda, setInlineAgenda] = useState({ itemTitle: '', description: '', discussion: '', action: '', responsibility: '', targetDate: '', status: 'Not Started' })
+  const [inlineAgenda, setInlineAgenda] = useState({ itemTitle: '', description: '', discussion: '', action: '', responsibility: '', targetDate: '', communicatedTo: '', communicatedBy: '', status: 'Not Started', priority: 'Medium' })
   const [agendaError, setAgendaError] = useState('')
   const [savingAgenda, setSavingAgenda] = useState(false)
 
@@ -99,6 +112,21 @@ export default function MeetingsView() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status })
+    })
+  }
+
+  async function updateAgendaPriority(agendaId: string, priority: string) {
+    // Optimistic update
+    setMeetings(prev => prev.map(m =>
+      m.id === selectedMeetingId
+      ? { ...m, agendaItems: m.agendaItems.map(a => a.id === agendaId ? { ...a, priority: priority as any } : a) }
+      : m
+    ))
+
+    await fetch(`/api/meetings?agendaItemId=${agendaId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priority })
     })
   }
 
@@ -179,7 +207,7 @@ export default function MeetingsView() {
         }
         setShowNewModal(false)
         setEditingMeetingId(null)
-        setNewMeeting({ title: '', date: '', time: '', type: 'General', attendees: '' })
+        setNewMeeting({ title: '', date: '', time: '', type: 'General', venue: '', attendees: '', minutesPreparedBy: '', nextMeetingDate: '' })
       } else {
         const errData = await res.json()
         setError(errData.error || 'Failed to save meeting')
@@ -195,6 +223,10 @@ export default function MeetingsView() {
     if (!selectedMeetingId) return
     if (!inlineAgenda.itemTitle) {
       setAgendaError('Agenda title is required')
+      return
+    }
+    if (!inlineAgenda.discussion || !inlineAgenda.responsibility || !inlineAgenda.targetDate || !inlineAgenda.communicatedTo || !inlineAgenda.communicatedBy) {
+      setAgendaError('Discussion, Responsibility, Target Date, Communicated To, and Communicated By are required')
       return
     }
 
@@ -214,7 +246,7 @@ export default function MeetingsView() {
           : m
         ))
         setShowAgendaForm(false)
-        setInlineAgenda({ itemTitle: '', description: '', discussion: '', action: '', responsibility: '', targetDate: '', status: 'Not Started' })
+        setInlineAgenda({ itemTitle: '', description: '', discussion: '', action: '', responsibility: '', targetDate: '', communicatedTo: '', communicatedBy: '', status: 'Not Started', priority: 'Medium' })
       } else {
         const errData = await res.json()
         setAgendaError(errData.error || 'Failed to save agenda item')
@@ -244,7 +276,7 @@ export default function MeetingsView() {
             <button 
               onClick={() => {
                 setEditingMeetingId(null)
-                setNewMeeting({ title: '', date: '', time: '', type: 'General', attendees: '' })
+                setNewMeeting({ title: '', date: '', time: '', type: 'General', venue: '', attendees: '', minutesPreparedBy: '', nextMeetingDate: '' })
                 setShowNewModal(true)
               }}
               className="p-1.5 bg-[#0b1320] text-white rounded-lg hover:bg-slate-800 transition-colors"
@@ -295,7 +327,10 @@ export default function MeetingsView() {
                           date: meeting.date,
                           time: meeting.time,
                           type: meeting.type,
-                          attendees: meeting.attendees || ''
+                          venue: meeting.venue || '',
+                          attendees: meeting.attendees || '',
+                          minutesPreparedBy: meeting.minutesPreparedBy || '',
+                          nextMeetingDate: meeting.nextMeetingDate || ''
                         })
                         setShowNewModal(true)
                       }}
@@ -345,15 +380,29 @@ export default function MeetingsView() {
                     </div>
                     <h1 className="text-2xl font-black text-slate-900 tracking-tight">{selectedMeeting.title}</h1>
                   </div>
-                  <button 
-                    onClick={() => handleDeleteMeeting(selectedMeeting.id)}
-                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => downloadMeetingAgendaPDF(selectedMeeting)}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+                    >
+                      <Printer className="w-3.5 h-3.5" /> Print Agenda
+                    </button>
+                    <button
+                      onClick={() => downloadMeetingMinutesPDF(selectedMeeting)}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+                    >
+                      <Printer className="w-3.5 h-3.5" /> Print Minutes
+                    </button>
+                    <button
+                      onClick={() => handleDeleteMeeting(selectedMeeting.id)}
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
-                
-                <div className="grid grid-cols-3 gap-6 mt-6 pt-6 border-t border-slate-100">
+
+                <div className="grid grid-cols-4 gap-6 mt-6 pt-6 border-t border-slate-100">
                   <div className="flex items-start gap-3">
                     <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Calendar className="w-5 h-5" /></div>
                     <div>
@@ -369,10 +418,31 @@ export default function MeetingsView() {
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
+                    <div className="p-2 bg-violet-50 text-violet-600 rounded-lg"><MapPin className="w-5 h-5" /></div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Venue</p>
+                      <p className="text-sm font-semibold text-slate-800">{selectedMeeting.venue || 'Not specified'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
                     <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><Users className="w-5 h-5" /></div>
                     <div>
                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Attendees</p>
                       <p className="text-sm font-semibold text-slate-800">{selectedMeeting.attendees || 'None specified'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><FileText className="w-5 h-5" /></div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Minutes Prepared By</p>
+                      <p className="text-sm font-semibold text-slate-800">{selectedMeeting.minutesPreparedBy || 'Not specified'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><Calendar className="w-5 h-5" /></div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Next Meeting Date</p>
+                      <p className="text-sm font-semibold text-slate-800">{selectedMeeting.nextMeetingDate || 'Not scheduled'}</p>
                     </div>
                   </div>
                 </div>
@@ -404,34 +474,60 @@ export default function MeetingsView() {
                               onChange={e => setEditAgendaData({...editAgendaData, itemTitle: e.target.value})}
                               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
                             />
-                            <textarea 
-                              placeholder="Discussion" 
+                            <textarea
+                              required
+                              placeholder="Discussion"
                               rows={3}
                               value={editAgendaData.discussion}
                               onChange={e => setEditAgendaData({...editAgendaData, discussion: e.target.value})}
-                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none"
                             />
-                            <textarea 
-                              placeholder="Action" 
+                            <textarea
+                              placeholder="Action"
                               rows={2}
                               value={editAgendaData.action}
                               onChange={e => setEditAgendaData({...editAgendaData, action: e.target.value})}
-                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none"
                             />
                             <div className="grid grid-cols-2 gap-3">
-                              <input 
-                                placeholder="Responsibility" 
+                              <input
+                                required
+                                placeholder="Responsibility"
                                 value={editAgendaData.responsibility}
                                 onChange={e => setEditAgendaData({...editAgendaData, responsibility: e.target.value})}
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors" 
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors"
                               />
-                              <input 
+                              <input
+                                required
                                 type="date"
-                                placeholder="Target Date" 
+                                placeholder="Target Date"
                                 value={editAgendaData.targetDate}
                                 onChange={e => setEditAgendaData({...editAgendaData, targetDate: e.target.value})}
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors" 
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors"
                               />
+                              <input
+                                required
+                                placeholder="To be Communicated to"
+                                value={editAgendaData.communicatedTo}
+                                onChange={e => setEditAgendaData({...editAgendaData, communicatedTo: e.target.value})}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors"
+                              />
+                              <input
+                                required
+                                placeholder="To be Communicated by"
+                                value={editAgendaData.communicatedBy}
+                                onChange={e => setEditAgendaData({...editAgendaData, communicatedBy: e.target.value})}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors"
+                              />
+                              <select
+                                value={editAgendaData.priority || 'Medium'}
+                                onChange={e => setEditAgendaData({...editAgendaData, priority: e.target.value})}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors"
+                              >
+                                <option value="Low">Priority: Low</option>
+                                <option value="Medium">Priority: Medium</option>
+                                <option value="High">Priority: High</option>
+                              </select>
                             </div>
                             <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                               <button type="button" onClick={() => { setEditingAgendaId(null); setEditAgendaData(null); }} className="px-4 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors">Cancel</button>
@@ -459,7 +555,7 @@ export default function MeetingsView() {
                                   <p className="text-sm text-slate-700 whitespace-pre-wrap">{item.action}</p>
                                 </div>
                               )}
-                              <div className="flex items-center gap-8 pt-2">
+                              <div className="flex items-center gap-8 pt-2 flex-wrap">
                                 {item.responsibility && (
                                   <div>
                                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Responsibility</h4>
@@ -470,6 +566,18 @@ export default function MeetingsView() {
                                   <div>
                                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Target Date</h4>
                                     <p className="text-sm font-medium text-slate-800">{item.targetDate}</p>
+                                  </div>
+                                )}
+                                {item.communicatedTo && (
+                                  <div>
+                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Communicated To</h4>
+                                    <p className="text-sm font-medium text-slate-800">{item.communicatedTo}</p>
+                                  </div>
+                                )}
+                                {item.communicatedBy && (
+                                  <div>
+                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Communicated By</h4>
+                                    <p className="text-sm font-medium text-slate-800">{item.communicatedBy}</p>
                                   </div>
                                 )}
                               </div>
@@ -494,22 +602,39 @@ export default function MeetingsView() {
                                 </button>
                               </div>
 
-                              {/* Status Dropdown */}
-                              <div className="relative mt-auto">
-                                <select 
-                                  value={item.status}
-                                  onChange={(e) => updateAgendaStatus(item.id, e.target.value)}
-                                  className={`appearance-none pl-8 pr-8 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer outline-none ${STATUS_COLORS[item.status as keyof typeof STATUS_COLORS]}`}
-                                >
-                                  <option value="Not Started">Not Started</option>
-                                  <option value="In Progress">In Progress</option>
-                                  <option value="Completed">Completed</option>
-                                </select>
-                                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                                  {STATUS_ICONS[item.status as keyof typeof STATUS_ICONS]}
+                              {/* Status + Priority Dropdowns */}
+                              <div className="flex items-center gap-2 mt-auto">
+                                <div className="relative">
+                                  <select
+                                    value={item.status}
+                                    onChange={(e) => updateAgendaStatus(item.id, e.target.value)}
+                                    className={`appearance-none pl-8 pr-8 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer outline-none ${STATUS_COLORS[item.status as keyof typeof STATUS_COLORS]}`}
+                                  >
+                                    <option value="Not Started">Not Started</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Completed">Completed</option>
+                                  </select>
+                                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                                    {STATUS_ICONS[item.status as keyof typeof STATUS_ICONS]}
+                                  </div>
+                                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                                    <ChevronRight className="w-3 h-3 rotate-90" />
+                                  </div>
                                 </div>
-                                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                                  <ChevronRight className="w-3 h-3 rotate-90" />
+                                <div className="relative">
+                                  <select
+                                    value={item.priority || 'Medium'}
+                                    onChange={(e) => updateAgendaPriority(item.id, e.target.value)}
+                                    className={`appearance-none pl-3 pr-7 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer outline-none ${PRIORITY_COLORS[(item.priority || 'Medium') as keyof typeof PRIORITY_COLORS]}`}
+                                    title="Priority"
+                                  >
+                                    <option value="Low">Low</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="High">High</option>
+                                  </select>
+                                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                                    <ChevronRight className="w-3 h-3 rotate-90" />
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -537,34 +662,63 @@ export default function MeetingsView() {
                         onChange={e => setInlineAgenda({...inlineAgenda, itemTitle: e.target.value})}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
                       />
-                      <textarea 
-                        placeholder="Discussion" 
+                      <textarea
+                        required
+                        placeholder="Discussion"
                         rows={3}
                         value={inlineAgenda.discussion}
                         onChange={e => setInlineAgenda({...inlineAgenda, discussion: e.target.value})}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none"
                       />
-                      <textarea 
-                        placeholder="Action" 
+                      <textarea
+                        placeholder="Action"
                         rows={2}
                         value={inlineAgenda.action}
                         onChange={e => setInlineAgenda({...inlineAgenda, action: e.target.value})}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none" 
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors resize-none"
                       />
                       <div className="grid grid-cols-2 gap-3">
-                        <input 
-                          placeholder="Responsibility" 
+                        <input
+                          required
+                          placeholder="Responsibility"
                           value={inlineAgenda.responsibility}
                           onChange={e => setInlineAgenda({...inlineAgenda, responsibility: e.target.value})}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors" 
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors"
                         />
-                        <input 
+                        <input
+                          required
                           type="date"
-                          placeholder="Target Date" 
+                          placeholder="Target Date"
                           value={inlineAgenda.targetDate}
                           onChange={e => setInlineAgenda({...inlineAgenda, targetDate: e.target.value})}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors" 
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors"
                         />
+                        <input
+                          required
+                          placeholder="To be Communicated to"
+                          value={inlineAgenda.communicatedTo}
+                          onChange={e => setInlineAgenda({...inlineAgenda, communicatedTo: e.target.value})}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors"
+                        />
+                        <input
+                          required
+                          placeholder="To be Communicated by"
+                          value={inlineAgenda.communicatedBy}
+                          onChange={e => setInlineAgenda({...inlineAgenda, communicatedBy: e.target.value})}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Priority</label>
+                        <select
+                          value={inlineAgenda.priority}
+                          onChange={e => setInlineAgenda({...inlineAgenda, priority: e.target.value})}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 transition-colors"
+                        >
+                          <option value="Low">Low</option>
+                          <option value="Medium">Medium</option>
+                          <option value="High">High</option>
+                        </select>
                       </div>
                       <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                         <button type="button" onClick={() => setShowAgendaForm(false)} className="px-4 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors">Cancel</button>
@@ -645,8 +799,20 @@ export default function MeetingsView() {
                         </select>
                       </div>
                       <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Venue</label>
+                        <input value={newMeeting.venue} onChange={e => setNewMeeting(prev => ({...prev, venue: e.target.value}))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors" placeholder="e.g. Conference Room" />
+                      </div>
+                      <div className="col-span-2">
                         <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Attendees (CSV)</label>
                         <input value={newMeeting.attendees} onChange={e => setNewMeeting(prev => ({...prev, attendees: e.target.value}))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors" placeholder="e.g. Principal, HODs" />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Minutes Prepared By</label>
+                        <input value={newMeeting.minutesPreparedBy} onChange={e => setNewMeeting(prev => ({...prev, minutesPreparedBy: e.target.value}))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors" placeholder="e.g. Office Secretary" />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Next Meeting Date</label>
+                        <input type="date" value={newMeeting.nextMeetingDate} onChange={e => setNewMeeting(prev => ({...prev, nextMeetingDate: e.target.value}))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors" />
                       </div>
                     </div>
                   </div>
