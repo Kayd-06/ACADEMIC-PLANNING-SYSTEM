@@ -73,7 +73,7 @@ function drawBadge(doc: any, text: string, x: number, yBaseline: number, styleKe
   return x + width
 }
 
-export async function downloadMeetingAgendaPDF(meeting: MeetingLike) {
+export async function buildMeetingAgendaPDF(meeting: MeetingLike): Promise<{ doc: any; filename: string }> {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -176,10 +176,15 @@ export async function downloadMeetingAgendaPDF(meeting: MeetingLike) {
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 7, { align: 'right' })
   }
 
-  doc.save(`Agenda_${safeFileTag(meeting.title)}_${meeting.date}.pdf`)
+  return { doc, filename: `Agenda_${safeFileTag(meeting.title)}_${meeting.date}.pdf` }
 }
 
-export async function downloadMeetingMinutesPDF(meeting: MeetingLike) {
+export async function downloadMeetingAgendaPDF(meeting: MeetingLike) {
+  const { doc, filename } = await buildMeetingAgendaPDF(meeting)
+  doc.save(filename)
+}
+
+export async function buildMeetingMinutesPDF(meeting: MeetingLike): Promise<{ doc: any; filename: string }> {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -358,5 +363,10 @@ export async function downloadMeetingMinutesPDF(meeting: MeetingLike) {
     doc.text(new Date().toLocaleDateString('en-US'), pageWidth - margin, pageHeight - 7, { align: 'right' })
   }
 
-  doc.save(`Minutes_${safeFileTag(meeting.title)}_${meeting.date}.pdf`)
+  return { doc, filename: `Minutes_${safeFileTag(meeting.title)}_${meeting.date}.pdf` }
+}
+
+export async function downloadMeetingMinutesPDF(meeting: MeetingLike) {
+  const { doc, filename } = await buildMeetingMinutesPDF(meeting)
+  doc.save(filename)
 }
