@@ -5,8 +5,8 @@ import { Plus, Search, Calendar, Clock, Users, FileText, ChevronRight, CheckCirc
 import { motion, AnimatePresence } from 'framer-motion'
 import { buildMeetingAgendaPDF, buildMeetingMinutesPDF } from '@/lib/pdf/meetingPdfGenerator'
 import { Document, Page, pdfjs } from 'react-pdf'
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
-import 'react-pdf/dist/esm/Page/TextLayer.css'
+import 'react-pdf/dist/Page/AnnotationLayer.css'
+import 'react-pdf/dist/Page/TextLayer.css'
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
