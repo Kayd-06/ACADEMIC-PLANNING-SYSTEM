@@ -139,7 +139,7 @@ export default function MeetingsView() {
       const { doc, filename } = kind === 'agenda'
         ? await buildMeetingAgendaPDF(meeting)
         : await buildMeetingMinutesPDF(meeting)
-      const url = doc.output('bloburl').toString()
+      const url = doc.output('datauristring')
       setPdfPreview({ doc, url, filename, title: kind === 'agenda' ? 'Agenda Preview' : 'Minutes Preview' })
     } finally {
       setPdfPreviewLoading(null)
