@@ -4,6 +4,11 @@ import { useState, useEffect } from 'react'
 import { Plus, Search, Calendar, Clock, Users, FileText, ChevronRight, CheckCircle2, Circle, AlertCircle, Loader2, Trash2, X, MapPin, Printer, Eye, Download } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { buildMeetingAgendaPDF, buildMeetingMinutesPDF } from '@/lib/pdf/meetingPdfGenerator'
+import { Document, Page, pdfjs } from 'react-pdf'
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
+import 'react-pdf/dist/esm/Page/TextLayer.css'
+
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
 interface AgendaItem {
   id: string
@@ -74,6 +79,7 @@ export default function MeetingsView() {
 
   const [pdfPreview, setPdfPreview] = useState<{ doc: any; url: string; filename: string; title: string } | null>(null)
   const [pdfPreviewLoading, setPdfPreviewLoading] = useState<'agenda' | 'minutes' | null>(null)
+  const [numPages, setNumPages] = useState<number | null>(null)
 
   useEffect(() => {
     fetchMeetings()
@@ -889,7 +895,29 @@ export default function MeetingsView() {
                   </button>
                 </div>
               </div>
-              <iframe src={pdfPreview.url} title={pdfPreview.title} className="flex-1 w-full" />
+              <div className="flex-1 overflow-y-auto bg-slate-100/50 p-6 flex flex-col items-center">
+                <Document 
+                  file={pdfPreview.url} 
+                  onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                  loading={
+                    <div className="flex flex-col items-center justify-center p-12 text-slate-400">
+                      <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mb-4" />
+                      <p className="text-sm font-bold">Rendering Document...</p>
+                    </div>
+                  }
+                >
+                  {numPages && Array.from(new Array(numPages), (el, index) => (
+                    <Page 
+                      key={`page_${index + 1}`} 
+                      pageNumber={index + 1} 
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      className="shadow-xl mb-6 last:mb-0 bg-white"
+                      width={700}
+                    />
+                  ))}
+                </Document>
+              </div>
             </motion.div>
           </motion.div>
         )}
