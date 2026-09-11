@@ -99,22 +99,25 @@ export async function buildMeetingAgendaPDF(meeting: MeetingLike): Promise<{ doc
 
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(...ink)
-  doc.text('Date Of Meeting:', metaLeft, y)
-  doc.text('Attendees:', metaRight, y)
+  doc.text('Date Of Meeting', metaLeft, y)
+  doc.text('Attendees', metaRight, y)
+  y += 5
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...muted)
-  doc.text(formatDate(meeting.date), metaLeft + 30, y)
-  doc.text(meeting.attendees || '—', metaRight + 22, y)
+  doc.text(formatDate(meeting.date), metaLeft, y)
+  const attendeesWrapped = doc.splitTextToSize(meeting.attendees || '—', pageWidth - margin - metaRight)
+  doc.text(attendeesWrapped, metaRight, y)
+  y += Math.max(6, attendeesWrapped.length * 4.5 + 1)
 
-  y += 6
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(...ink)
-  doc.text('Nature Of Meeting:', metaLeft, y)
-  doc.text('Venue:', metaRight, y)
+  doc.text('Nature Of Meeting', metaLeft, y)
+  doc.text('Venue', metaRight, y)
+  y += 5
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...muted)
-  doc.text(meeting.type || '—', metaLeft + 30, y)
-  doc.text(meeting.venue || '—', metaRight + 22, y)
+  doc.text(meeting.type || '—', metaLeft, y)
+  doc.text(meeting.venue || '—', metaRight, y)
 
   y += 8
   doc.setDrawColor(200, 200, 200)
