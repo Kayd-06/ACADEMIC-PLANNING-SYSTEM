@@ -13,6 +13,7 @@ export async function sendVerificationEmail(to: string, name: string, otp: strin
     from: `"Academic Planning System" <${process.env.GMAIL_USER}>`,
     to,
     subject: `${otp} is your verification code`,
+    text: `Welcome, ${name}!\n\nEnter this code to verify your email address: ${otp}\nIt expires in 10 minutes.\n\nIf you didn't create an account, you can safely ignore this email.`,
     html: `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0f172a;color:#e2e8f0;padding:40px;border-radius:16px;">
         <h2 style="color:#818cf8;margin-bottom:8px;">Welcome, ${name}!</h2>
@@ -36,6 +37,7 @@ export async function sendPasswordResetEmail(to: string, name: string, otp: stri
     from: `"Academic Planning System" <${process.env.GMAIL_USER}>`,
     to,
     subject: `${otp} is your password reset code`,
+    text: `Hi ${name},\n\nUse this code to reset your password: ${otp}\nIt expires in 10 minutes.\n\nIf you didn't request a password reset, you can safely ignore this email — your password will not change.`,
     html: `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0f172a;color:#e2e8f0;padding:40px;border-radius:16px;">
         <h2 style="color:#818cf8;margin-bottom:8px;">Hi ${name},</h2>
