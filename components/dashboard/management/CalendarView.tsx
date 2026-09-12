@@ -57,6 +57,10 @@ export default function CalendarView() {
   const [formType, setFormType] = useState('Event')
   const [formScope, setFormScope] = useState('School-wide')
   const [formDescription, setFormDescription] = useState('')
+  const [formRecurrencePattern, setFormRecurrencePattern] = useState('none')
+  const [formRecurrenceEndDate, setFormRecurrenceEndDate] = useState('')
+  const [formUpdateSeries, setFormUpdateSeries] = useState(false)
+  const [formDeleteSeries, setFormDeleteSeries] = useState(false)
   const [formSubmitting, setFormSubmitting] = useState(false)
 
   // Fetch all events from API
@@ -199,6 +203,8 @@ export default function CalendarView() {
     setFormType('Event')
     setFormScope('School-wide')
     setFormDescription('')
+    setFormRecurrencePattern('none')
+    setFormRecurrenceEndDate('')
     setShowAddModal(true)
   }
 
@@ -211,6 +217,8 @@ export default function CalendarView() {
     setFormType(event.type)
     setFormScope(event.scope)
     setFormDescription(event.description || '')
+    setFormUpdateSeries(false)
+    setFormDeleteSeries(false)
     setShowEditModal(true)
   }
 
@@ -234,7 +242,9 @@ export default function CalendarView() {
           endDate: formEndDate || undefined,
           type: formType,
           scope: formScope,
-          description: formDescription
+          description: formDescription,
+          recurrencePattern: formRecurrencePattern,
+          recurrenceEndDate: formRecurrenceEndDate || undefined
         })
       })
       const data = await res.json()
@@ -274,7 +284,8 @@ export default function CalendarView() {
           endDate: formEndDate || undefined,
           type: formType,
           scope: formScope,
-          description: formDescription
+          description: formDescription,
+          updateSeries: formUpdateSeries
         })
       })
       const data = await res.json()
@@ -296,11 +307,14 @@ export default function CalendarView() {
   // Delete Event Action
   const handleDeleteEvent = async () => {
     if (!selectedEvent) return
-    if (!confirm('Are you sure you want to delete this event?')) return
+    const msg = formDeleteSeries 
+      ? 'Are you sure you want to delete this event AND all future events in the series?' 
+      : 'Are you sure you want to delete this event?'
+    if (!confirm(msg)) return
 
     setFormSubmitting(true)
     try {
-      const res = await fetch(`/api/calendar?id=${selectedEvent._id}`, {
+      const res = await fetch(`/api/calendar?id=${selectedEvent._id}&deleteSeries=${formDeleteSeries}`, {
         method: 'DELETE'
       })
       if (res.ok) {
@@ -741,6 +755,34 @@ export default function CalendarView() {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Repeat</label>
+                  <select
+                    value={formRecurrencePattern}
+                    onChange={(e) => setFormRecurrencePattern(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none"
+                  >
+                    <option value="none">None</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                {formRecurrencePattern !== 'none' && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Repeat Until</label>
+                    <input
+                      type="date"
+                      required
+                      value={formRecurrenceEndDate}
+                      onChange={(e) => setFormRecurrenceEndDate(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-end gap-3 pt-4">
                 <button
                   type="button"
@@ -778,6 +820,20 @@ export default function CalendarView() {
                 <Trash2 className="w-5 h-5" />
               </button>
             </div>
+            
+            {selectedEvent?.seriesId && (
+              <div className="flex items-center gap-2 px-1 pb-2 border-b border-slate-100">
+                <input
+                  type="checkbox"
+                  id="deleteSeries"
+                  checked={formDeleteSeries}
+                  onChange={(e) => setFormDeleteSeries(e.target.checked)}
+                />
+                <label htmlFor="deleteSeries" className="text-xs text-rose-600 font-semibold cursor-pointer">
+                  When deleting, also delete all future events in this series
+                </label>
+              </div>
+            )}
             
             <form onSubmit={handleUpdateEvent} className="space-y-4">
               <div className="space-y-1">
@@ -854,6 +910,22 @@ export default function CalendarView() {
                   className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
+
+              {selectedEvent?.seriesId && (
+                <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id="updateSeries"
+                    checked={formUpdateSeries}
+                    onChange={(e) => setFormUpdateSeries(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <label htmlFor="updateSeries" className="text-sm text-slate-700 cursor-pointer">
+                    <span className="font-semibold block">Update entire series</span>
+                    <span className="text-xs text-slate-500 block">Apply these non-date changes to all future events in this recurring series.</span>
+                  </label>
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-3 pt-4">
                 <button

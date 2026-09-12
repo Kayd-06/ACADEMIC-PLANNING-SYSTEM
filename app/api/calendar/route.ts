@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { calendarEvents } from '@/lib/db/schema'
-import { eq, and, asc } from 'drizzle-orm'
+import { eq, and, asc, gte } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
+import crypto from 'crypto'
 
 function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): Date {
   const time = timeStr ? timeStr.trim() : '00:00'
@@ -65,22 +66,65 @@ export async function POST(req: NextRequest) {
     const schoolId = (session.user as any).schoolId as string | null
 
     const body = await req.json()
-    const { title, date, endDate, type, scope, scopeValue, description } = body
+    const { title, date, endDate, type, scope, scopeValue, description, recurrencePattern, recurrenceEndDate } = body
 
     if (!title?.trim() || !date || !type) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
     }
 
-    const [event] = await db.insert(calendarEvents).values({
-      title: title.trim(),
-      date,
-      endDate: endDate || null,
-      type,
-      scope: scope?.trim() || 'School-wide',
-      scopeValue: scopeValue?.trim() || '',
-      description: description || '',
-      schoolId,
-    }).returning()
+    const eventsToInsert = []
+
+    if (recurrencePattern && recurrencePattern !== 'none') {
+      if (!recurrenceEndDate) {
+        return NextResponse.json({ error: 'Missing recurrence end date.' }, { status: 400 })
+      }
+      const seriesId = crypto.randomUUID()
+      let currentStartDate = new Date(date)
+      let currentEndDate = endDate ? new Date(endDate) : null
+      const untilDate = new Date(recurrenceEndDate)
+
+      // safety cap to prevent infinite loop (max ~365 instances)
+      let count = 0
+      while (currentStartDate <= untilDate && count < 400) {
+        eventsToInsert.push({
+          title: title.trim(),
+          date: currentStartDate.toISOString().split('T')[0],
+          endDate: currentEndDate ? currentEndDate.toISOString().split('T')[0] : null,
+          type,
+          scope: scope?.trim() || 'School-wide',
+          scopeValue: scopeValue?.trim() || '',
+          description: description || '',
+          schoolId,
+          seriesId,
+        })
+
+        if (recurrencePattern === 'daily') {
+          currentStartDate.setDate(currentStartDate.getDate() + 1)
+          if (currentEndDate) currentEndDate.setDate(currentEndDate.getDate() + 1)
+        } else if (recurrencePattern === 'weekly') {
+          currentStartDate.setDate(currentStartDate.getDate() + 7)
+          if (currentEndDate) currentEndDate.setDate(currentEndDate.getDate() + 7)
+        } else if (recurrencePattern === 'monthly') {
+          currentStartDate.setMonth(currentStartDate.getMonth() + 1)
+          if (currentEndDate) currentEndDate.setMonth(currentEndDate.getMonth() + 1)
+        }
+        count++
+      }
+    } else {
+      eventsToInsert.push({
+        title: title.trim(),
+        date,
+        endDate: endDate || null,
+        type,
+        scope: scope?.trim() || 'School-wide',
+        scopeValue: scopeValue?.trim() || '',
+        description: description || '',
+        schoolId,
+      })
+    }
+
+    const insertedEvents = await db.insert(calendarEvents).values(eventsToInsert).returning()
+    const event = insertedEvents[0]
 
     // Notify teachers and admins 24 hours prior
     const notifyTime = getScheduleNotificationTime(date)
@@ -113,7 +157,7 @@ export async function PUT(req: NextRequest) {
     const schoolId = (session.user as any).schoolId as string | null
 
     const body = await req.json()
-    const { id, title, date, endDate, type, scope, scopeValue, description } = body
+    const { id, title, date, endDate, type, scope, scopeValue, description, updateSeries } = body
 
     if (!id || !title?.trim() || !date || !type) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
@@ -122,16 +166,39 @@ export async function PUT(req: NextRequest) {
     const condition = schoolId
       ? and(eq(calendarEvents.id, id), eq(calendarEvents.schoolId, schoolId))
       : eq(calendarEvents.id, id)
-    const [event] = await db.update(calendarEvents).set({
-      title: title.trim(),
-      date,
-      endDate: endDate || null,
-      type,
-      scope: scope?.trim() || 'School-wide',
-      scopeValue: scopeValue?.trim() || '',
-      description: description || '',
-      updatedAt: new Date(),
-    }).where(condition).returning()
+      
+    const [currentEvent] = await db.select().from(calendarEvents).where(condition)
+    if (!currentEvent) return NextResponse.json({ error: 'Event not found.' }, { status: 404 })
+
+    let updatedEvents = []
+
+    if (updateSeries && currentEvent.seriesId) {
+      const seriesCondition = schoolId
+        ? and(eq(calendarEvents.seriesId, currentEvent.seriesId), eq(calendarEvents.schoolId, schoolId), gte(calendarEvents.date, currentEvent.date))
+        : and(eq(calendarEvents.seriesId, currentEvent.seriesId), gte(calendarEvents.date, currentEvent.date))
+
+      updatedEvents = await db.update(calendarEvents).set({
+        title: title.trim(),
+        type,
+        scope: scope?.trim() || 'School-wide',
+        scopeValue: scopeValue?.trim() || '',
+        description: description || '',
+        updatedAt: new Date(),
+      }).where(seriesCondition).returning()
+    } else {
+      updatedEvents = await db.update(calendarEvents).set({
+        title: title.trim(),
+        date,
+        endDate: endDate || null,
+        type,
+        scope: scope?.trim() || 'School-wide',
+        scopeValue: scopeValue?.trim() || '',
+        description: description || '',
+        updatedAt: new Date(),
+      }).where(condition).returning()
+    }
+
+    const event = updatedEvents[0]
 
     if (!event) return NextResponse.json({ error: 'Event not found.' }, { status: 404 })
 
@@ -167,12 +234,29 @@ export async function DELETE(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
+    const deleteSeries = searchParams.get('deleteSeries') === 'true'
+    
     if (!id) return NextResponse.json({ error: 'Missing event ID.' }, { status: 400 })
 
     const condition = schoolId
       ? and(eq(calendarEvents.id, id), eq(calendarEvents.schoolId, schoolId))
       : eq(calendarEvents.id, id)
-    const [deleted] = await db.delete(calendarEvents).where(condition).returning()
+      
+    const [currentEvent] = await db.select().from(calendarEvents).where(condition)
+    if (!currentEvent) return NextResponse.json({ error: 'Event not found.' }, { status: 404 })
+
+    let deleted
+    if (deleteSeries && currentEvent.seriesId) {
+      const seriesCondition = schoolId
+        ? and(eq(calendarEvents.seriesId, currentEvent.seriesId), eq(calendarEvents.schoolId, schoolId), gte(calendarEvents.date, currentEvent.date))
+        : and(eq(calendarEvents.seriesId, currentEvent.seriesId), gte(calendarEvents.date, currentEvent.date))
+      
+      const deletedEvents = await db.delete(calendarEvents).where(seriesCondition).returning()
+      deleted = deletedEvents[0]
+    } else {
+      const deletedEvents = await db.delete(calendarEvents).where(condition).returning()
+      deleted = deletedEvents[0]
+    }
     if (deleted) {
       await notifyRoleInSchool(
         ['teacher', 'management'],

@@ -22,7 +22,7 @@ export default async function CalendarPage() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar 
         userName={session.user.name ?? ''} 
-        userRole="School Management" 
+        userRole="Academic Administration" 
         navItems={MANAGEMENT_NAV} 
         initials={initials} 
       />
