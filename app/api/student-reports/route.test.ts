@@ -29,7 +29,7 @@ describe('GET /api/student-reports', () => {
 
   it('rejects when there is no session', async () => {
     ;(auth as jest.Mock).mockResolvedValue(null)
-    const res = await GET(req())
+    const res = await GET()
     expect(res.status).toBe(401)
   })
 
@@ -40,7 +40,7 @@ describe('GET /api/student-reports', () => {
     await db.insert(studentReports).values({ teacherId: teacherB.id, teacherName: teacherB.name, className: 'Grade 11-B', subject: 'Chemistry', term: 'Unit Test 1' })
 
     ;(auth as jest.Mock).mockResolvedValue({ user: { id: teacherA.id, role: 'management' } })
-    const res = await GET(req())
+    const res = await GET()
     const body = await res.json()
     expect(body).toHaveLength(2)
   })
@@ -52,7 +52,7 @@ describe('GET /api/student-reports', () => {
     await db.insert(studentReports).values({ teacherId: teacherB.id, teacherName: teacherB.name, className: 'Grade 11-B', subject: 'Chemistry', term: 'Unit Test 1' })
 
     ;(auth as jest.Mock).mockResolvedValue({ user: { id: teacherA.id, role: 'teacher' } })
-    const res = await GET(req())
+    const res = await GET()
     const body = await res.json()
     expect(body).toHaveLength(1)
     expect(body[0].className).toBe('Grade 10-A')
@@ -60,8 +60,8 @@ describe('GET /api/student-reports', () => {
 
   it('never seeds data — an empty database returns an empty array, every time', async () => {
     ;(auth as jest.Mock).mockResolvedValue({ user: { id: '00000000-0000-0000-0000-000000000000', role: 'teacher' } })
-    const first = await (await GET(req())).json()
-    const second = await (await GET(req())).json()
+    const first = await (await GET()).json()
+    const second = await (await GET()).json()
     expect(first).toEqual([])
     expect(second).toEqual([])
   })
@@ -71,9 +71,9 @@ describe('GET /api/student-reports', () => {
     await db.insert(studentReports).values({ teacherId: teacherA.id, teacherName: teacherA.name, className: 'Grade 10-A', subject: 'Physics', term: 'Unit Test 1' })
 
     ;(auth as jest.Mock).mockResolvedValue({ user: { id: teacherA.id, role: 'teacher' } })
-    await GET(req())
-    await GET(req())
-    await GET(req())
+    await GET()
+    await GET()
+    await GET()
 
     const all = await db.select().from(studentReports)
     expect(all).toHaveLength(1)
