@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db, tests, testGrades } from '@/lib/db'
-import { eq } from 'drizzle-orm'
 import { auth, getSchoolId } from '@/lib/auth'
 import { findStudentsByBatch, findStudentsByBatchId } from '@/lib/db/queries/students'
 import { listQuestionsForTest } from '@/lib/db/queries/test-questions'
 import { getResponseGrid, saveResponses, type ResponseStatus } from '@/lib/db/queries/test-responses'
 import { getLocalToday } from '@/lib/scheduleUtils'
-import { notifyRoleInSchool } from '@/lib/notify'
+import { finalizeGradedTest } from '@/lib/reports/test-grading-finalize'
 
 export const dynamic = 'force-dynamic'
 
@@ -106,29 +104,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const userId = (session.user as any).id as string
     await saveResponses(test.id, valid, userId, test.schoolId)
 
-    const savedGrades = await db.select().from(testGrades).where(eq(testGrades.testId, test.id))
-    const presentPercentages = savedGrades
-      .filter(g => !g.absent && g.marksObtained !== null)
-      .map(g => ((g.marksObtained as number) / test.totalMarks) * 100)
-    const averageScore = presentPercentages.length > 0
-      ? Math.round(presentPercentages.reduce((sum, p) => sum + p, 0) / presentPercentages.length)
-      : null
-
-    const [updatedTest] = await db.update(tests)
-      .set({ averageScore, status: 'Graded', updatedAt: new Date() })
-      .where(eq(tests.id, test.id))
-      .returning()
-
-    await notifyRoleInSchool(
-      ['teacher', 'management'],
-      test.schoolId,
-      {
-        category: 'Result',
-        title: `Test Results Declared: ${test.title}`,
-        message: `Results for Subject: ${test.subject} (Batch: ${test.batch}) have been declared.${averageScore !== null ? ` Class Average: ${averageScore}%.` : ''}`,
-      },
-      (role) => role === 'teacher' ? '/teacher/tests' : '/management/tests-bank'
-    )
+    const { updatedTest } = await finalizeGradedTest(test)
 
     return NextResponse.json({ success: true, test: updatedTest })
   } catch (error: any) {
