@@ -18,10 +18,12 @@ import {
   Loader2,
   ChevronRight,
   Sparkles,
+  Upload,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as XLSX from 'xlsx'
 import { downloadTabularReportPDF } from '@/lib/pdf/reportPdfGenerator'
+import TestResultsImportModal from './TestResultsImportModal'
 
 interface StudentFullReportsProps {
   initialStudentId?: string
@@ -35,6 +37,7 @@ export default function StudentFullReportsView({ initialStudentId }: StudentFull
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'performance' | 'testAnalysis' | 'strengthWeakness' | 'errorLogs' | 'feedback'>('performance')
   const [toastMsg, setToastMsg] = useState<string | null>(null)
+  const [showImportResultsModal, setShowImportResultsModal] = useState(false)
 
   const showToast = (msg: string) => {
     setToastMsg(msg)
@@ -196,6 +199,12 @@ export default function StudentFullReportsView({ initialStudentId }: StudentFull
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowImportResultsModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition-all"
+          >
+            <Upload className="w-3.5 h-3.5" /> Import Test Results
+          </button>
+          <button
             onClick={handleExportCSV}
             disabled={!reportData}
             className="flex items-center gap-2 px-3.5 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all disabled:opacity-50"
@@ -211,6 +220,23 @@ export default function StudentFullReportsView({ initialStudentId }: StudentFull
           </button>
         </div>
       </div>
+
+      {showImportResultsModal && (
+        <TestResultsImportModal
+          onClose={() => setShowImportResultsModal(false)}
+          onImported={({ written, skippedCount }) => {
+            setShowImportResultsModal(false)
+            showToast(`Imported results for ${written} student${written === 1 ? '' : 's'}${skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}.`)
+            if (selectedStudentId) {
+              setLoading(true)
+              fetch(`/api/reports/students/${selectedStudentId}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then((data) => { if (data && !data.error) setReportData(data) })
+                .finally(() => setLoading(false))
+            }
+          }}
+        />
+      )}
 
       {loading ? (
         <div className="bg-white rounded-2xl p-16 flex flex-col items-center justify-center border border-slate-100 text-slate-400">
