@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MessageSquare, Calendar, User, CheckCircle2, XCircle, Plus, Search, Filter, Loader2, Send, Clock, AlertCircle } from 'lucide-react'
+import { MessageSquare, Calendar, User, CheckCircle2, XCircle, Plus, Search, Filter, Loader2, Send, Clock, AlertCircle, Printer } from 'lucide-react'
 import { formatDate } from '@/lib/date'
 
 function getTodayLocal() {
@@ -29,6 +29,8 @@ interface PtmLog {
   discussionNotes: string
   actionItems: string
   followUpDate?: string
+  printedAt?: string
+  printCount?: number
   createdAt: string
 }
 
@@ -53,6 +55,21 @@ export default function PTMNotesView() {
   const [successMsg, setSuccessMsg] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [printingId, setPrintingId] = useState<string | null>(null)
+
+  const handlePrint = async (log: PtmLog) => {
+    setPrintingId(log.id)
+    try {
+      const { downloadPtmReportPDF } = await import('@/lib/pdf/ptmPdfGenerator')
+      await downloadPtmReportPDF(log)
+      await fetch(`/api/teacher/ptm-reports/${log.id}/print`, { method: 'POST' })
+      fetchPtmLogs()
+    } catch (err) {
+      console.error('Failed to print PTM report:', err)
+    } finally {
+      setPrintingId(null)
+    }
+  }
 
   // Fetch batches
   useEffect(() => {
@@ -383,6 +400,15 @@ export default function PTMNotesView() {
                         {log.parentAttended ? 'Parent Attended' : 'Parent Absent'}
                       </span>
                       <span className="text-[11px] text-slate-400 font-semibold">{formatDate(log.date)}</span>
+                      <button
+                        onClick={() => handlePrint(log)}
+                        disabled={printingId === log.id}
+                        className="ml-2 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-md transition disabled:opacity-50"
+                        title={log.printedAt ? `Printed ${log.printCount} time(s). Last: ${formatDate(log.printedAt)}` : 'Print Report'}
+                      >
+                        {printingId === log.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Printer className="w-3 h-3" />}
+                        Print
+                      </button>
                     </div>
                   </div>
 
