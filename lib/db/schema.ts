@@ -286,6 +286,7 @@ export const calendarEvents = pgTable('calendar_events', {
   // Start and End dates
   date: varchar('date', { length: 10 }).notNull(),
   endDate: varchar('end_date', { length: 10 }),
+  seriesId: uuid('series_id'),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -1259,6 +1260,8 @@ export const ptmReports = pgTable('ptm_reports', {
   discussionNotes: text('discussion_notes').notNull().default(''),
   actionItems: text('action_items').notNull().default(''),
   followUpDate: varchar('follow_up_date', { length: 10 }),
+  printedAt: timestamp('printed_at', { withTimezone: true }),
+  printCount: integer('print_count').notNull().default(0),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

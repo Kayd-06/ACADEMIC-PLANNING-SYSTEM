@@ -55,6 +55,8 @@ export async function listPtmReports(filters: { studentId?: string; batch?: stri
       discussionNotes: ptmReports.discussionNotes,
       actionItems: ptmReports.actionItems,
       followUpDate: ptmReports.followUpDate,
+      printedAt: ptmReports.printedAt,
+      printCount: ptmReports.printCount,
       createdAt: ptmReports.createdAt,
     })
     .from(ptmReports)

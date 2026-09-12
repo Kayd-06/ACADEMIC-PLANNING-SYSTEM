@@ -239,6 +239,20 @@
       "when": 1788566400000,
       "tag": "0047_meeting_notes_and_priority",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788566500000,
+      "tag": "0048_ptm_reports_print_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788566600000,
+      "tag": "0049_calendar_series_id",
+      "breakpoints": true
     }
   ]
 }
