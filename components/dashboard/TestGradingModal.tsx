@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, RefreshCw, AlertCircle, Check, X as XIcon, Minus, Award, Calendar, Layers, Users, BookOpen } from 'lucide-react'
 import { useAlert } from '@/components/dashboard/AlertProvider'
 import { formatDate } from '@/lib/date'
+import { MISTAKE_TYPES } from '@/lib/reports/mistake-types'
 
 interface Question {
   id: string
@@ -20,15 +21,6 @@ interface StudentResult {
   responses: Record<string, 'Correct' | 'Incorrect' | 'Unattempted' | null>
   mistakes: Record<string, string | null>
 }
-
-const MISTAKE_TYPES = [
-  'Calculation Error',
-  'Conceptual Error',
-  'Formula Error',
-  'Silly Mistake',
-  'Time Management',
-  'Other'
-]
 
 interface TestGradingModalProps {
   test: { id: string; title: string; batch: string; totalMarks: number; date: string }
