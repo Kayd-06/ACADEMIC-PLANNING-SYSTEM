@@ -100,8 +100,8 @@ export async function PATCH(req: NextRequest) {
 
   const conditions = [eq(dailyReports.id, id)]
   if (schoolId) conditions.push(eq(dailyReports.schoolId, schoolId))
-  if (role === 'teacher') conditions.push(eq(dailyReports.teacherEmail, session.user.email!))
-  else if (role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (role !== 'teacher') return NextResponse.json({ error: 'Forbidden: Only teachers can edit reports' }, { status: 403 })
+  conditions.push(eq(dailyReports.teacherEmail, session.user.email!))
 
   const body = await req.json()
   const updates: Record<string, any> = {}
@@ -142,8 +142,8 @@ export async function DELETE(req: NextRequest) {
 
   const conditions = [eq(dailyReports.id, id)]
   if (schoolId) conditions.push(eq(dailyReports.schoolId, schoolId))
-  if (role === 'teacher') conditions.push(eq(dailyReports.teacherEmail, session.user.email!))
-  else if (role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (role !== 'teacher') return NextResponse.json({ error: 'Forbidden: Only teachers can delete reports' }, { status: 403 })
+  conditions.push(eq(dailyReports.teacherEmail, session.user.email!))
 
   const [deleted] = await db.delete(dailyReports).where(and(...conditions)).returning()
   if (deleted) {
