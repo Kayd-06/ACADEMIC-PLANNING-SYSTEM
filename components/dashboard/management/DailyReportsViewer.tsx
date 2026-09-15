@@ -88,7 +88,7 @@ export default function DailyReportsViewer() {
   const fetchReports = useCallback(async (date: string) => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/daily-report?date=${date}`)
+      const res = await fetch(`/api/daily-report?date=${date}&cacheBuster=${Date.now()}`)
       const data = await res.json()
       if (Array.isArray(data)) setReports(data)
     } catch (e) { console.error(e) } finally { setLoading(false) }

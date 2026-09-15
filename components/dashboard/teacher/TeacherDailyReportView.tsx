@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Calendar, ChevronDown, CheckCircle2, Flag, Send, UserCheck, UserX, Loader2, ChevronUp } from 'lucide-react'
+import { Calendar, ChevronDown, CheckCircle2, Flag, Send, UserCheck, UserX, Loader2, ChevronUp, Pencil, Trash2, X } from 'lucide-react'
 import { formatDate } from '@/lib/date'
+import { motion, AnimatePresence } from 'framer-motion'
 
 function getTodayLocal() {
   const d = new Date()
@@ -18,6 +19,8 @@ interface DailyReport {
   topicsCovered: string
   presentCount: number
   absentCount: number
+  homeworkGiven: string
+  observations: string
   isLate: boolean
   submittedAt: string
 }
@@ -45,6 +48,10 @@ export default function TeacherDailyReportView() {
   const [successMsg, setSuccessMsg] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
 
+  const [editingReport, setEditingReport] = useState<DailyReport | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
   // Fetch batches from students table
   useEffect(() => {
     fetch('/api/daily-report', { method: 'PUT' })
@@ -66,11 +73,15 @@ export default function TeacherDailyReportView() {
   }, [form.batch, form.subject])
 
   // Fetch past submissions
-  useEffect(() => {
-    fetch('/api/daily-report')
+  const fetchSubmissions = () => {
+    fetch('/api/daily-report?cacheBuster=' + Date.now())
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setSubmissions(data) })
       .catch(() => {})
+  }
+
+  useEffect(() => {
+    fetchSubmissions()
   }, [])
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -90,15 +101,53 @@ export default function TeacherDailyReportView() {
         const saved = await res.json()
         setSuccessMsg(saved.isLate ? 'Report submitted (marked as Late — submitted after hours).' : 'Report submitted successfully!')
         setForm({ date: today, batch: '', subject: '', chapter: '', topicsCovered: '', presentCount: '', absentCount: '', homeworkGiven: '', observations: '' })
-        // Refresh submissions
-        const r2 = await fetch('/api/daily-report')
-        const d2 = await r2.json()
-        if (Array.isArray(d2)) setSubmissions(d2)
+        fetchSubmissions()
       } else {
         const err = await res.json()
         setErrorMsg(err.error || 'Submission failed')
       }
     } catch { setErrorMsg('Network error') } finally { setSubmitting(false) }
+  }
+
+  const handleEditSave = async () => {
+    if (!editingReport) return
+    setSavingEdit(true)
+    try {
+      const res = await fetch(`/api/daily-report?id=${editingReport.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topicsCovered: editingReport.topicsCovered,
+          presentCount: Number(editingReport.presentCount) || 0,
+          absentCount: Number(editingReport.absentCount) || 0,
+          homeworkGiven: editingReport.homeworkGiven,
+          observations: editingReport.observations
+        })
+      })
+      if (res.ok) {
+        setEditingReport(null)
+        fetchSubmissions()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to update')
+      }
+    } catch (err) {
+      alert('Network error')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this report?')) return
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/daily-report?id=${id}`, { method: 'DELETE' })
+      if (res.ok) fetchSubmissions()
+      else alert('Failed to delete')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const displayed = showAll ? submissions : submissions.slice(0, 5)
@@ -142,11 +191,14 @@ export default function TeacherDailyReportView() {
             <div>
               <label className="block text-[13px] font-bold text-slate-900 mb-2">Subject</label>
               <div className="relative">
-                <input list="subject-list" value={form.subject} onChange={e => set('subject', e.target.value)}
-                  placeholder="Type or select subject..."
+                <input list="subjects" value={form.subject} onChange={e => set('subject', e.target.value)}
+                  placeholder="e.g. Physics, Chemistry..."
                   className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                <datalist id="subject-list">
-                  {['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'History', 'Geography', 'Computer Science'].map(s => <option key={s} value={s} />)}
+                <datalist id="subjects">
+                  <option value="Physics" />
+                  <option value="Chemistry" />
+                  <option value="Mathematics" />
+                  <option value="Biology" />
                 </datalist>
               </div>
             </div>
@@ -221,7 +273,7 @@ export default function TeacherDailyReportView() {
       </div>
 
       {/* Recent Submissions */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden max-w-4xl">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden max-w-4xl pb-4">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-900">Your Recent Submissions</h2>
           {submissions.length > 5 && (
@@ -241,11 +293,12 @@ export default function TeacherDailyReportView() {
                 <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Subject</th>
                 <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chapter</th>
                 <th className="px-6 py-4 text-right text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-4 text-right text-[10px] font-bold text-slate-500 uppercase tracking-widest">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {displayed.map((sub, idx) => (
-                <tr key={sub.id || idx} className="hover:bg-slate-50/50 transition-colors">
+                <tr key={sub.id || idx} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4 text-[13px] font-semibold text-slate-700">{formatDate(sub.date)}</td>
                   <td className="px-6 py-4 text-[13px] font-bold text-slate-900">{sub.batch}</td>
                   <td className="px-6 py-4 text-[13px] text-slate-600">{sub.subject}</td>
@@ -256,12 +309,99 @@ export default function TeacherDailyReportView() {
                       {sub.isLate ? 'Late' : 'On Time'}
                     </span>
                   </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => setEditingReport(sub)}
+                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Edit">
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDelete(sub.id)} disabled={deletingId === sub.id}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete">
+                        {deletingId === sub.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {/* Edit Modal */}
+      <AnimatePresence>
+        {editingReport && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setEditingReport(null)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Edit Report</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{formatDate(editingReport.date)} · {editingReport.batch} · {editingReport.subject}</p>
+                </div>
+                <button onClick={() => setEditingReport(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">Topics Covered</label>
+                  <textarea rows={3} value={editingReport.topicsCovered}
+                    onChange={e => setEditingReport({ ...editingReport, topicsCovered: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">Present Count</label>
+                    <input type="number" min="0" value={editingReport.presentCount}
+                      onChange={e => setEditingReport({ ...editingReport, presentCount: Number(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">Absent Count</label>
+                    <input type="number" min="0" value={editingReport.absentCount}
+                      onChange={e => setEditingReport({ ...editingReport, absentCount: Number(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">Homework Given</label>
+                  <textarea rows={2} value={editingReport.homeworkGiven || ''}
+                    onChange={e => setEditingReport({ ...editingReport, homeworkGiven: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">Observations</label>
+                  <textarea rows={2} value={editingReport.observations || ''}
+                    onChange={e => setEditingReport({ ...editingReport, observations: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+                <button onClick={() => setEditingReport(null)}
+                  className="px-4 py-2 text-sm font-bold text-gray-600 hover:text-gray-900 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleEditSave} disabled={savingEdit}
+                  className="px-5 py-2 bg-[#0b1320] hover:bg-slate-800 text-white text-sm font-bold rounded-lg transition-colors flex items-center gap-2">
+                  {savingEdit && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Save Changes
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
