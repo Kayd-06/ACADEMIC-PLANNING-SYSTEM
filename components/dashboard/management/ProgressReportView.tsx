@@ -20,6 +20,7 @@ interface SubjectScore {
 
 interface ProgressReport {
   id: string
+  studentId: string
   studentName: string
   rollNo: string
   batch: string
@@ -45,6 +46,7 @@ export default function ProgressReportView() {
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [batches, setBatches] = useState<string[]>([])
+  const [students, setStudents] = useState<any[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [recalculating, setRecalculating] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -239,8 +241,7 @@ export default function ProgressReportView() {
 
   const openEdit = (report: ProgressReport) => {
     setForm({
-      studentName: report.studentName,
-      rollNo: report.rollNo || '',
+      studentId: report.studentId || '',
       batch: report.batch,
       termType: report.termType,
       academicYear: report.academicYear,
@@ -672,7 +673,7 @@ export default function ProgressReportView() {
                         disabled={!form.batch}
                         className="w-full px-3.5 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl font-semibold text-gray-900 focus:outline-none focus:bg-white focus:border-indigo-500 disabled:opacity-50">
                         <option value="">Select Student</option>
-                        {students.map(s => <option key={s.id || s._id} value={s.id || s._id}>{s.name} ({s.rollNo || s.enrollmentNumber || 'N/A'})</option>)}
+                        {students.map((s: any) => <option key={s.id || s._id} value={s.id || s._id}>{s.name} ({s.rollNo || s.enrollmentNumber || 'N/A'})</option>)}
                     </select>
                   </div>
                   <div>

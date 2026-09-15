@@ -111,11 +111,11 @@ function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, admi
             </div>
             <div>
               <label className={labelClass}>Start Time *</label>
-              <TimeInput value={form.startTime} onChange={set('startTime')} />
+              <TimeInput value={form.startTime} onChange={v => setForm({ ...form, startTime: v })} />
             </div>
             <div>
               <label className={labelClass}>End Time *</label>
-              <TimeInput value={form.endTime} onChange={set('endTime')} />
+              <TimeInput value={form.endTime} onChange={v => setForm({ ...form, endTime: v })} />
             </div>
             <div>
               <label className={labelClass}>Effective From</label>
@@ -218,11 +218,11 @@ function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, a
             </div>
             <div>
               <label className={labelClass}>Start Time *</label>
-              <TimeInput value={form.startTime} onChange={set('startTime')} />
+              <TimeInput value={form.startTime} onChange={v => setForm({ ...form, startTime: v })} />
             </div>
             <div>
               <label className={labelClass}>End Time *</label>
-              <TimeInput value={form.endTime} onChange={set('endTime')} />
+              <TimeInput value={form.endTime} onChange={v => setForm({ ...form, endTime: v })} />
             </div>
             <div>
               <label className={labelClass}>Teacher Name</label>
