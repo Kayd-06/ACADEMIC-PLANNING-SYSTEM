@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { date, batch, subject, chapter, topicsCovered, presentCount, absentCount, homeworkGiven, observations } = body
+  const { date, batch, subject, chapter, topicsCovered, homeworkGiven, observations } = body
   const schoolId = (session.user as any).schoolId as string | null
 
   if (!date || !batch || !subject) {
@@ -65,8 +65,8 @@ export async function POST(req: NextRequest) {
     subject,
     chapter: chapter || '',
     topicsCovered: topicsCovered || '',
-    presentCount: Number(presentCount) || 0,
-    absentCount: Number(absentCount) || 0,
+    presentCount: 0,
+    absentCount: 0,
     homeworkGiven: homeworkGiven || '',
     observations: observations || '',
     isLate,
@@ -108,8 +108,7 @@ export async function PATCH(req: NextRequest) {
   for (const f of ['date', 'batch', 'subject', 'chapter', 'topicsCovered', 'homeworkGiven', 'observations'] as const) {
     if (body[f] !== undefined) updates[f] = body[f]
   }
-  if (body.presentCount !== undefined) updates.presentCount = Number(body.presentCount) || 0
-  if (body.absentCount !== undefined) updates.absentCount = Number(body.absentCount) || 0
+
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
 
   const [updated] = await db.update(dailyReports).set(updates).where(and(...conditions)).returning()

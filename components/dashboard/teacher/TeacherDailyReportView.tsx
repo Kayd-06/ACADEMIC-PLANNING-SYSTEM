@@ -34,13 +34,12 @@ export default function TeacherDailyReportView() {
     subject: '',
     chapter: '',
     topicsCovered: '',
-    presentCount: '',
-    absentCount: '',
     homeworkGiven: '',
     observations: '',
   })
 
   const [batches, setBatches] = useState<string[]>([])
+  const [subjects, setSubjects] = useState<string[]>([])
   const [chapters, setChapters] = useState<string[]>([])
   const [submissions, setSubmissions] = useState<DailyReport[]>([])
   const [showAll, setShowAll] = useState(false)
@@ -57,6 +56,11 @@ export default function TeacherDailyReportView() {
     fetch('/api/daily-report', { method: 'PUT' })
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setBatches(data) })
+      .catch(() => {})
+      
+    fetch('/api/teacher-portal/subjects')
+      .then(r => r.json())
+      .then(data => { if (data.subjects) setSubjects(data.subjects) })
       .catch(() => {})
   }, [])
 
@@ -95,12 +99,12 @@ export default function TeacherDailyReportView() {
       const res = await fetch('/api/daily-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, presentCount: Number(form.presentCount) || 0, absentCount: Number(form.absentCount) || 0 }),
+        body: JSON.stringify(form),
       })
       if (res.ok) {
         const saved = await res.json()
         setSuccessMsg(saved.isLate ? 'Report submitted (marked as Late — submitted after hours).' : 'Report submitted successfully!')
-        setForm({ date: today, batch: '', subject: '', chapter: '', topicsCovered: '', presentCount: '', absentCount: '', homeworkGiven: '', observations: '' })
+        setForm({ date: today, batch: '', subject: '', chapter: '', topicsCovered: '', homeworkGiven: '', observations: '' })
         fetchSubmissions()
       } else {
         const err = await res.json()
@@ -118,8 +122,6 @@ export default function TeacherDailyReportView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           topicsCovered: editingReport.topicsCovered,
-          presentCount: Number(editingReport.presentCount) || 0,
-          absentCount: Number(editingReport.absentCount) || 0,
           homeworkGiven: editingReport.homeworkGiven,
           observations: editingReport.observations
         })
@@ -191,15 +193,20 @@ export default function TeacherDailyReportView() {
             <div>
               <label className="block text-[13px] font-bold text-slate-900 mb-2">Subject</label>
               <div className="relative">
-                <input list="subjects" value={form.subject} onChange={e => set('subject', e.target.value)}
-                  placeholder="e.g. Physics, Chemistry..."
-                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                <datalist id="subjects">
-                  <option value="Physics" />
-                  <option value="Chemistry" />
-                  <option value="Mathematics" />
-                  <option value="Biology" />
-                </datalist>
+                {subjects.length > 0 ? (
+                  <>
+                    <select value={form.subject} onChange={e => set('subject', e.target.value)}
+                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
+                      <option value="">Select subject...</option>
+                      {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <ChevronDown className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </>
+                ) : (
+                  <input value={form.subject} onChange={e => set('subject', e.target.value)}
+                    placeholder="e.g. Physics, Chemistry..."
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                )}
               </div>
             </div>
             <div>
@@ -231,19 +238,7 @@ export default function TeacherDailyReportView() {
               className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
           </div>
 
-          {/* Attendance */}
-          <div className="grid grid-cols-2 gap-6">
-            <div className="bg-emerald-50/50 border border-emerald-100 p-4 rounded-xl">
-              <label className="flex items-center gap-2 text-[12px] font-bold text-emerald-800 mb-2"><UserCheck className="w-4 h-4" /> Present Count</label>
-              <input type="number" min="0" value={form.presentCount} onChange={e => set('presentCount', e.target.value)}
-                className="w-full px-4 py-2 bg-white border border-emerald-200 rounded-lg text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-            <div className="bg-red-50/50 border border-red-100 p-4 rounded-xl">
-              <label className="flex items-center gap-2 text-[12px] font-bold text-red-800 mb-2"><UserX className="w-4 h-4" /> Absent Count</label>
-              <input type="number" min="0" value={form.absentCount} onChange={e => set('absentCount', e.target.value)}
-                className="w-full px-4 py-2 bg-white border border-red-200 rounded-lg text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500" />
-            </div>
-          </div>
+
 
           {/* Homework & Observations */}
           <div className="grid grid-cols-2 gap-6">
@@ -357,20 +352,7 @@ export default function TeacherDailyReportView() {
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Present Count</label>
-                    <input type="number" min="0" value={editingReport.presentCount}
-                      onChange={e => setEditingReport({ ...editingReport, presentCount: Number(e.target.value) })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Absent Count</label>
-                    <input type="number" min="0" value={editingReport.absentCount}
-                      onChange={e => setEditingReport({ ...editingReport, absentCount: Number(e.target.value) })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  </div>
-                </div>
+
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-2">Homework Given</label>
