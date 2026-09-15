@@ -355,7 +355,7 @@ export default function TeacherStudentRosterView() {
                     </div>
                   </div>
 
-
+                </div>
 
                 {/* Right Column in Detail */}
                 <div className="space-y-6">
