@@ -41,6 +41,7 @@ export default function CalendarView() {
   
   // Database Events States
   const [events, setEvents] = useState<any[]>([])
+  const [batches, setBatches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -67,10 +68,18 @@ export default function CalendarView() {
   async function fetchEvents() {
     setLoading(true)
     try {
-      const res = await fetch('/api/calendar')
-      const data = await res.json()
+      const [eventsRes, batchesRes] = await Promise.all([
+        fetch('/api/calendar'),
+        fetch('/api/batches')
+      ])
+      const data = await eventsRes.json()
       if (Array.isArray(data)) {
         setEvents(data)
+      }
+      
+      const batchesData = await batchesRes.json()
+      if (Array.isArray(batchesData)) {
+        setBatches(batchesData.map((b: any) => ({ id: b._id || b.id, name: b.name })))
       }
     } catch (err) {
       console.error('Failed to fetch events:', err)
@@ -714,10 +723,7 @@ export default function CalendarView() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none"
                   >
                     <option value="School-wide">School-wide</option>
-                    <option value="Batch A">Batch A</option>
-                    <option value="Batch B">Batch B</option>
-                    <option value="Grade 11">Grade 11</option>
-                    <option value="Grade 12">Grade 12</option>
+                    {batches.map((b: any) => <option key={b.id} value={b.name}>{b.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -870,10 +876,7 @@ export default function CalendarView() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none"
                   >
                     <option value="School-wide">School-wide</option>
-                    <option value="Batch A">Batch A</option>
-                    <option value="Batch B">Batch B</option>
-                    <option value="Grade 11">Grade 11</option>
-                    <option value="Grade 12">Grade 12</option>
+                    {batches.map((b: any) => <option key={b.id} value={b.name}>{b.name}</option>)}
                   </select>
                 </div>
               </div>
