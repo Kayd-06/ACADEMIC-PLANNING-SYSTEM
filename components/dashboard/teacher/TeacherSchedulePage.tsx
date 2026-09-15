@@ -58,24 +58,55 @@ function fmtDateLabel(iso: string) {
 const inputClass = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
 const labelClass = 'block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5'
 
+const TimeInput = ({ value, onChange }: { value: string, onChange: (v: string) => void }) => {
+  const match = value.match(/^(\d{1,2}:\d{2})\s*(AM|PM)?$/i)
+  const timePart = match ? match[1] : value.replace(/\s*(AM|PM)/i, '').trim()
+  const ampmPart = match && match[2] ? match[2].toUpperCase() : 'AM'
+  
+  const baseInput = "px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+  
+  return (
+    <div className="flex gap-2">
+      <input 
+        value={timePart} 
+        onChange={e => onChange(`${e.target.value} ${ampmPart}`)} 
+        placeholder="10:00" 
+        className={baseInput + " flex-1 min-w-0"} 
+      />
+      <select 
+        value={ampmPart} 
+        onChange={e => onChange(`${timePart} ${e.target.value}`)} 
+        className={baseInput + " w-[76px] bg-white shrink-0"}
+      >
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  )
+}
+
 // Modal: create a one-off special class
-function SpecialClassModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({
+function SpecialClassModal({ initial, isEdit, onClose, onSaved, batches }: { initial?: any; isEdit?: boolean; onClose: () => void; onSaved: () => void; batches: any[] }) {
+  const [form, setForm] = useState(initial || {
     title: '', type: 'Extra', subject: '', batch: '',
     date: getLocalToday(), startTime: '10:00 AM', endTime: '11:00 AM', room: '', notes: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const set = (f: string) => (e: React.ChangeEvent<any>) => setForm(prev => ({ ...prev, [f]: e.target.value }))
+  const set = (f: string) => (e: React.ChangeEvent<any> | string) => {
+    const val = typeof e === 'string' ? e : e.target.value
+    setForm((prev: any) => ({ ...prev, [f]: val }))
+  }
 
   async function save() {
     if (!form.title.trim()) { setError('Title is required.'); return }
     setSaving(true)
     setError('')
     try {
-      const res = await fetch('/api/special-classes', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+      const url = isEdit ? `/api/special-classes?id=${form._id}` : '/api/special-classes'
+      const res = await fetch(url, {
+        method: isEdit ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -92,7 +123,7 @@ function SpecialClassModal({ onClose, onSaved }: { onClose: () => void; onSaved:
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
         className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-slate-100">
-          <h2 className="text-lg font-bold text-slate-900">Schedule Special Class</h2>
+          <h2 className="text-lg font-bold text-slate-900">{isEdit ? 'Edit Special Class' : 'Schedule Special Class'}</h2>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
@@ -114,11 +145,11 @@ function SpecialClassModal({ onClose, onSaved }: { onClose: () => void; onSaved:
             </div>
             <div>
               <label className={labelClass}>Start Time *</label>
-              <input value={form.startTime} onChange={set('startTime')} placeholder="10:00 AM" className={inputClass} />
+              <TimeInput value={form.startTime} onChange={set('startTime')} />
             </div>
             <div>
               <label className={labelClass}>End Time *</label>
-              <input value={form.endTime} onChange={set('endTime')} placeholder="11:00 AM" className={inputClass} />
+              <TimeInput value={form.endTime} onChange={set('endTime')} />
             </div>
             <div>
               <label className={labelClass}>Subject</label>
@@ -126,7 +157,10 @@ function SpecialClassModal({ onClose, onSaved }: { onClose: () => void; onSaved:
             </div>
             <div>
               <label className={labelClass}>Batch</label>
-              <input value={form.batch} onChange={set('batch')} placeholder="e.g. Grade 11-A" className={inputClass} />
+              <select value={form.batch} onChange={set('batch')} className={inputClass + ' bg-white'}>
+                <option value="">Select Batch...</option>
+                {batches.map(b => <option key={b.id || b._id} value={b.name}>{b.name}</option>)}
+              </select>
             </div>
           </div>
           <div>
@@ -141,7 +175,7 @@ function SpecialClassModal({ onClose, onSaved }: { onClose: () => void; onSaved:
         <div className="p-5 border-t border-slate-100 flex justify-end gap-3 bg-slate-50">
           <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800">Cancel</button>
           <button onClick={save} disabled={saving} className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 shadow-sm disabled:opacity-50 flex items-center gap-2">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />} Schedule Class
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />} {isEdit ? 'Save Changes' : 'Schedule Class'}
           </button>
         </div>
       </motion.div>
@@ -150,8 +184,8 @@ function SpecialClassModal({ onClose, onSaved }: { onClose: () => void; onSaved:
 }
 
 // Modal: create a weekly recurring timetable slot
-function WeeklySlotModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({
+function WeeklySlotModal({ initial, isEdit, onClose, onSaved, batches }: { initial?: any; isEdit?: boolean; onClose: () => void; onSaved: () => void; batches: any[] }) {
+  const [form, setForm] = useState(initial || {
     subject: '', batch: '', dayOfWeek: 1,
     startTime: '09:00 AM', endTime: '10:00 AM', room: '',
     effectiveFrom: '', effectiveTo: '',
@@ -159,8 +193,10 @@ function WeeklySlotModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const set = (f: string) => (e: React.ChangeEvent<any>) =>
-    setForm(prev => ({ ...prev, [f]: f === 'dayOfWeek' ? Number(e.target.value) : e.target.value }))
+  const set = (f: string) => (e: React.ChangeEvent<any> | string) => {
+    const val = typeof e === 'string' ? e : e.target.value
+    setForm((prev: any) => ({ ...prev, [f]: f === 'dayOfWeek' ? Number(val) : val }))
+  }
 
   async function save() {
     if (!form.subject.trim() || !form.batch.trim()) { setError('Subject and batch are required.'); return }
@@ -168,8 +204,9 @@ function WeeklySlotModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
     setSaving(true)
     setError('')
     try {
-      const res = await fetch('/api/schedule', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+      const url = isEdit ? `/api/schedule?id=${form._id}` : '/api/schedule'
+      const res = await fetch(url, {
+        method: isEdit ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -186,7 +223,7 @@ function WeeklySlotModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
         className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-slate-100">
-          <h2 className="text-lg font-bold text-slate-900">Add Weekly Slot</h2>
+          <h2 className="text-lg font-bold text-slate-900">{isEdit ? 'Edit Weekly Slot' : 'Add Weekly Slot'}</h2>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-5 space-y-4">
@@ -198,7 +235,10 @@ function WeeklySlotModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
             </div>
             <div>
               <label className={labelClass}>Batch *</label>
-              <input value={form.batch} onChange={set('batch')} placeholder="e.g. Grade 11-A" className={inputClass} />
+              <select value={form.batch} onChange={set('batch')} className={inputClass + ' bg-white'}>
+                <option value="">Select Batch...</option>
+                {batches.map(b => <option key={b.id || b._id} value={b.name}>{b.name}</option>)}
+              </select>
             </div>
             <div>
               <label className={labelClass}>Day of Week</label>
@@ -214,11 +254,11 @@ function WeeklySlotModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
             </div>
             <div>
               <label className={labelClass}>Start Time *</label>
-              <input value={form.startTime} onChange={set('startTime')} placeholder="09:00 AM" className={inputClass} />
+              <TimeInput value={form.startTime} onChange={set('startTime')} />
             </div>
             <div>
               <label className={labelClass}>End Time *</label>
-              <input value={form.endTime} onChange={set('endTime')} placeholder="10:00 AM" className={inputClass} />
+              <TimeInput value={form.endTime} onChange={set('endTime')} />
             </div>
             <div>
               <label className={labelClass}>Effective From</label>
@@ -233,7 +273,7 @@ function WeeklySlotModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
         <div className="p-5 border-t border-slate-100 flex justify-end gap-3 bg-slate-50">
           <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800">Cancel</button>
           <button onClick={save} disabled={saving} className="px-4 py-2 bg-[#0b1320] text-white text-sm font-bold rounded-lg hover:bg-slate-800 shadow-sm disabled:opacity-50 flex items-center gap-2">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />} Add Slot
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />} {isEdit ? 'Save Changes' : 'Add Slot'}
           </button>
         </div>
       </motion.div>
@@ -245,18 +285,21 @@ export default function TeacherSchedulePage() {
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()))
   const [schedules, setSchedules] = useState<any[]>([])
   const [specials, setSpecials] = useState<any[]>([])
+  const [batches, setBatches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [showSpecialModal, setShowSpecialModal] = useState(false)
-  const [showSlotModal, setShowSlotModal] = useState(false)
+  const [showSpecialModal, setShowSpecialModal] = useState<{ mode: 'add' | 'edit'; special?: any } | null>(null)
+  const [showSlotModal, setShowSlotModal] = useState<{ mode: 'add' | 'edit'; slot?: any } | null>(null)
 
   const fetchAll = async () => {
     try {
-      const [schedRes, specRes] = await Promise.all([
+      const [schedRes, specRes, batchRes] = await Promise.all([
         fetch('/api/schedule?mine=true&activeOnly=true'),
         fetch('/api/special-classes?mine=true'),
+        fetch('/api/batches'),
       ])
       if (schedRes.ok) setSchedules(await schedRes.json())
       if (specRes.ok) setSpecials(await specRes.json())
+      if (batchRes.ok) setBatches(await batchRes.json())
     } catch (err) {
       console.error(err)
     } finally {
@@ -322,8 +365,24 @@ export default function TeacherSchedulePage() {
   return (
     <div className="flex-1 p-8 overflow-auto bg-slate-50 min-h-screen">
       <AnimatePresence>
-        {showSpecialModal && <SpecialClassModal onClose={() => setShowSpecialModal(false)} onSaved={fetchAll} />}
-        {showSlotModal && <WeeklySlotModal onClose={() => setShowSlotModal(false)} onSaved={fetchAll} />}
+        {showSpecialModal && (
+          <SpecialClassModal 
+            initial={showSpecialModal.mode === 'edit' ? showSpecialModal.special : undefined}
+            isEdit={showSpecialModal.mode === 'edit'}
+            onClose={() => setShowSpecialModal(null)} 
+            onSaved={fetchAll} 
+            batches={batches}
+          />
+        )}
+        {showSlotModal && (
+          <WeeklySlotModal 
+            initial={showSlotModal.mode === 'edit' ? showSlotModal.slot : undefined}
+            isEdit={showSlotModal.mode === 'edit'}
+            onClose={() => setShowSlotModal(null)} 
+            onSaved={fetchAll} 
+            batches={batches}
+          />
+        )}
       </AnimatePresence>
 
       {/* Header */}
@@ -332,7 +391,7 @@ export default function TeacherSchedulePage() {
           <h1 className="text-2xl font-bold text-slate-900">Schedule</h1>
           <p className="text-[13px] text-slate-500 mt-1">Your weekly class timetable and special sessions</p>
         </div>
-        <button onClick={() => setShowSlotModal(true)}
+        <button onClick={() => setShowSlotModal({ mode: 'add' })}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
           <Repeat className="w-4 h-4" /> Add Weekly Slot
         </button>
@@ -400,6 +459,15 @@ export default function TeacherSchedulePage() {
                     className={`absolute p-2.5 rounded-lg shadow-sm pointer-events-auto cursor-pointer hover:shadow-md transition-all overflow-hidden ${
                       isSpecial ? 'bg-white border-2 border-dashed border-slate-200' : 'bg-[#eef2ff] border-l-4 border-l-[#312e81]'
                     }`}
+                    onClick={() => {
+                      if (isSpecial) {
+                        const sc = specials.find(x => x._id === evt.id)
+                        if (sc) setShowSpecialModal({ mode: 'edit', special: sc })
+                      } else {
+                        const sl = schedules.find(x => x._id === evt.id)
+                        if (sl) setShowSlotModal({ mode: 'edit', slot: sl })
+                      }
+                    }}
                     style={{
                       top: `${Math.max(0, topPercent)}%`,
                       height: `calc(${heightPercent}% - 8px)`,
@@ -459,7 +527,10 @@ export default function TeacherSchedulePage() {
                   <td className="px-6 py-3.5 text-[11px] text-slate-500">
                     {s.effectiveFrom || '∞'} → {s.effectiveTo || '∞'}
                   </td>
-                  <td className="px-6 py-3.5 text-right">
+                  <td className="px-6 py-3.5 text-right whitespace-nowrap">
+                    <button onClick={() => setShowSlotModal({ mode: 'edit', slot: s })} className="p-1.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                    </button>
                     <button onClick={() => deleteSlot(s._id)} className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50">
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -478,7 +549,7 @@ export default function TeacherSchedulePage() {
             <CalendarIcon className="w-5 h-5 text-indigo-600" />
             <h2 className="text-base font-bold text-slate-900">Upcoming Special Classes</h2>
           </div>
-          <button onClick={() => setShowSpecialModal(true)}
+          <button onClick={() => setShowSpecialModal({ mode: 'add' })}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0b1320] text-white text-[11px] font-bold rounded-lg hover:bg-slate-800 transition-all shadow-sm">
             <Plus className="w-3 h-3" /> Schedule Class
           </button>
@@ -511,7 +582,10 @@ export default function TeacherSchedulePage() {
                     <p className="text-[12px] font-medium text-slate-500">{[sc.batch, sc.subject].filter(Boolean).join(' • ') || '—'}{sc.room ? ` • ${sc.room}` : ''}</p>
                   </td>
                   <td className="px-6 py-4 max-w-xs truncate text-[13px] text-slate-600">{sc.notes || '—'}</td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-4 text-right whitespace-nowrap">
+                    <button onClick={() => setShowSpecialModal({ mode: 'edit', special: sc })} className="p-1.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                    </button>
                     <button onClick={() => deleteSpecial(sc._id)} className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>

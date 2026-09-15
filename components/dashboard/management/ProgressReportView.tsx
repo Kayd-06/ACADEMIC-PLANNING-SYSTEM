@@ -75,8 +75,7 @@ export default function ProgressReportView() {
 
   // Form state for generating new report
   const [form, setForm] = useState({
-    studentName: '',
-    rollNo: '',
+    studentId: '',
     batch: '',
     termType: 'Mid-Term',
     academicYear: '2025-2026',
@@ -98,6 +97,7 @@ export default function ProgressReportView() {
       if (Array.isArray(data)) {
         const mapped = data.map((d: any) => ({
           id: d.id,
+          studentId: d.studentId || d.student?.id,
           studentName: d.student?.name || 'Unknown',
           rollNo: d.student?.rollNo || '',
           batch: d.student?.batch?.name || 'Unknown',
@@ -143,6 +143,21 @@ export default function ProgressReportView() {
       .catch(() => {})
   }, [form.batch])
 
+  useEffect(() => {
+    if (!form.batch) {
+      setStudents([])
+      return
+    }
+    fetch(`/api/students?batch=${encodeURIComponent(form.batch)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) {
+          setStudents(data)
+        }
+      })
+      .catch(() => {})
+  }, [form.batch])
+
   const handleAddSubject = () => {
     setSubjects([...subjects, { subjectName: '', marksObtained: 0, totalMarks: 100, grade: 'B' }])
   }
@@ -170,21 +185,25 @@ export default function ProgressReportView() {
     setErrorMsg('')
     setSuccessMsg('')
 
+    if (!form.studentId) {
+      setErrorMsg('Please select a student.')
+      setSubmitting(false)
+      return
+    }
+
     const totalObtained = subjects.reduce((acc, s) => acc + (Number(s.marksObtained) || 0), 0)
     const totalMax = subjects.reduce((acc, s) => acc + (Number(s.totalMarks) || 0), 0)
     const percentage = totalMax > 0 ? `${Math.round((totalObtained / totalMax) * 100)}%` : '0%'
 
     const payload = {
-      // NOTE: For the mock creation, we need studentId which we don't have in this simple form.
-      // We will pass studentName and let the backend handle it or fail if this is a mocked UI flow.
-      studentId: form.rollNo || '00000000-0000-0000-0000-000000000000', // Mock UUID for demo
+      studentId: form.studentId,
       reportTitle: `${form.termType} Report`,
       academicYear: form.academicYear,
       term: form.termType,
       teacherRemarks: form.teacherRemarks,
       principalRemarks: form.principalRemarks,
       overallPercentage: percentage,
-      classRank: editingId ? (reports.find(r => r.id === editingId)?.rank || '3rd') : '3rd',
+      classRank: editingId ? (reports.find(r => r.id === editingId)?.rank || '-') : '-',
       subjects: subjects.map(s => ({
         subjectName: s.subjectName,
         marksObtained: Number(s.marksObtained),
@@ -635,27 +654,26 @@ export default function ProgressReportView() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Student Name *</label>
-                    <input type="text" required placeholder="e.g. Aarav Sharma" value={form.studentName} onChange={e => setForm({ ...form, studentName: e.target.value })}
-                      className="w-full px-3.5 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-900 focus:outline-none focus:bg-white focus:border-indigo-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Roll No / ID</label>
-                    <input type="text" placeholder="e.g. 102" value={form.rollNo} onChange={e => setForm({ ...form, rollNo: e.target.value })}
-                      className="w-full px-3.5 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-900 focus:outline-none focus:bg-white focus:border-indigo-500" />
-                  </div>
-                  <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1">Batch / Class *</label>
                     {batches.length > 0 ? (
-                      <select required value={form.batch} onChange={e => setForm({ ...form, batch: e.target.value })}
+                      <select required value={form.batch} onChange={e => setForm({ ...form, batch: e.target.value, studentId: '' })}
                         className="w-full px-3.5 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl font-semibold text-gray-900 focus:outline-none focus:bg-white focus:border-indigo-500">
                         <option value="">Select Batch</option>
                         {batches.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
                     ) : (
-                      <input type="text" required placeholder="e.g. Class 10-A" value={form.batch} onChange={e => setForm({ ...form, batch: e.target.value })}
+                      <input type="text" required placeholder="e.g. Class 10-A" value={form.batch} onChange={e => setForm({ ...form, batch: e.target.value, studentId: '' })}
                         className="w-full px-3.5 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-900 focus:outline-none focus:bg-white focus:border-indigo-500" />
                     )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Student *</label>
+                    <select required value={form.studentId} onChange={e => setForm({ ...form, studentId: e.target.value })}
+                        disabled={!form.batch}
+                        className="w-full px-3.5 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl font-semibold text-gray-900 focus:outline-none focus:bg-white focus:border-indigo-500 disabled:opacity-50">
+                        <option value="">Select Student</option>
+                        {students.map(s => <option key={s.id || s._id} value={s.id || s._id}>{s.name} ({s.rollNo || s.enrollmentNumber || 'N/A'})</option>)}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1">Term Type *</label>

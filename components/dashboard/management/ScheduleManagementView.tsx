@@ -17,6 +17,33 @@ const TYPE_BADGE: Record<string, string> = {
 const inputClass = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
 const labelClass = 'block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5'
 
+const TimeInput = ({ value, onChange }: { value: string, onChange: (v: string) => void }) => {
+  const match = value.match(/^(\d{1,2}:\d{2})\s*(AM|PM)?$/i)
+  const timePart = match ? match[1] : value.replace(/\s*(AM|PM)/i, '').trim()
+  const ampmPart = match && match[2] ? match[2].toUpperCase() : 'AM'
+  
+  const baseInput = "px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+  
+  return (
+    <div className="flex gap-2">
+      <input 
+        value={timePart} 
+        onChange={e => onChange(`${e.target.value} ${ampmPart}`)} 
+        placeholder="10:00" 
+        className={baseInput + " flex-1 min-w-0"} 
+      />
+      <select 
+        value={ampmPart} 
+        onChange={e => onChange(`${timePart} ${e.target.value}`)} 
+        className={baseInput + " w-[76px] bg-white shrink-0"}
+      >
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  )
+}
+
 const EMPTY_SLOT = {
   teacherName: '', teacherEmail: '', subject: '', batch: '',
   dayOfWeek: 1, startTime: '09:00 AM', endTime: '10:00 AM', room: '',
@@ -29,7 +56,7 @@ const EMPTY_SPECIAL = {
   notes: '', teacherName: '', teacherEmail: '', schoolId: '',
 }
 
-function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, adminSchools }: {
+function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, adminSchools, batchOptions }: {
   initial: typeof EMPTY_SLOT
   isEdit: boolean
   onClose: () => void
@@ -37,6 +64,7 @@ function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, admi
   saving: boolean
   error: string
   adminSchools: any[]
+  batchOptions: { id: string; name: string }[]
 }) {
   const [form, setForm] = useState(initial)
   const set = (f: string) => (e: React.ChangeEvent<any>) =>
@@ -66,7 +94,10 @@ function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, admi
             </div>
             <div>
               <label className={labelClass}>Batch *</label>
-              <input value={form.batch} onChange={set('batch')} className={inputClass} />
+              <select value={form.batch} onChange={set('batch')} className={inputClass + ' bg-white'}>
+                <option value="">Select Batch...</option>
+                {batchOptions.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+              </select>
             </div>
             <div>
               <label className={labelClass}>Day of Week</label>
@@ -80,11 +111,11 @@ function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, admi
             </div>
             <div>
               <label className={labelClass}>Start Time *</label>
-              <input value={form.startTime} onChange={set('startTime')} placeholder="09:00 AM" className={inputClass} />
+              <TimeInput value={form.startTime} onChange={set('startTime')} />
             </div>
             <div>
               <label className={labelClass}>End Time *</label>
-              <input value={form.endTime} onChange={set('endTime')} placeholder="10:00 AM" className={inputClass} />
+              <TimeInput value={form.endTime} onChange={set('endTime')} />
             </div>
             <div>
               <label className={labelClass}>Effective From</label>
@@ -132,7 +163,7 @@ function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, admi
   )
 }
 
-function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, adminSchools }: {
+function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, adminSchools, batchOptions }: {
   initial: typeof EMPTY_SPECIAL
   isEdit: boolean
   onClose: () => void
@@ -140,6 +171,7 @@ function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, a
   saving: boolean
   error: string
   adminSchools: any[]
+  batchOptions: { id: string; name: string }[]
 }) {
   const [form, setForm] = useState(initial)
   const set = (f: string) => (e: React.ChangeEvent<any>) =>
@@ -167,11 +199,14 @@ function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, a
             </div>
             <div>
               <label className={labelClass}>Subject</label>
-              <input value={form.subject} onChange={set('subject')} className={inputClass} />
+              <input value={form.subject} onChange={set('subject')} placeholder="e.g. Mathematics" className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>Batch</label>
-              <input value={form.batch} onChange={set('batch')} className={inputClass} />
+              <select value={form.batch} onChange={set('batch')} className={inputClass + ' bg-white'}>
+                <option value="">Select Batch...</option>
+                {batchOptions.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+              </select>
             </div>
             <div>
               <label className={labelClass}>Date *</label>
@@ -183,11 +218,11 @@ function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, a
             </div>
             <div>
               <label className={labelClass}>Start Time *</label>
-              <input value={form.startTime} onChange={set('startTime')} placeholder="10:00 AM" className={inputClass} />
+              <TimeInput value={form.startTime} onChange={set('startTime')} />
             </div>
             <div>
               <label className={labelClass}>End Time *</label>
-              <input value={form.endTime} onChange={set('endTime')} placeholder="11:00 AM" className={inputClass} />
+              <TimeInput value={form.endTime} onChange={set('endTime')} />
             </div>
             <div>
               <label className={labelClass}>Teacher Name</label>
@@ -568,6 +603,7 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
           saving={saving}
           error={error}
           adminSchools={adminSchools}
+          batchOptions={batchOptions}
         />
       )}
 
@@ -593,6 +629,7 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
           saving={saving}
           error={error}
           adminSchools={adminSchools}
+          batchOptions={batchOptions}
         />
       )}
     </div>
