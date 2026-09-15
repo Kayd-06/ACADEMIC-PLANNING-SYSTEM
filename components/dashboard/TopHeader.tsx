@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { HelpCircle, Settings, X, CheckCircle, AlertCircle, BookOpen, Calendar, Mail, User, Shield, Info, Check, Globe, Building2, Hash, Loader2, LogIn, Bell, Megaphone, FileBarChart, ClipboardList, CreditCard, CalendarCheck, CheckCheck, Camera, Upload, Users, GraduationCap, Layers, SearchX } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSession } from 'next-auth/react'
@@ -64,6 +64,10 @@ export default function TopHeader({ initials }: TopHeaderProps) {
   const role = (session?.user as any)?.role as string | undefined
   const router = useRouter()
   const rolePrefix = role === 'teacher' ? '/teacher' : '/management'
+  const pathname = usePathname()
+
+  // Hide search bar on the root dashboard page
+  const showSearch = pathname !== '/management' && pathname !== '/teacher'
 
   // Global search
   const [searchQuery, setSearchQuery] = useState('')
@@ -413,76 +417,80 @@ export default function TopHeader({ initials }: TopHeaderProps) {
     >
       {/* Search */}
       <div className="flex-1 max-w-xl relative" ref={searchRef}>
-        <div className="relative w-full">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            suppressHydrationWarning
-            type="text"
-            value={searchQuery}
-            onChange={e => { setSearchQuery(e.target.value); setShowSearchDropdown(true) }}
-            onFocus={() => { if (searchQuery.trim().length >= 2) setShowSearchDropdown(true) }}
-            placeholder="Search students, classes, or reports..."
-            className="w-full pl-10 pr-9 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-200 focus:bg-white transition-all placeholder-slate-400 text-slate-700"
-          />
-          {searchLoading && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 animate-spin" />
-          )}
-          {!searchLoading && searchQuery && (
-            <button
-              onClick={() => { setSearchQuery(''); setSearchResults(null); setShowSearchDropdown(false) }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        <AnimatePresence>
-          {showSearchDropdown && searchQuery.trim().length >= 2 && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              className="absolute z-50 top-full mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-96 overflow-y-auto"
-            >
-              {searchLoading && !searchResults ? (
-                <div className="px-4 py-6 flex items-center justify-center gap-2 text-sm text-slate-400">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Searching…
-                </div>
-              ) : totalSearchResults === 0 ? (
-                <div className="px-4 py-6 flex flex-col items-center justify-center gap-1.5 text-center">
-                  <SearchX className="w-5 h-5 text-slate-300" />
-                  <p className="text-sm text-slate-500">No results for &ldquo;{searchQuery.trim()}&rdquo;</p>
-                </div>
-              ) : (
-                SEARCH_GROUPS.map(({ key, title, icon: Icon }) => {
-                  const items = searchResults?.[key] ?? []
-                  if (items.length === 0) return null
-                  return (
-                    <div key={key} className="py-1">
-                      <div className="px-3.5 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{title}</div>
-                      {items.map(item => (
-                        <button
-                          key={item.id}
-                          onClick={() => goToSearchResult(key)}
-                          className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left hover:bg-slate-50 transition-colors"
-                        >
-                          <Icon className="w-4 h-4 text-slate-400 shrink-0" />
-                          <span className="min-w-0">
-                            <span className="block text-[13px] font-semibold text-slate-800 truncate">{item.label}</span>
-                            {item.sublabel && <span className="block text-[11px] text-slate-400 truncate">{item.sublabel}</span>}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )
-                })
+        {showSearch && (
+          <>
+            <div className="relative w-full">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                suppressHydrationWarning
+                type="text"
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setShowSearchDropdown(true) }}
+                onFocus={() => { if (searchQuery.trim().length >= 2) setShowSearchDropdown(true) }}
+                placeholder="Search students, classes, or reports..."
+                className="w-full pl-10 pr-9 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-200 focus:bg-white transition-all placeholder-slate-400 text-slate-700"
+              />
+              {searchLoading && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 animate-spin" />
               )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+              {!searchLoading && searchQuery && (
+                <button
+                  onClick={() => { setSearchQuery(''); setSearchResults(null); setShowSearchDropdown(false) }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <AnimatePresence>
+              {showSearchDropdown && searchQuery.trim().length >= 2 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="absolute z-50 top-full mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-96 overflow-y-auto"
+                >
+                  {searchLoading && !searchResults ? (
+                    <div className="px-4 py-6 flex items-center justify-center gap-2 text-sm text-slate-400">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Searching…
+                    </div>
+                  ) : totalSearchResults === 0 ? (
+                    <div className="px-4 py-6 flex flex-col items-center justify-center gap-1.5 text-center">
+                      <SearchX className="w-5 h-5 text-slate-300" />
+                      <p className="text-sm text-slate-500">No results for &ldquo;{searchQuery.trim()}&rdquo;</p>
+                    </div>
+                  ) : (
+                    SEARCH_GROUPS.map(({ key, title, icon: Icon }) => {
+                      const items = searchResults?.[key] ?? []
+                      if (items.length === 0) return null
+                      return (
+                        <div key={key} className="py-1">
+                          <div className="px-3.5 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{title}</div>
+                          {items.map(item => (
+                            <button
+                              key={item.id}
+                              onClick={() => goToSearchResult(key)}
+                              className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left hover:bg-slate-50 transition-colors"
+                            >
+                              <Icon className="w-4 h-4 text-slate-400 shrink-0" />
+                              <span className="min-w-0">
+                                <span className="block text-[13px] font-semibold text-slate-800 truncate">{item.label}</span>
+                                {item.sublabel && <span className="block text-[11px] text-slate-400 truncate">{item.sublabel}</span>}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    })
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
       </div>
 
       {/* Actions */}
