@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, ChevronDown, Save, Loader2, CheckCircle2, Star, Sparkles, Filter, RefreshCw, UserCheck, AlertCircle } from 'lucide-react'
+import { Calendar, ChevronDown, Save, Loader2, CheckCircle2, Award, Sparkles, Filter, RefreshCw, UserCheck, AlertCircle } from 'lucide-react'
 import { formatDate } from '@/lib/date'
 
 function getTodayLocal() {
@@ -151,8 +151,8 @@ export default function DailyStudentRatingsView() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <Star className="w-6 h-6 text-amber-500 fill-amber-400" />
-            Daily Student Ratings
+            <Award className="w-6 h-6 text-indigo-600" />
+            Student Ratings
           </h1>
           <p className="text-xs text-slate-500 mt-1">
             Rate behavior, participation, attitude, focus & interaction for each student daily.

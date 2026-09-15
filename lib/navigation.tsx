@@ -1,6 +1,6 @@
 'use client'
 
-import { LayoutDashboard, Users, BookOpen, ShieldCheck, UserCircle, Calendar, GraduationCap, BarChart2, ClipboardList, ClipboardCheck, CreditCard, FileQuestion, CheckSquare, MessageSquare, HeartHandshake, Bell, BookText, FileCheck, ListTodo, Star } from 'lucide-react'
+import { LayoutDashboard, Users, BookOpen, ShieldCheck, UserCircle, Calendar, GraduationCap, BarChart2, ClipboardList, ClipboardCheck, CreditCard, FileQuestion, CheckSquare, MessageSquare, HeartHandshake, Bell, BookText, FileCheck, ListTodo, Award } from 'lucide-react'
 
 export const MANAGEMENT_NAV = [
   { label: 'Dashboard', href: '/management', icon: <LayoutDashboard className="w-4 h-4" /> },
@@ -27,7 +27,7 @@ export const TEACHER_NAV = [
   { label: 'Student Reports', href: '/teacher/student-reports', icon: <ClipboardList className="w-4 h-4" /> },
   { label: 'Students', href: '/teacher/students', icon: <Users className="w-4 h-4" /> },
   { label: 'Daily Class Report', href: '/teacher/daily-report', icon: <ClipboardCheck className="w-4 h-4" /> },
-  { label: 'Daily Ratings', href: '/teacher/daily-ratings', icon: <Star className="w-4 h-4" /> },
+  { label: 'Student Ratings', href: '/teacher/daily-ratings', icon: <Award className="w-4 h-4" /> },
   { label: 'PTM Notes', href: '/teacher/ptm-notes', icon: <MessageSquare className="w-4 h-4" /> },
   { label: 'Study Material', href: '/teacher/courses', icon: <BookOpen className="w-4 h-4" /> },
   { label: 'Attendance', href: '/teacher/attendance', icon: <CheckSquare className="w-4 h-4" /> },
