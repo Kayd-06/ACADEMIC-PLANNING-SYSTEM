@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { batches, students, programs, faculty, teacherBatches, type NewBatch } from '@/lib/db/schema'
+import { batches, students, programs, faculty, teacherBatches, schools, type NewBatch } from '@/lib/db/schema'
 import { eq, and, asc, isNull, inArray, count } from 'drizzle-orm'
+import { batchClassLevelOptions } from '@/lib/schoolClasses'
 
 export const dynamic = 'force-dynamic'
 
-const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Repeater']
 const FIELDS = ['name', 'classLevel', 'capacity', 'startDate', 'endDate', 'teacherId', 'programId'] as const
+
+// The empty "Select…" option is always allowed regardless of the school's
+// configured classes; real class levels must come from the school itself.
+async function allowedClassLevels(schoolId: string | null): Promise<string[]> {
+  if (!schoolId) return ['', '9', '10', '11', '12', 'Repeater']
+  const [school] = await db.select({ classes: schools.classes }).from(schools).where(eq(schools.id, schoolId))
+  return ['', ...batchClassLevelOptions(school?.classes)]
+}
 
 // Postgres unique_violation — the batches_school_name_unique index is the
 // source of truth; the app-level pre-checks below are a UX nicety, this
@@ -166,8 +174,11 @@ export async function POST(req: NextRequest) {
     if (data.endDate && data.endDate < data.startDate) {
       return NextResponse.json({ error: 'End date cannot be before start date' }, { status: 400 })
     }
-    if (data.classLevel && !CLASS_LEVELS.includes(data.classLevel)) {
-      return NextResponse.json({ error: 'Class level must be 9, 10, 11, 12 or Repeater' }, { status: 400 })
+    if (data.classLevel) {
+      const allowed = await allowedClassLevels(schoolId)
+      if (!allowed.includes(data.classLevel)) {
+        return NextResponse.json({ error: `Class level must be one of: ${allowed.filter(Boolean).join(', ')}` }, { status: 400 })
+      }
     }
 
     const [duplicate] = await db.select({ id: batches.id }).from(batches)
@@ -222,8 +233,11 @@ export async function PATCH(req: NextRequest) {
     if (effectiveEndDate && effectiveEndDate < effectiveStartDate) {
       return NextResponse.json({ error: 'End date cannot be before start date' }, { status: 400 })
     }
-    if (data.classLevel && !CLASS_LEVELS.includes(data.classLevel)) {
-      return NextResponse.json({ error: 'Class level must be 9, 10, 11, 12 or Repeater' }, { status: 400 })
+    if (data.classLevel) {
+      const allowed = await allowedClassLevels(schoolId)
+      if (!allowed.includes(data.classLevel)) {
+        return NextResponse.json({ error: `Class level must be one of: ${allowed.filter(Boolean).join(', ')}` }, { status: 400 })
+      }
     }
 
     if (data.name && data.name !== existing.name) {

@@ -3,8 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Plus, Pencil, Trash2, Loader2, Users, GraduationCap, CalendarDays, UserCheck, AlertTriangle } from 'lucide-react'
 import { parseTargetDate, getUrgency, type UrgencyLevel } from '@/lib/date'
-
-const CLASS_LEVELS = ['', '9', '10', '11', '12', 'Repeater']
+import { batchClassLevelOptions } from '@/lib/schoolClasses'
 
 const URGENCY_BADGE_CLASS: Record<UrgencyLevel, string> = {
   safe: 'bg-emerald-50 text-emerald-700 border-emerald-100',
@@ -23,11 +22,12 @@ const EMPTY_FORM = {
 const inputClass = 'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 focus:bg-white transition-colors'
 const labelClass = 'text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5'
 
-function BatchFormModal({ initial, isEdit, programs, teachers, saving, error, onSubmit, onClose }: {
+function BatchFormModal({ initial, isEdit, programs, teachers, classLevels, saving, error, onSubmit, onClose }: {
   initial: typeof EMPTY_FORM
   isEdit: boolean
   programs: any[]
   teachers: any[]
+  classLevels: string[]
   saving: boolean
   error: string
   onSubmit: (form: typeof EMPTY_FORM) => void
@@ -55,7 +55,7 @@ function BatchFormModal({ initial, isEdit, programs, teachers, saving, error, on
             <div>
               <label className={labelClass}>Class Level</label>
               <select value={form.classLevel} onChange={set('classLevel')} className={inputClass}>
-                {CLASS_LEVELS.map(c => <option key={c} value={c}>{c || 'Select…'}</option>)}
+                {classLevels.map(c => <option key={c} value={c}>{c || 'Select…'}</option>)}
               </select>
             </div>
             <div>
@@ -112,6 +112,7 @@ export default function BatchesTab({ programFilter, onClearProgramFilter }: {
   const [batches, setBatches] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [teachers, setTeachers] = useState<any[]>([])
+  const [classLevels, setClassLevels] = useState<string[]>(['', '9', '10', '11', '12', 'Repeater'])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<{ mode: 'add' | 'edit'; batch?: any } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -122,14 +123,16 @@ export default function BatchesTab({ programFilter, onClearProgramFilter }: {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [bRes, pRes, tRes] = await Promise.all([
+      const [bRes, pRes, tRes, sRes] = await Promise.all([
         fetch(programFilter ? `/api/batches?programId=${programFilter.id}` : '/api/batches'),
         fetch('/api/programs'),
         fetch('/api/teacher-portal/faculty'),
+        fetch('/api/school'),
       ])
       if (bRes.ok) setBatches(await bRes.json())
       if (pRes.ok) { const d = await pRes.json(); if (Array.isArray(d)) setPrograms(d) }
       if (tRes.ok) { const d = await tRes.json(); if (Array.isArray(d)) setTeachers(d) }
+      if (sRes.ok) { const school = await sRes.json(); setClassLevels(['', ...batchClassLevelOptions(school?.classes)]) }
     } catch { /* ignore */ } finally {
       setLoading(false)
     }
@@ -302,6 +305,7 @@ export default function BatchesTab({ programFilter, onClearProgramFilter }: {
           isEdit={modal.mode === 'edit'}
           programs={programs}
           teachers={teachers}
+          classLevels={classLevels}
           saving={saving}
           error={error}
           onSubmit={saveBatch}
