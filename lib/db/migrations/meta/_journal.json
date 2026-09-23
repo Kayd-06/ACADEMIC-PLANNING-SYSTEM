@@ -260,6 +260,13 @@
       "when": 1790139131530,
       "tag": "0036_drop_protocols",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790225531530,
+      "tag": "0050_chapter_batch_scoping",
+      "breakpoints": true
     }
   ]
 }

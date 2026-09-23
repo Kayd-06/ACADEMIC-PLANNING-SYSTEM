@@ -414,6 +414,15 @@ export const chapters = pgTable('chapters', {
   // Class level this chapter is taught at: 9 | 10 | 11 | 12 | Repeater
   // (same values as batches.classLevel), free text like `board`.
   classLevel: varchar('class_level', { length: 20 }),
+  // Owning batch for chapters created through the batch-specific Syllabus
+  // Tracker (Academic Planning) import/creation flow. NULL means the chapter
+  // is shared/global — the case for chapters created through the separate
+  // Curriculum Manager (master content) feature, which has no batch concept.
+  // A batch-owned chapter is only visible to its own batch's tracker; a NULL
+  // chapter is visible to every batch. This prevents chapters authored for
+  // one batch (e.g. imported for NEET 1) from silently leaking into another
+  // batch's view of the same subject (e.g. JEE 1) via the GET auto-seed logic.
+  batchId: uuid('batch_id').references(() => batches.id, { onDelete: 'cascade' }),
   orderIndex: integer('order_index').notNull().default(0),
   expectedHours: integer('expected_hours'),
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),

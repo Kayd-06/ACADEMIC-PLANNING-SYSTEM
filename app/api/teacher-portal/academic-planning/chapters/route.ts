@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { batches, batchSyllabus, chapters, subjects } from '@/lib/db/schema'
-import { eq, and, asc, desc } from 'drizzle-orm'
+import { eq, and, or, isNull, asc, desc } from 'drizzle-orm'
 import { auth, getSchoolId } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -35,7 +35,10 @@ export async function GET(req: Request) {
 
     // Support subject=all to get all chapters across all subjects for a batch
     if (subjectParam && subjectParam.toLowerCase() === 'all') {
-      const joinCond = schoolId ? and(eq(batchSyllabus.batchId, batchRow.id), eq(chapters.schoolId, schoolId)) : eq(batchSyllabus.batchId, batchRow.id)
+      // Chapters must belong to this batch or be shared (batchId NULL, e.g.
+      // Curriculum Manager content) — never another batch's chapters.
+      const batchScope = or(isNull(chapters.batchId), eq(chapters.batchId, batchRow.id))
+      const joinCond = schoolId ? and(eq(batchSyllabus.batchId, batchRow.id), eq(chapters.schoolId, schoolId), batchScope) : and(eq(batchSyllabus.batchId, batchRow.id), batchScope)
       const dbResult = await db
         .select({
           syllabusId: batchSyllabus.id,
@@ -93,8 +96,12 @@ export async function GET(req: Request) {
       subjectRow = newSub
     }
 
-    // 3. Get chapters, scoped to this school.
-    const chapterCond = schoolId ? and(eq(chapters.subjectId, subjectRow.id), eq(chapters.schoolId, schoolId)) : eq(chapters.subjectId, subjectRow.id)
+    // 3. Get chapters, scoped to this school and to this batch (or shared/
+    // NULL-batch chapters, e.g. Curriculum Manager content) — never another
+    // batch's chapters, which is what let a NEET 1 chapter leak into a JEE 1
+    // view of the same subject before batchId existed.
+    const batchScope = or(isNull(chapters.batchId), eq(chapters.batchId, batchRow.id))
+    const chapterCond = schoolId ? and(eq(chapters.subjectId, subjectRow.id), eq(chapters.schoolId, schoolId), batchScope) : and(eq(chapters.subjectId, subjectRow.id), batchScope)
     let chapterRows = await db.select().from(chapters).where(chapterCond).orderBy(asc(chapters.orderIndex))
 
     // 4. Get or create batchSyllabus entries for existing chapters
@@ -115,8 +122,9 @@ export async function GET(req: Request) {
       }
     }
 
-    // 6. Query joined result, scoped to this school's chapters only.
-    const joinChapterCond = schoolId ? and(eq(chapters.subjectId, subjectRow.id), eq(chapters.schoolId, schoolId)) : eq(chapters.subjectId, subjectRow.id)
+    // 6. Query joined result, scoped to this school's chapters and this
+    // batch (or shared/NULL-batch chapters) only.
+    const joinChapterCond = schoolId ? and(eq(chapters.subjectId, subjectRow.id), eq(chapters.schoolId, schoolId), batchScope) : and(eq(chapters.subjectId, subjectRow.id), batchScope)
     const dbResult = await db
       .select({
         syllabusId: batchSyllabus.id,
@@ -311,6 +319,7 @@ export async function POST(req: Request) {
         const numHours = parseInt(item.estHours) || 10
         const [newChap] = await db.insert(chapters).values({
           subjectId: sRow.id,
+          batchId: bRow.id,
           name: item.title,
           description: item.notes || '',
           expectedHours: numHours,
@@ -384,6 +393,7 @@ export async function POST(req: Request) {
     const numHours = parseInt(estHours) || 10
     const [newChap] = await db.insert(chapters).values({
       subjectId: subjectRow.id,
+      batchId: batchRow.id,
       name: title,
       description: notes || '',
       expectedHours: numHours,
