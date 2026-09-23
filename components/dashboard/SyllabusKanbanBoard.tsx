@@ -478,37 +478,42 @@ export default function SyllabusKanbanBoard({ batches }: { batches: string[] }) 
     if (selectedBatch && selectedSubject) fetchChapters(selectedBatch, selectedSubject)
   }, [selectedBatch, selectedSubject])
 
-  const fetchSchoolsData = async (): Promise<string[]> => {
+  const fetchSchoolsData = async (): Promise<{ list: string[]; active: string }> => {
+    // The currently active school (per the sidebar switcher / session.schoolId)
+    // must win as the default so the upload/chapter modals open pre-scoped to
+    // whatever the admin is actually looking at, not just the first school
+    // they were ever added to.
+    let activeName = ''
+    try {
+      const schoolRes = await fetch('/api/school')
+      if (schoolRes.ok) {
+        const schoolData = await schoolRes.json()
+        if (schoolData && schoolData.name) activeName = schoolData.name
+      }
+    } catch (err) {}
+
     try {
       const adminRes = await fetch('/api/admin/schools')
       if (adminRes.ok) {
         const adminData = await adminRes.json()
         if (Array.isArray(adminData) && adminData.length > 0) {
-          return adminData.map((s: any) => s.name).filter(Boolean)
+          const list = adminData.map((s: any) => s.name).filter(Boolean)
+          return { list, active: activeName || list[0] }
         }
       }
     } catch (err) {}
 
-    try {
-      const schoolRes = await fetch('/api/school')
-      if (schoolRes.ok) {
-        const schoolData = await schoolRes.json()
-        if (schoolData && schoolData.name) {
-          return [schoolData.name]
-        }
-      }
-    } catch (err) {}
-
-    return []
+    return activeName ? { list: [activeName], active: activeName } : { list: [], active: '' }
   }
 
   const fetchData = async () => {
     try {
-      const [pRes, sNames, subRes] = await Promise.all([
+      const [pRes, schoolsData, subRes] = await Promise.all([
         fetch('/api/programs'),
         fetchSchoolsData(),
         fetch('/api/subjects')
       ])
+      const { list: sNames, active: activeSchool } = schoolsData
 
       const pData = pRes.ok ? await pRes.json() : []
       if (Array.isArray(pData) && pData.length > 0) {
@@ -522,8 +527,8 @@ export default function SyllabusKanbanBoard({ batches }: { batches: string[] }) 
 
       if (Array.isArray(sNames) && sNames.length > 0) {
         setSchoolsList(sNames)
-        setSelectedSchool(prev => prev || sNames[0])
-        setUploadSchool(prev => prev || sNames[0])
+        setSelectedSchool(prev => prev || activeSchool || sNames[0])
+        setUploadSchool(prev => prev || activeSchool || sNames[0])
       } else {
         setSchoolsList([])
       }
