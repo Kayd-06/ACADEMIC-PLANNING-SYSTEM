@@ -253,6 +253,13 @@
       "when": 1788566600000,
       "tag": "0049_calendar_series_id",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790139131530,
+      "tag": "0036_drop_protocols",
+      "breakpoints": true
     }
   ]
 }

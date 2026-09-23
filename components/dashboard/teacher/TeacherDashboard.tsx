@@ -18,7 +18,6 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
   const { data: session } = useSession()
   const [schoolData, setSchoolData] = useState<any>(null)
   const [schoolLoading, setSchoolLoading] = useState(true)
-  const [protocols, setProtocols] = useState<any[]>([])
   const [schedules, setSchedules] = useState<any[]>([])
   const [stats, setStats] = useState({ pendingDailyReports: 0, assignmentsToGrade: 0, upcomingTests: 0 })
   const [announcements, setAnnouncements] = useState<any[]>([])
@@ -55,11 +54,6 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
         if (!data.error) setSchoolData(data)
       })
       .finally(() => setSchoolLoading(false))
-    fetch('/api/protocols')
-      .then(res => res.json())
-      .then(data => {
-        if (!data.error) setProtocols(data)
-      })
     const todayIso = getLocalToday()
     const todayDow = new Date().getDay()
     Promise.all([

@@ -2,10 +2,9 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { Building2, Zap, FileText, CalendarClock, Plus, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Copy, Check, Megaphone, Bell, X } from 'lucide-react'
+import { Building2, Zap, CalendarClock, Plus, ChevronRight, CheckCircle2, Clock, ShieldCheck, Copy, Check, Megaphone, Bell, X } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import SchoolDetailsModal from './SchoolDetailsModal'
-import ProtocolsModal from './ProtocolsModal'
 import AnnouncementsView from './AnnouncementsView'
 import ScheduleManagementView from './ScheduleManagementView'
 import { getLocalToday, buildTodaysClasses, type TodayClassEntry } from '@/lib/scheduleUtils'
@@ -18,17 +17,9 @@ const fadeUp = (delay = 0) => ({
   transition: { delay, type: 'spring' as const, stiffness: 320, damping: 28 },
 })
 
-interface Protocol {
-  _id: string
-  label: string
-  sub: string
-  status: 'completed' | 'pending' | 'overdue'
-}
-
 export default function InstitutionalDashboard() {
   const { data: session } = useSession()
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isProtocolsModalOpen, setIsProtocolsModalOpen] = useState(false)
   const [schoolData, setSchoolData] = useState<{
     name?: string; board: string; classes: string; programs: string
     mouStartDate: string | null; mouEndDate: string | null; joinCode: string
@@ -37,7 +28,6 @@ export default function InstitutionalDashboard() {
   const [schoolLoading, setSchoolLoading] = useState(true)
   const [codeCopied, setCodeCopied] = useState(false)
   const [todaysSchedule, setTodaysSchedule] = useState<TodayClassEntry[]>([])
-  const [protocols, setProtocols] = useState<Protocol[]>([])
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [readIds, setReadIds] = useState<string[]>([])
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null)
@@ -69,7 +59,6 @@ export default function InstitutionalDashboard() {
       .then(res => res.json())
       .then(data => { if (!data.error) setSchoolData(data) })
       .finally(() => setSchoolLoading(false))
-    fetchProtocols()
     fetchAnnouncements()
     refreshTodaysSchedule()
   }, [])
@@ -94,12 +83,6 @@ export default function InstitutionalDashboard() {
     localStorage.setItem(`read_announcements_${session.user.email}`, JSON.stringify(updated))
   }
 
-  async function fetchProtocols() {
-    const res = await fetch('/api/protocols')
-    const data = await res.json()
-    if (!data.error) setProtocols(data)
-  }
-
   async function handleSave(newData: any) {
     const res = await fetch('/api/school', {
       method: 'PATCH',
@@ -117,12 +100,6 @@ export default function InstitutionalDashboard() {
     setTimeout(() => setCodeCopied(false), 2000)
   }
 
-  const protocolIcon = (status: Protocol['status']) => {
-    if (status === 'completed') return <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-    if (status === 'overdue') return <AlertTriangle className="w-4 h-4 text-red-500" />
-    return <Clock className="w-4 h-4 text-[#1a365d]" />
-  }
-
   return (
     <div className="flex-1 p-6 overflow-auto">
       <SchoolDetailsModal
@@ -131,12 +108,6 @@ export default function InstitutionalDashboard() {
         initialData={schoolData ?? { board: '', classes: '', programs: '', mouStartDate: '', mouEndDate: '', contactPerson: '', phone: '', email: '', address: '', gstNo: '' }}
         onSave={handleSave}
       />
-      <ProtocolsModal
-        isOpen={isProtocolsModalOpen}
-        onClose={() => setIsProtocolsModalOpen(false)}
-        onUpdate={fetchProtocols}
-      />
-
       {/* Page title */}
       <motion.div {...fadeUp(0)} className="flex items-start justify-between mb-8">
         <div>
@@ -149,7 +120,7 @@ export default function InstitutionalDashboard() {
               </>
             )}
           </h1>
-          <p className="text-[13px] font-medium text-slate-500 mt-1">Overview of academic background, protocols, and ongoing management tasks</p>
+          <p className="text-[13px] font-medium text-slate-500 mt-1">Overview of academic background and ongoing management tasks</p>
         </div>
         <Link href="/management/recruitment">
           <motion.div
@@ -162,7 +133,7 @@ export default function InstitutionalDashboard() {
         </Link>
       </motion.div>
 
-      {/* Top grid: School Background + Quick Actions + Protocols */}
+      {/* Top grid: School Background + Quick Actions + Announcements */}
       <div className="grid grid-cols-12 gap-4 mb-4">
 
         {/* School Background — 7 cols */}
@@ -227,29 +198,16 @@ export default function InstitutionalDashboard() {
             {[
               { label: 'Initiate Recruitment', href: '/management/recruitment', icon: <Plus className="w-4 h-4 text-indigo-600" /> },
               { label: 'Update Macro Plan', href: '/management/academic-planning', icon: <Clock className="w-4 h-4 text-indigo-600" /> },
-              { label: 'Upload Compliance Doc', href: '#', onClick: () => setIsProtocolsModalOpen(true), icon: <FileText className="w-4 h-4 text-indigo-600" /> },
             ].map(action => (
-              action.href !== '#' ? (
-                <Link key={action.label} href={action.href!} className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all group text-left">
-                  <div className="flex items-center gap-3 text-[13px] font-bold text-slate-800">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-                      {action.icon}
-                    </div>
-                    {action.label}
+              <Link key={action.label} href={action.href} className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all group text-left">
+                <div className="flex items-center gap-3 text-[13px] font-bold text-slate-800">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                    {action.icon}
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
-                </Link>
-              ) : (
-                <button key={action.label} onClick={action.onClick} className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all group text-left cursor-pointer">
-                  <div className="flex items-center gap-3 text-[13px] font-bold text-slate-800">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-                      {action.icon}
-                    </div>
-                    {action.label}
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
-                </button>
-              )
+                  {action.label}
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
+              </Link>
             ))}
           </div>
         </motion.div>
