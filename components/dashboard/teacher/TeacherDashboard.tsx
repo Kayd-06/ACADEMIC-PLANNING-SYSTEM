@@ -377,6 +377,16 @@ export default function TeacherDashboard({ firstName }: { firstName: string }) {
                 <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
                   {selectedAnnouncement.content || selectedAnnouncement.sub}
                 </p>
+                {selectedAnnouncement.attachmentUrl && (
+                  <a
+                    href={selectedAnnouncement.attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition-colors"
+                  >
+                    🔗 {selectedAnnouncement.attachmentName || 'Attachment'}
+                  </a>
+                )}
               </div>
 
               {/* Footer */}
