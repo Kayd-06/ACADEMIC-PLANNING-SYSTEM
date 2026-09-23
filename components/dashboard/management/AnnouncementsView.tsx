@@ -350,14 +350,23 @@ export default function AnnouncementsView() {
                 key={ann._id} 
                 className={`bg-white rounded-2xl border border-slate-150/70 p-5 shadow-2xs flex flex-col justify-between relative hover:shadow-xs transition ${colors.border}`}
               >
-                {/* Edit Icon Overlay */}
-                <button
-                  onClick={() => openEditModal(ann)}
-                  className="absolute right-4 top-4 p-1.5 text-slate-400 hover:bg-slate-50 rounded-lg hover:text-slate-700 transition border-none bg-transparent"
-                  title="Edit Announcement"
-                >
-                  <Edit3 className="w-4.5 h-4.5" />
-                </button>
+                {/* Edit / Delete Icon Overlay */}
+                <div className="absolute right-4 top-4 flex items-center gap-1">
+                  <button
+                    onClick={() => openEditModal(ann)}
+                    className="p-1.5 text-slate-400 hover:bg-slate-50 rounded-lg hover:text-slate-700 transition border-none bg-transparent"
+                    title="Edit Announcement"
+                  >
+                    <Edit3 className="w-4.5 h-4.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(ann._id)}
+                    className="p-1.5 text-slate-400 hover:bg-rose-50 rounded-lg hover:text-rose-500 transition border-none bg-transparent"
+                    title="Delete Announcement"
+                  >
+                    <Trash2 className="w-4.5 h-4.5" />
+                  </button>
+                </div>
 
                 {/* Top Row: Title, Scope, Pin indicator */}
                 <div className="space-y-1.5 pr-8">
