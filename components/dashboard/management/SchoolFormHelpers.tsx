@@ -531,7 +531,7 @@ export function formatMouStatus(startDate?: string | null, endDate?: string | nu
   return end < today ? `Expired ${formatted}` : `Active until ${formatted}`
 }
 
-const CLASS_OPTIONS = ['6', '7', '8', '9', '10', '11', '12', '12 pass']
+const CLASS_OPTIONS = ['6', '7', '8', '9', '10', '11', '12', '12 pass', 'Repeater']
 
 export function formatClasses(value: string): string {
   if (!value) return ''
@@ -679,7 +679,7 @@ export function MultiSelectClasses({
             </div>
             {CLASS_OPTIONS.map((opt) => {
               const active = selected.includes(opt.toLowerCase())
-              const displayLabel = opt === '12 pass' ? '12th Pass' : `${opt}th`
+              const displayLabel = opt === '12 pass' ? '12th Pass' : opt === 'Repeater' ? 'Repeater' : `${opt}th`
               return (
                 <button
                   key={opt}
