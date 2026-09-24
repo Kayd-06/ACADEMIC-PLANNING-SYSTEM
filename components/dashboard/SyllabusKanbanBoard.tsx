@@ -6,6 +6,16 @@ import { parseTargetDate, getUrgency, type UrgencyLevel } from '@/lib/date'
 
 const DEFAULT_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'Botany', 'Zoology']
 
+// Sentinel value for the "Automatic (from Excel)" option in the upload
+// modal's School/Program/Batch/Subject dropdowns. When a dropdown holds
+// this, that field is taken strictly from each row's own Excel column --
+// never from the dropdown or the first item in its list -- so a blank cell
+// surfaces as a validation error instead of silently defaulting every row
+// in the sheet to the same value (the bug behind the original cross-batch
+// leak this feature followed).
+const AUTOMATIC = '__AUTOMATIC__'
+const autoSafe = (v: string) => (v === AUTOMATIC ? '' : v)
+
 const URGENCY_BAR_CLASS: Record<UrgencyLevel, string> = {
   safe: 'bg-emerald-500',
   warning: 'bg-amber-400',
@@ -681,10 +691,10 @@ export default function SyllabusKanbanBoard({ batches }: { batches: string[] }) 
 
   // Sample CSV format download
   const handleDownloadSample = () => {
-    const sSch = uploadSchool || schoolsList[0] || 'School'
-    const sProg = uploadProgram || programsList[0] || 'Program'
-    const sBat = uploadBatch || batches[0] || 'Batch 1'
-    const sSub = uploadSubject || subjectsList[0] || 'Subject'
+    const sSch = autoSafe(uploadSchool) || schoolsList[0] || 'School'
+    const sProg = autoSafe(uploadProgram) || programsList[0] || 'Program'
+    const sBat = autoSafe(uploadBatch) || batches[0] || 'Batch 1'
+    const sSub = autoSafe(uploadSubject) || subjectsList[0] || 'Subject'
 
     const csvContent =
 `School,Program,Batch,Subject,Chapter Title,Estimated Hours,Target Dates,Status,Teacher Remarks & Notes
@@ -704,12 +714,18 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
 
   const handleUploadSubjectChange = (newSub: string) => {
     setUploadSubject(newSub)
-    setParsedChapters(prev => prev.map(row => ({ ...row, subject: newSub })))
+    // Switching to "Automatic" means each row keeps its own Excel value --
+    // stamping the sentinel onto every row would defeat that entirely.
+    if (newSub !== AUTOMATIC) {
+      setParsedChapters(prev => prev.map(row => ({ ...row, subject: newSub })))
+    }
   }
 
   const handleUploadBatchChange = (newBatch: string) => {
     setUploadBatch(newBatch)
-    setParsedChapters(prev => prev.map(row => ({ ...row, batch: newBatch })))
+    if (newBatch !== AUTOMATIC) {
+      setParsedChapters(prev => prev.map(row => ({ ...row, batch: newBatch })))
+    }
   }
 
   // Parse uploaded file
@@ -846,10 +862,19 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
 
       if (!title) return
 
-      let rowSchool = getVal(colSchool, 0) || uploadSchool || (schoolsList[0] || '')
-      let rowProgram = getVal(colProgram, 1) || uploadProgram || (programsList[0] || '')
-      let rowBatch = getVal(colBatch, 2) || uploadBatch || (batches[0] || '')
-      let rowSub = getVal(colSubject, 3) || detectedSub || uploadSubject || (subjectsList[0] || '')
+      // "Automatic" dropdowns only ever take this field from the row's own
+      // Excel column -- never the dropdown's own value or the first item in
+      // its list -- so a row that's actually missing the column ends up
+      // blank (and gets flagged at import time) instead of being silently
+      // filed under whatever the dropdown happens to be set to.
+      let rowSchool = getVal(colSchool, 0)
+      if (!rowSchool && uploadSchool !== AUTOMATIC) rowSchool = uploadSchool || (schoolsList[0] || '')
+      let rowProgram = getVal(colProgram, 1)
+      if (!rowProgram && uploadProgram !== AUTOMATIC) rowProgram = uploadProgram || (programsList[0] || '')
+      let rowBatch = getVal(colBatch, 2)
+      if (!rowBatch && uploadBatch !== AUTOMATIC) rowBatch = uploadBatch || (batches[0] || '')
+      let rowSub = getVal(colSubject, 3) || detectedSub
+      if (!rowSub && uploadSubject !== AUTOMATIC) rowSub = uploadSubject || (subjectsList[0] || '')
       let hours = getVal(colHours, 5)
       let dates = formatDisplayDate(getVal(colDates, 6))
       let rawStatus = getVal(colStatus, 7)
@@ -906,10 +931,13 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
       ...prev,
       {
         id: String(Date.now()),
-        school: uploadSchool || (schoolsList[0] || ''),
-        program: uploadProgram || (programsList[0] || ''),
-        batch: uploadBatch || (batches[0] || ''),
-        subject: uploadSubject || (subjectsList[0] || ''),
+        // A manually-added row has no Excel cell to read, so "Automatic"
+        // leaves it blank for the user to fill in directly rather than
+        // reusing the dropdown value it's meant to bypass.
+        school: uploadSchool === AUTOMATIC ? '' : (uploadSchool || (schoolsList[0] || '')),
+        program: uploadProgram === AUTOMATIC ? '' : (uploadProgram || (programsList[0] || '')),
+        batch: uploadBatch === AUTOMATIC ? '' : (uploadBatch || (batches[0] || '')),
+        subject: uploadSubject === AUTOMATIC ? '' : (uploadSubject || (subjectsList[0] || '')),
         title: `Chapter 0${prev.length + 1}: `,
         estHours: '',
         dates: '',
@@ -943,10 +971,26 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
       return
     }
 
+    // School/Batch/Subject are required per row -- normally guaranteed by
+    // the dropdown fallback, but a row can end up blank here when its
+    // dropdown is set to "Automatic" and the matching Excel column was
+    // empty for that row. Program stays optional either way.
+    const missingRequired = parsedChapters.filter(c => !c.school || !c.batch || !c.subject)
+    if (missingRequired.length > 0) {
+      const fields = Array.from(new Set(missingRequired.flatMap(c => [
+        !c.school ? 'School' : null,
+        !c.batch ? 'Batch' : null,
+        !c.subject ? 'Subject' : null,
+      ].filter((f): f is string => !!f))))
+      setParseError(`Data incomplete! ${missingRequired.length} row(s) are missing ${fields.join('/')}. Since "Automatic" reads these straight from your file, fill in the missing cell(s) below or pick a fixed value in the dropdown above instead.`)
+      showToast('Data incomplete: required fields missing')
+      return
+    }
+
     setUploading(true)
     try {
-      const targetSubject = parsedChapters[0]?.subject || uploadSubject || selectedSubject
-      const targetBatch = parsedChapters[0]?.batch || uploadBatch || selectedBatch
+      const targetSubject = parsedChapters[0]?.subject || autoSafe(uploadSubject) || selectedSubject
+      const targetBatch = parsedChapters[0]?.batch || autoSafe(uploadBatch) || selectedBatch
 
       const res = await fetch('/api/teacher-portal/academic-planning/chapters', {
         method: 'POST',
@@ -954,29 +998,42 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
         body: JSON.stringify({
           className: targetBatch,
           subject: targetSubject,
-          school: uploadSchool,
-          program: uploadProgram,
+          school: autoSafe(uploadSchool),
+          program: autoSafe(uploadProgram),
           items: parsedChapters.map(c => ({
             ...c,
             batch: c.batch || targetBatch,
             subject: c.subject || targetSubject,
-            school: c.school || uploadSchool,
-            program: c.program || uploadProgram
+            school: c.school || autoSafe(uploadSchool),
+            program: c.program || autoSafe(uploadProgram)
           }))
         })
       })
 
+      const d = await res.json()
       if (res.ok) {
-        showToast(`Successfully imported ${parsedChapters.length} chapters for ${targetSubject}!`)
-        setUploadModalOpen(false)
-        setUploadedFile(null)
-        setParsedChapters([])
+        const importedCount = d.count ?? parsedChapters.length
+        const skipped: { title: string; reason: string }[] = d.errors || []
+
+        if (skipped.length > 0) {
+          // Partial import: keep the modal open with only the skipped rows
+          // still in the preview so the user can fix (e.g. a mistyped
+          // School name) and retry just those, instead of silently losing
+          // track of which rows didn't make it in.
+          setParsedChapters(prev => prev.filter(c => skipped.some(e => e.title === c.title)))
+          setParseError(`Imported ${importedCount} chapter(s). ${skipped.length} row(s) were skipped: ${skipped.map(e => `"${e.title}" — ${e.reason}`).join('; ')}`)
+          showToast(`Imported ${importedCount}, skipped ${skipped.length} row(s) -- see details below`)
+        } else {
+          showToast(`Successfully imported ${importedCount} chapters for ${targetSubject}!`)
+          setUploadModalOpen(false)
+          setUploadedFile(null)
+          setParsedChapters([])
+        }
 
         if (targetBatch) setSelectedBatch(targetBatch)
         if (targetSubject) setSelectedSubject(targetSubject)
         fetchChapters(targetBatch, targetSubject)
       } else {
-        const d = await res.json()
         showToast(d.error || 'Failed to import syllabus')
       }
     } catch (err) {
@@ -1238,10 +1295,10 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 text-slate-300">
                     <tr>
-                      <td className="p-1.5">{uploadSchool || schoolsList[0] || 'School'}</td>
-                      <td className="p-1.5">{uploadProgram || programsList[0] || 'Program'}</td>
-                      <td className="p-1.5">{uploadBatch || batches[0] || 'Batch 1'}</td>
-                      <td className="p-1.5">{uploadSubject || subjectsList[0] || 'Subject'}</td>
+                      <td className="p-1.5">{autoSafe(uploadSchool) || schoolsList[0] || 'School'}</td>
+                      <td className="p-1.5">{autoSafe(uploadProgram) || programsList[0] || 'Program'}</td>
+                      <td className="p-1.5">{autoSafe(uploadBatch) || batches[0] || 'Batch 1'}</td>
+                      <td className="p-1.5">{autoSafe(uploadSubject) || subjectsList[0] || 'Subject'}</td>
                       <td className="p-1.5">Chapter 01: Physical World</td>
                       <td className="p-1.5">10 hrs est.</td>
                       <td className="p-1.5">Oct 01 - Oct 15</td>
@@ -1249,10 +1306,10 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                       <td className="p-1.5 text-slate-400">Introductory concepts clear</td>
                     </tr>
                     <tr>
-                      <td className="p-1.5">{uploadSchool || schoolsList[0] || 'School'}</td>
-                      <td className="p-1.5">{uploadProgram || programsList[0] || 'Program'}</td>
-                      <td className="p-1.5">{uploadBatch || batches[0] || 'Batch 1'}</td>
-                      <td className="p-1.5">{uploadSubject || subjectsList[0] || 'Subject'}</td>
+                      <td className="p-1.5">{autoSafe(uploadSchool) || schoolsList[0] || 'School'}</td>
+                      <td className="p-1.5">{autoSafe(uploadProgram) || programsList[0] || 'Program'}</td>
+                      <td className="p-1.5">{autoSafe(uploadBatch) || batches[0] || 'Batch 1'}</td>
+                      <td className="p-1.5">{autoSafe(uploadSubject) || subjectsList[0] || 'Subject'}</td>
                       <td className="p-1.5">Chapter 02: Units & Measurements</td>
                       <td className="p-1.5">12 hrs est.</td>
                       <td className="p-1.5">Oct 16 - Oct 30</td>
@@ -1279,6 +1336,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                     onChange={e => setUploadSchool(e.target.value)}
                     className="w-full text-xs font-bold bg-white px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
                   >
+                    <option value={AUTOMATIC}>Automatic (from file)</option>
                     {schoolsList.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
@@ -1292,6 +1350,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                     onChange={e => setUploadProgram(e.target.value)}
                     className="w-full text-xs font-bold bg-white px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
                   >
+                    <option value={AUTOMATIC}>Automatic (from file)</option>
                     {programsList.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
@@ -1305,6 +1364,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                     onChange={e => handleUploadBatchChange(e.target.value)}
                     className="w-full text-xs font-bold bg-white px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
                   >
+                    <option value={AUTOMATIC}>Automatic (from file)</option>
                     {batches.map(b => <option key={b} value={b}>{b}</option>)}
                   </select>
                 </div>
@@ -1318,6 +1378,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                     onChange={e => handleUploadSubjectChange(e.target.value)}
                     className="w-full text-xs font-bold bg-white px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
                   >
+                    <option value={AUTOMATIC}>Automatic (from file)</option>
                     {subjectsList.map(sub => <option key={sub} value={sub}>{sub}</option>)}
                   </select>
                 </div>
@@ -1402,7 +1463,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                           <td className="p-2">
                             <input
                               type="text"
-                              value={row.school || uploadSchool}
+                              value={row.school || autoSafe(uploadSchool)}
                               onChange={e => handleUpdateParsedRow(row.id, 'school', e.target.value)}
                               className="w-20 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
                             />
@@ -1410,7 +1471,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                           <td className="p-2">
                             <input
                               type="text"
-                              value={row.program || uploadProgram}
+                              value={row.program || autoSafe(uploadProgram)}
                               onChange={e => handleUpdateParsedRow(row.id, 'program', e.target.value)}
                               className="w-20 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
                             />
@@ -1418,7 +1479,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                           <td className="p-2">
                             <input
                               type="text"
-                              value={row.batch || uploadBatch}
+                              value={row.batch || autoSafe(uploadBatch)}
                               onChange={e => handleUpdateParsedRow(row.id, 'batch', e.target.value)}
                               className="w-20 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
                             />
@@ -1426,7 +1487,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                           <td className="p-2">
                             <input
                               type="text"
-                              value={row.subject || uploadSubject}
+                              value={row.subject || autoSafe(uploadSubject)}
                               onChange={e => handleUpdateParsedRow(row.id, 'subject', e.target.value)}
                               className="w-20 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
                             />
