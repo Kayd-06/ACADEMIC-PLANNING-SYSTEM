@@ -1,8 +1,32 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { batches, batchSyllabus, chapters, subjects } from '@/lib/db/schema'
-import { eq, and, or, isNull, asc, desc } from 'drizzle-orm'
+import { batches, batchSyllabus, chapters, subjects, schools, programs } from '@/lib/db/schema'
+import { eq, and, or, isNull, ilike, asc, desc } from 'drizzle-orm'
 import { auth, getSchoolId } from '@/lib/auth'
+import { getAdminSchools } from '@/lib/db/queries/adminSchools'
+
+// Resolves an Excel row's free-text School name to a school this session is
+// actually allowed to write to -- scoped the same way the rest of the app
+// scopes school access (all schools a management user administers, or just
+// a teacher's own active school), never any school in the database. Used by
+// the bulk import's "Automatic" school routing so an unrecognized/typo'd
+// school name is reported as an error instead of silently writing into
+// whichever school happens to be selected in the upload dropdown.
+async function resolveItemSchoolId(session: any, name: string): Promise<string | null> {
+  const trimmed = name.trim()
+  if (!trimmed) return null
+
+  if ((session.user as any).role === 'management') {
+    const accessible = await getAdminSchools(session.user.id!)
+    const match = accessible.find(s => s.name.trim().toLowerCase() === trimmed.toLowerCase())
+    return match ? match.id : null
+  }
+
+  const sessionSchoolId = getSchoolId(session)
+  if (!sessionSchoolId) return null
+  const [own] = await db.select({ id: schools.id }).from(schools).where(and(eq(schools.id, sessionSchoolId), ilike(schools.name, trimmed)))
+  return own ? own.id : null
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -259,55 +283,68 @@ export async function POST(req: Request) {
       if (!className || !subject) {
         return NextResponse.json({ error: 'Class and Subject are required for bulk upload' }, { status: 400 })
       }
-
-      // Get or create Batch & Subject, scoped to target school.
-      const batchCond = targetSchoolId ? and(eq(batches.name, className), eq(batches.schoolId, targetSchoolId)) : eq(batches.name, className)
-      const subjectCond = targetSchoolId ? and(eq(subjects.name, subject), eq(subjects.schoolId, targetSchoolId)) : eq(subjects.name, subject)
-      let batchRow = await db.select().from(batches).where(batchCond).limit(1).then(r => r[0])
-      let subjectRow = await db.select().from(subjects).where(subjectCond).limit(1).then(r => r[0])
-
-      if (!batchRow) {
-        const [nb] = await db.insert(batches).values({ name: className, capacity: 60, classLevel: '11', schoolId: targetSchoolId }).returning()
-        batchRow = nb
-      }
-      if (!subjectRow) {
-        const [ns] = await db.insert(subjects).values({ name: subject, code: subject.substring(0,3).toUpperCase(), schoolId: targetSchoolId }).returning()
-        subjectRow = ns
-      }
-
-      // Get starting order index
-      const orderCond = targetSchoolId ? and(eq(chapters.subjectId, subjectRow.id), eq(chapters.schoolId, targetSchoolId)) : eq(chapters.subjectId, subjectRow.id)
-      const lastChap = await db.select({ orderIndex: chapters.orderIndex })
-        .from(chapters)
-        .where(orderCond)
-        .orderBy(desc(chapters.orderIndex))
-        .limit(1)
-        .then(r => r[0])
-      let currentOrder = lastChap ? lastChap.orderIndex + 1 : 1
+      // Batch & Subject (and School, in "Automatic" mode) are resolved --
+      // and created if they don't exist -- per item below, since each Excel
+      // row can name its own. className/subject above are only the fallback
+      // for items that don't specify their own.
 
       const createdList: any[] = []
+      // Rows skipped during "Automatic" school routing (Excel named a school
+      // this session can't resolve/write to) -- surfaced to the frontend so
+      // it can flag them instead of the row silently vanishing.
+      const errors: { title: string; reason: string }[] = []
 
       for (const item of itemsToCreate) {
         if (!item.title || !item.title.trim()) continue
         const itemClassName = item.batch || className
         const itemSubjectName = item.subject || subject
 
+        // Automatic school routing: an item can name its own school (from
+        // the Excel row); otherwise it falls back to the upload's fixed
+        // target school as before. An item-named school that doesn't
+        // resolve to a school this session can write to is skipped rather
+        // than silently filed under the wrong/fallback school.
+        let itemSchoolId = targetSchoolId
+        if (item.school && item.school.trim()) {
+          const resolved = await resolveItemSchoolId(session, item.school)
+          if (!resolved) {
+            errors.push({ title: item.title, reason: `School "${item.school.trim()}" not found or not accessible` })
+            continue
+          }
+          itemSchoolId = resolved
+        }
+
         // Get or create Batch & Subject dynamically per item
-        const bCond = targetSchoolId ? and(eq(batches.name, itemClassName), eq(batches.schoolId, targetSchoolId)) : eq(batches.name, itemClassName)
-        const sCond = targetSchoolId ? and(eq(subjects.name, itemSubjectName), eq(subjects.schoolId, targetSchoolId)) : eq(subjects.name, itemSubjectName)
+        const bCond = itemSchoolId ? and(eq(batches.name, itemClassName), eq(batches.schoolId, itemSchoolId)) : eq(batches.name, itemClassName)
+        const sCond = itemSchoolId ? and(eq(subjects.name, itemSubjectName), eq(subjects.schoolId, itemSchoolId)) : eq(subjects.name, itemSubjectName)
         let bRow = await db.select().from(batches).where(bCond).limit(1).then(r => r[0])
         let sRow = await db.select().from(subjects).where(sCond).limit(1).then(r => r[0])
 
         if (!bRow) {
-          const [nb] = await db.insert(batches).values({ name: itemClassName, capacity: 60, classLevel: '11', schoolId: targetSchoolId }).returning()
+          // A brand-new batch picks up its Program from the Excel row too
+          // (get-or-create, same pattern as Batch/Subject). An existing
+          // batch already has its own program link (batches.programId), so
+          // it's left as-is rather than reassigned from a stray cell.
+          let itemProgramId: string | undefined
+          const itemProgramName = item.program && item.program.trim()
+          if (itemProgramName) {
+            const pCond = itemSchoolId ? and(ilike(programs.name, itemProgramName), eq(programs.schoolId, itemSchoolId)) : ilike(programs.name, itemProgramName)
+            let pRow = await db.select().from(programs).where(pCond).limit(1).then(r => r[0])
+            if (!pRow) {
+              const [np] = await db.insert(programs).values({ name: itemProgramName, schoolId: itemSchoolId }).returning()
+              pRow = np
+            }
+            itemProgramId = pRow.id
+          }
+          const [nb] = await db.insert(batches).values({ name: itemClassName, capacity: 60, classLevel: '11', schoolId: itemSchoolId, programId: itemProgramId }).returning()
           bRow = nb
         }
         if (!sRow) {
-          const [ns] = await db.insert(subjects).values({ name: itemSubjectName, code: itemSubjectName.substring(0,3).toUpperCase(), schoolId: targetSchoolId }).returning()
+          const [ns] = await db.insert(subjects).values({ name: itemSubjectName, code: itemSubjectName.substring(0,3).toUpperCase(), schoolId: itemSchoolId }).returning()
           sRow = ns
         }
 
-        const oCond = targetSchoolId ? and(eq(chapters.subjectId, sRow.id), eq(chapters.schoolId, targetSchoolId)) : eq(chapters.subjectId, sRow.id)
+        const oCond = itemSchoolId ? and(eq(chapters.subjectId, sRow.id), eq(chapters.schoolId, itemSchoolId)) : eq(chapters.subjectId, sRow.id)
         const lastChapItem = await db.select({ orderIndex: chapters.orderIndex })
           .from(chapters)
           .where(oCond)
@@ -324,7 +361,7 @@ export async function POST(req: Request) {
           description: item.notes || '',
           expectedHours: numHours,
           orderIndex: itemOrder,
-          schoolId: targetSchoolId,
+          schoolId: itemSchoolId,
         }).returning()
 
         const normalizedStatus = item.status === 'NOT STARTED' ? 'Not Started' :
@@ -355,7 +392,7 @@ export async function POST(req: Request) {
         })
       }
 
-      return NextResponse.json({ success: true, count: createdList.length, chapters: createdList })
+      return NextResponse.json({ success: true, count: createdList.length, chapters: createdList, errors })
     }
 
     // Single creation support
