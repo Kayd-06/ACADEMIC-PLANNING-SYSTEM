@@ -62,7 +62,8 @@ export async function logAuditAction({
       ipAddress,
       userAgent,
       authorName: name || 'Admin',
-      authorRole: role || 'Management'
+      authorRole: role || 'Management',
+      schoolId: (newValues?.schoolId) || (oldValues?.schoolId) || null
     })
   } catch (error) {
     console.error('Failed to log audit action:', error)

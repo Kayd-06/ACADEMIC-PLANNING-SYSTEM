@@ -256,6 +256,20 @@ export async function PATCH(req: NextRequest) {
         ? and(eq(students.batch, existing.name), eq(students.schoolId, schoolId))
         : eq(students.batch, existing.name)
       await db.update(students).set({ batch: data.name, updatedAt: new Date() }).where(studentCondition)
+
+      if (schoolId) {
+        const tbRows = await db
+          .select({ id: teacherBatches.id })
+          .from(teacherBatches)
+          .innerJoin(faculty, eq(teacherBatches.teacherId, faculty.id))
+          .where(and(eq(faculty.schoolId, schoolId), eq(teacherBatches.batchName, existing.name)))
+        const ids = tbRows.map(r => r.id)
+        if (ids.length > 0) {
+          await db.update(teacherBatches).set({ batchName: data.name }).where(inArray(teacherBatches.id, ids))
+        }
+      } else {
+        await db.update(teacherBatches).set({ batchName: data.name }).where(eq(teacherBatches.batchName, existing.name))
+      }
     }
 
     await mirrorTeacherAssignment(updated.teacherId, updated.name)
@@ -290,6 +304,20 @@ export async function DELETE(req: NextRequest) {
     if (!existing) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
     if (existing.enrolledCount > 0) {
       return NextResponse.json({ error: `"${existing.name}" still has ${existing.enrolledCount} students — move them to another batch first.` }, { status: 400 })
+    }
+
+    if (schoolId) {
+      const tbRows = await db
+        .select({ id: teacherBatches.id })
+        .from(teacherBatches)
+        .innerJoin(faculty, eq(teacherBatches.teacherId, faculty.id))
+        .where(and(eq(faculty.schoolId, schoolId), eq(teacherBatches.batchName, existing.name)))
+      const ids = tbRows.map(r => r.id)
+      if (ids.length > 0) {
+        await db.delete(teacherBatches).where(inArray(teacherBatches.id, ids))
+      }
+    } else {
+      await db.delete(teacherBatches).where(eq(teacherBatches.batchName, existing.name))
     }
 
     await db.delete(batches).where(eq(batches.id, id))

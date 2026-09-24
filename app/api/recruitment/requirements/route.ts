@@ -7,9 +7,13 @@ import { notifyRoleInSchool } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const rows = await db.select().from(recruitmentRequirements).orderBy(desc(recruitmentRequirements.createdAt))
+    const url = new URL(req.url)
+    const schoolId = url.searchParams.get('schoolId')
+    let query = db.select().from(recruitmentRequirements)
+    if (schoolId) query = query.where(eq(recruitmentRequirements.schoolId, schoolId)) as any
+    const rows = await query.orderBy(desc(recruitmentRequirements.createdAt))
     const formatted = rows.map(r => ({
       ...r,
       _id: r.id,
@@ -34,7 +38,8 @@ export async function POST(req: Request) {
       vacancies = 1,
       status = 'Open',
       postingDate = '',
-      closingDate = ''
+      closingDate = '',
+      schoolId = null
     } = body
 
     const finalTitle = jobTitle || title || 'Untitled Role'
@@ -48,7 +53,8 @@ export async function POST(req: Request) {
       vacancies: Number(vacancies) || 1,
       status,
       postingDate: postingDate || new Date().toISOString().split('T')[0],
-      closingDate: closingDate || ''
+      closingDate: closingDate || '',
+      schoolId: schoolId || null
     }).returning()
 
     await logAuditAction({

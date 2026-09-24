@@ -12,13 +12,16 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url)
     const candidateId = url.searchParams.get('candidateId')
+    const schoolId = url.searchParams.get('schoolId')
 
-    let query = db.select().from(recruitmentInterviews).orderBy(desc(recruitmentInterviews.createdAt))
-    if (candidateId) {
-      query = db.select().from(recruitmentInterviews).where(eq(recruitmentInterviews.candidateId, candidateId)).orderBy(desc(recruitmentInterviews.createdAt)) as any
-    }
-
-    const rows = await query
+    let query = db.select().from(recruitmentInterviews)
+    
+    // @ts-ignore
+    if (candidateId) query = query.where(eq(recruitmentInterviews.candidateId, candidateId))
+    // @ts-ignore
+    else if (schoolId) query = query.where(eq(recruitmentInterviews.schoolId, schoolId))
+    
+    const rows = await query.orderBy(desc(recruitmentInterviews.createdAt))
     const formatted = rows.map(r => ({
       ...r,
       _id: r.id
@@ -41,7 +44,8 @@ export async function POST(req: Request) {
       feedbackText = '',
       rating = 3,
       finalResult = 'Pending',
-      interviewerName = 'Panel'
+      interviewerName = 'Panel',
+      schoolId = null
     } = body
 
     const [newInt] = await db.insert(recruitmentInterviews).values({
@@ -53,7 +57,8 @@ export async function POST(req: Request) {
       feedbackText,
       rating: Number(rating) || 3,
       finalResult,
-      interviewerName
+      interviewerName,
+      schoolId: schoolId || null
     }).returning()
 
     await logAuditAction({

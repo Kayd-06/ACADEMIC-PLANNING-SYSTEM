@@ -20,7 +20,7 @@ export default async function ManagementRecruitmentPage() {
       <Sidebar userName={session.user.name ?? ''} userRole="Academic Administration" navItems={MANAGEMENT_NAV} initials={initials} />
       <div className="flex-1 flex flex-col min-w-0">
         <TopHeader initials={initials} />
-        <RecruitmentView />
+        <RecruitmentView schoolId={(session.user as any).schoolId} />
       </div>
     </div>
   )

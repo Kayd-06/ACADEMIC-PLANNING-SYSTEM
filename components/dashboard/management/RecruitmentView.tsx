@@ -75,8 +75,6 @@ function formatSalaryDisplay(val?: string | number | null): string {
 export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'requirements' | 'candidates' | 'appraisals' | 'audit'>('overview')
   const [loading, setLoading] = useState(true)
-  const [dashboardData, setDashboardData] = useState<any>(null)
-  
   // Data lists
   const [requirements, setRequirements] = useState<any[]>([])
   const [candidates, setCandidates] = useState<any[]>([])
@@ -184,13 +182,12 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
 
   useEffect(() => {
     fetchAllData()
-  }, [])
+  }, [schoolId])
 
   const fetchAllData = async () => {
     setLoading(true)
     try {
-      const [dashRes, reqRes, candRes, intRes, appRes, auditRes, schoolsRes] = await Promise.all([
-        fetch('/api/recruitment/dashboard'),
+      const [reqRes, candRes, intRes, appRes, auditRes, schoolsRes] = await Promise.all([
         fetch('/api/recruitment/requirements'),
         fetch('/api/recruitment/candidates'),
         fetch('/api/recruitment/interviews'),
@@ -199,12 +196,13 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
         fetch('/api/admin/schools')
       ])
 
-      if (dashRes.ok) setDashboardData(await dashRes.json())
-      if (reqRes.ok) setRequirements(await reqRes.json())
-      if (candRes.ok) setCandidates(await candRes.json())
-      if (intRes.ok) setInterviews(await intRes.json())
-      if (appRes.ok) setAppraisals(await appRes.json())
-      if (auditRes.ok) setAuditLogs(await auditRes.json())
+      const filterBySchool = (data: any[]) => schoolId ? data.filter(item => item.schoolId === schoolId) : data;
+
+      if (reqRes.ok) setRequirements(filterBySchool(await reqRes.json()))
+      if (candRes.ok) setCandidates(filterBySchool(await candRes.json()))
+      if (intRes.ok) setInterviews(filterBySchool(await intRes.json()))
+      if (appRes.ok) setAppraisals(filterBySchool(await appRes.json()))
+      if (auditRes.ok) setAuditLogs(filterBySchool(await auditRes.json()))
       if (schoolsRes.ok) {
         const schs = await schoolsRes.json()
         if (Array.isArray(schs)) setAdminSchools(schs)
@@ -215,6 +213,68 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
       setLoading(false)
     }
   }
+
+  // Local Dashboard KPI Computation
+  const openVacancies = requirements
+    .filter(r => r.status?.toLowerCase() === 'open')
+    .reduce((sum, r) => sum + (r.vacancies || 1), 0)
+
+  const activeCandidates = candidates.filter(c => {
+    const s = c.workflowStatus?.toLowerCase() || ''
+    return s !== 'rejected' && s !== 'hired'
+  }).length
+
+  const interviewsScheduled = candidates.filter(c => c.workflowStatus?.toLowerCase() === 'interview scheduled').length || interviews.length
+
+  const pendingAppraisals = appraisals.filter(a => {
+    const s = a.reviewStatus?.toLowerCase() || ''
+    return s === 'pending' || s === 'in progress'
+  }).length
+
+  const hiredCount = candidates.filter(c => c.workflowStatus?.toLowerCase() === 'hired').length
+
+  const kpis = [
+    {
+      id: '1',
+      label: 'Open Vacancies',
+      value: String(openVacancies),
+      change: 'Active roles',
+      trend: 'neutral',
+      icon: 'Briefcase'
+    },
+    {
+      id: '2',
+      label: 'Active Candidates',
+      value: String(activeCandidates),
+      change: 'In hiring pipeline',
+      trend: activeCandidates > 0 ? 'up' : 'neutral',
+      icon: 'Users'
+    },
+    {
+      id: '3',
+      label: 'Interviews Scheduled',
+      value: String(interviewsScheduled),
+      change: 'Upcoming sessions',
+      trend: interviewsScheduled > 0 ? 'up' : 'neutral',
+      icon: 'Calendar'
+    },
+    {
+      id: '4',
+      label: 'Pending Appraisals',
+      value: String(pendingAppraisals),
+      change: 'Requires review',
+      trend: pendingAppraisals > 0 ? 'down' : 'neutral',
+      icon: 'Award'
+    },
+    {
+      id: '5',
+      label: 'Hired This Year',
+      value: String(hiredCount),
+      change: 'Successfully onboarded',
+      trend: hiredCount > 0 ? 'up' : 'neutral',
+      icon: 'CheckCircle'
+    }
+  ]
 
   const getSchoolName = (id?: string) => {
     if (!id) return null
@@ -228,7 +288,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
     try {
       const url = '/api/recruitment/requirements'
       const method = editingReq ? 'PATCH' : 'POST'
-      const body = editingReq ? { ...reqForm, id: editingReq.id || editingReq._id } : reqForm
+      const body = editingReq ? { ...reqForm, id: editingReq.id || editingReq._id } : { ...reqForm, schoolId: schoolId || (adminSchools[0]?.id || '') }
 
       const res = await fetch(url, {
         method,
@@ -272,7 +332,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
     try {
       const url = '/api/recruitment/candidates'
       const method = editingCand ? 'PATCH' : 'POST'
-      const body = editingCand ? { ...candForm, id: editingCand.id || editingCand._id } : candForm
+      const body = editingCand ? { ...candForm, id: editingCand.id || editingCand._id } : { ...candForm, schoolId: schoolId || (adminSchools[0]?.id || '') }
 
       const res = await fetch(url, {
         method,
@@ -308,7 +368,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
     try {
       const url = '/api/recruitment/interviews'
       const method = editingInt ? 'PATCH' : 'POST'
-      const body = editingInt ? { ...intForm, id: editingInt.id || editingInt._id } : intForm
+      const body = editingInt ? { ...intForm, id: editingInt.id || editingInt._id } : { ...intForm, schoolId: schoolId || (adminSchools[0]?.id || '') }
 
       const res = await fetch(url, {
         method,
@@ -344,7 +404,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
     try {
       const url = '/api/recruitment/appraisals'
       const method = editingApp ? 'PATCH' : 'POST'
-      const body = editingApp ? { ...appForm, id: editingApp.id || editingApp._id } : appForm
+      const body = editingApp ? { ...appForm, id: editingApp.id || editingApp._id } : { ...appForm, schoolId: schoolId || (adminSchools[0]?.id || '') }
 
       const res = await fetch(url, {
         method,
@@ -422,7 +482,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
 
   const stages = ['Applied', 'Shortlisted', 'Interview Scheduled', 'Under Review', 'Offer Extended', 'Hired']
 
-  if (loading && !dashboardData) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px] bg-slate-50">
         <div className="flex flex-col items-center gap-3">
@@ -538,7 +598,7 @@ export const RecruitmentView: React.FC<RecruitmentViewProps> = ({ schoolId }) =>
           >
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              {(dashboardData?.kpis || []).map((kpi: any, idx: number) => {
+              {kpis.map((kpi: any, idx: number) => {
                 const iconMap: Record<string, any> = {
                   Briefcase,
                   Users,

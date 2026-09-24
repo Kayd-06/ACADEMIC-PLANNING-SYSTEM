@@ -6,9 +6,13 @@ import { logAuditAction } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const rows = await db.select().from(teacherAppraisals).orderBy(desc(teacherAppraisals.createdAt))
+    const url = new URL(req.url)
+    const schoolId = url.searchParams.get('schoolId')
+    let query = db.select().from(teacherAppraisals)
+    if (schoolId) query = query.where(eq(teacherAppraisals.schoolId, schoolId)) as any
+    const rows = await query.orderBy(desc(teacherAppraisals.createdAt))
     const formatted = rows.map(r => ({
       ...r,
       _id: r.id,
@@ -40,7 +44,8 @@ export async function POST(req: Request) {
       status = '',
       scheduledDate = '',
       isCompleted = false,
-      avatarInitials = ''
+      avatarInitials = '',
+      schoolId = null
     } = body
 
     if (!teacherName.trim()) {
@@ -66,7 +71,8 @@ export async function POST(req: Request) {
       reviewStatus: finalStatus,
       scheduledDate,
       isCompleted: Boolean(isCompleted),
-      avatarInitials: initials
+      avatarInitials: initials,
+      schoolId: schoolId || null
     }).returning()
 
     await logAuditAction({

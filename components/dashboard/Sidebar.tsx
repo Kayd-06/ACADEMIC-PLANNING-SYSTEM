@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
+
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
@@ -61,7 +61,7 @@ function ProgramSwitcher() {
   }
 
   return (
-    <div className="px-4 pb-3" ref={ref}>
+    <div className="px-4 pb-3 relative" ref={ref}>
       <button onClick={() => setOpen(v => !v)}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all text-left">
         <div className="flex items-center gap-2 min-w-0">
@@ -73,7 +73,7 @@ function ProgramSwitcher() {
       <AnimatePresence>
         {open && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-            className="mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+            className="absolute left-4 right-4 top-11 bg-white border border-slate-200 rounded-xl shadow-lg z-[100] overflow-hidden">
             <div className="py-1 max-h-56 overflow-y-auto">
               <button onClick={() => switchProgram(null)}
                 className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${!selected ? 'bg-purple-50 text-purple-700' : 'text-slate-700 hover:bg-slate-50'}`}>
@@ -163,7 +163,7 @@ function BatchSwitcher() {
   }
 
   return (
-    <div className="px-4 pb-3" ref={ref}>
+    <div className="px-4 pb-3 relative" ref={ref}>
       <button onClick={() => setOpen(v => !v)}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all text-left">
         <div className="flex items-center gap-2 min-w-0">
@@ -175,7 +175,7 @@ function BatchSwitcher() {
       <AnimatePresence>
         {open && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-            className="mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+            className="absolute left-4 right-4 top-11 bg-white border border-slate-200 rounded-xl shadow-lg z-[100] overflow-hidden">
             {programFilter && (
               <p className="px-4 pt-2.5 pb-1.5 text-[10px] font-bold text-purple-600 uppercase tracking-wider border-b border-slate-100">
                 In {programFilter.name}
@@ -250,7 +250,7 @@ function TeacherProgramSwitcher() {
   if (programList.length === 0) return null
 
   return (
-    <div className="px-4 pb-3" ref={ref}>
+    <div className="px-4 pb-3 relative" ref={ref}>
       <button onClick={() => setOpen(v => !v)}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all text-left">
         <div className="flex items-center gap-2 min-w-0">
@@ -262,7 +262,7 @@ function TeacherProgramSwitcher() {
       <AnimatePresence>
         {open && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-            className="mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+            className="absolute left-4 right-4 top-11 bg-white border border-slate-200 rounded-xl shadow-lg z-[100] overflow-hidden">
             <div className="py-1 max-h-56 overflow-y-auto">
               <button onClick={() => switchProgram('')}
                 className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${!selected ? 'bg-purple-50 text-purple-700' : 'text-slate-700 hover:bg-slate-50'}`}>
@@ -318,7 +318,7 @@ function TeacherBatchSwitcher() {
   if (batchList.length === 0) return null
 
   return (
-    <div className="px-4 pb-3" ref={ref}>
+    <div className="px-4 pb-3 relative" ref={ref}>
       <button onClick={() => setOpen(v => !v)}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all text-left">
         <div className="flex items-center gap-2 min-w-0">
@@ -330,7 +330,7 @@ function TeacherBatchSwitcher() {
       <AnimatePresence>
         {open && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-            className="mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+            className="absolute left-4 right-4 top-11 bg-white border border-slate-200 rounded-xl shadow-lg z-[100] overflow-hidden">
             <div className="py-1 max-h-56 overflow-y-auto">
               <button onClick={() => switchBatch('')}
                 className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors ${!selected ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50'}`}>
@@ -406,7 +406,7 @@ function SchoolSwitcher() {
   }
 
   return (
-    <div className="px-4 pb-3" ref={ref}>
+    <div className="px-4 pb-3 relative" ref={ref}>
       <button onClick={() => setOpen(v => !v)} disabled={sessionLoading}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all text-left disabled:cursor-default">
         <div className="flex items-center gap-2 min-w-0">
@@ -422,7 +422,7 @@ function SchoolSwitcher() {
       <AnimatePresence>
         {open && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-            className="mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+            className="absolute left-4 right-4 top-11 bg-white border border-slate-200 rounded-xl shadow-lg z-[100] overflow-hidden">
             <div className="py-1">
               {schools.length === 0 && <p className="px-4 py-3 text-xs text-slate-400 italic">No schools found</p>}
               {schools.map(school => (
@@ -461,24 +461,6 @@ interface SidebarProps {
 
 export default function Sidebar({ userName, userRole, navItems, initials }: SidebarProps) {
   const pathname = usePathname()
-  const [showRecruitmentModal, setShowRecruitmentModal] = useState(false)
-  const [requirementForm, setRequirementForm] = useState({ title: '', department: '', openPositions: 1 })
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  async function handleCreateRequirement() {
-    if (!requirementForm.title || !requirementForm.department) return
-    setIsSubmitting(true)
-    await fetch('/api/recruitment/requirements', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requirementForm)
-    })
-    setRequirementForm({ title: '', department: '', openPositions: 1 })
-    setShowRecruitmentModal(false)
-    setIsSubmitting(false)
-    window.dispatchEvent(new Event('requirementsUpdated'))
-  }
-
   return (
     <motion.aside
       initial={{ x: -20, opacity: 0 }}
@@ -537,17 +519,6 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
 
       {/* Bottom */}
       <div className="px-4 py-6 border-t border-slate-200 space-y-1">
-        {!userRole.includes('Faculty') && userRole !== 'teacher' && (
-          <motion.button
-            onClick={() => setShowRecruitmentModal(true)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#0b1320] hover:bg-[#1a2333] text-white text-[13px] font-bold shadow-sm transition-all mb-3"
-          >
-            <Plus className="w-4 h-4" />
-            New Recruitment
-          </motion.button>
-        )}
 
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
@@ -558,65 +529,6 @@ export default function Sidebar({ userName, userRole, navItems, initials }: Side
         </button>
       </div>
 
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {showRecruitmentModal && (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-md border border-slate-100"
-              >
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-bold text-slate-900">New Requirement Announcement</h3>
-                  <button onClick={() => setShowRecruitmentModal(false)} className="text-slate-400 hover:text-slate-600">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Role Title</label>
-                    <input 
-                      value={requirementForm.title}
-                      onChange={(e) => setRequirementForm({...requirementForm, title: e.target.value})}
-                      placeholder="e.g. Associate Professor" 
-                      className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Department</label>
-                    <input 
-                      value={requirementForm.department}
-                      onChange={(e) => setRequirementForm({...requirementForm, department: e.target.value})}
-                      placeholder="e.g. Computer Science" 
-                      className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Open Positions</label>
-                    <input 
-                      type="number" 
-                      value={requirementForm.openPositions}
-                      onChange={(e) => setRequirementForm({...requirementForm, openPositions: parseInt(e.target.value) || 1})}
-                      min={1}
-                      className="w-full mt-1 px-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#002045]/20" 
-                    />
-                  </div>
-                  <button 
-                    onClick={handleCreateRequirement} 
-                    disabled={isSubmitting}
-                    className="w-full bg-[#002045] text-white font-bold py-2.5 rounded-xl hover:bg-[#1a365d] transition-colors mt-2 disabled:opacity-50"
-                  >
-                    {isSubmitting ? 'Creating...' : 'Create Announcement'}
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
     </motion.aside>
   )
 }
