@@ -4,6 +4,7 @@ import { X, Loader2, Upload } from 'lucide-react'
 import { getBlobUrl } from '@/lib/blob'
 import { isValidPhone, PHONE_FORMAT_ERROR } from '@/lib/validation/phone'
 import { isValidEmail, EMAIL_FORMAT_ERROR } from '@/lib/validation/email'
+import { parseSchoolClassLevels } from '@/lib/schoolClasses'
 
 interface StudentFormValues {
   // Identification
@@ -104,6 +105,8 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
   const [error, setError] = useState('')
   const [uploadingBlob, setUploadingBlob] = useState(false)
   const [availableBatches, setAvailableBatches] = useState<{ id: string; name: string }[]>([])
+  const [availablePrograms, setAvailablePrograms] = useState<{ id: string; name: string }[]>([])
+  const [availableClasses, setAvailableClasses] = useState<string[]>([])
 
   useEffect(() => {
     fetch('/api/batches')
@@ -112,6 +115,26 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
         if (Array.isArray(data)) setAvailableBatches(data.map((b: any) => ({ id: b.id, name: b.name })))
       })
       .catch(() => {})
+
+    fetch('/api/programs')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setAvailablePrograms(data.map((p: any) => ({ id: p._id || p.id, name: p.name })))
+      })
+      .catch(() => {})
+
+    fetch('/api/school')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && !data.error) {
+          setAvailableClasses(parseSchoolClassLevels(data.classes))
+        } else {
+          setAvailableClasses(parseSchoolClassLevels(''))
+        }
+      })
+      .catch(() => {
+        setAvailableClasses(parseSchoolClassLevels(''))
+      })
   }, [])
 
   useEffect(() => {
@@ -310,11 +333,17 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
               </div>
               <div>
                 <label className={labelClass}>Current Class</label>
-                <input value={form.class} onChange={set('class')} className={inputClass} />
+                <select value={form.class} onChange={set('class')} className={inputClass}>
+                  <option value="">Select…</option>
+                  {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
               <div>
                 <label className={labelClass}>Program</label>
-                <input value={form.program} onChange={set('program')} className={inputClass} />
+                <select value={form.program} onChange={set('program')} className={inputClass}>
+                  <option value="">Select…</option>
+                  {availablePrograms.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                </select>
               </div>
               <div>
                 <label className={labelClass}>Batch</label>

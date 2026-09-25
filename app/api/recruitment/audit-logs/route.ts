@@ -5,13 +5,9 @@ import { desc, eq } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const url = new URL(req.url)
-    const schoolId = url.searchParams.get('schoolId')
-    let query = db.select().from(auditLogs)
-    if (schoolId) query = query.where(eq(auditLogs.schoolId, schoolId)) as any
-    const rows = await query.orderBy(desc(auditLogs.timestamp)).limit(100)
+    const rows = await db.select().from(auditLogs).orderBy(desc(auditLogs.timestamp)).limit(100)
     const formatted = rows.map(r => ({
       ...r,
       _id: r.id

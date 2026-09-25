@@ -12,16 +12,13 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url)
     const candidateId = url.searchParams.get('candidateId')
-    const schoolId = url.searchParams.get('schoolId')
 
-    let query = db.select().from(recruitmentInterviews)
-    
-    // @ts-ignore
-    if (candidateId) query = query.where(eq(recruitmentInterviews.candidateId, candidateId))
-    // @ts-ignore
-    else if (schoolId) query = query.where(eq(recruitmentInterviews.schoolId, schoolId))
-    
-    const rows = await query.orderBy(desc(recruitmentInterviews.createdAt))
+    let query = db.select().from(recruitmentInterviews).orderBy(desc(recruitmentInterviews.createdAt))
+    if (candidateId) {
+      query = db.select().from(recruitmentInterviews).where(eq(recruitmentInterviews.candidateId, candidateId)).orderBy(desc(recruitmentInterviews.createdAt)) as any
+    }
+
+    const rows = await query
     const formatted = rows.map(r => ({
       ...r,
       _id: r.id

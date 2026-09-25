@@ -588,7 +588,7 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
             teacherEmail: slotModal.slot.teacherEmail ?? '',
             subject: slotModal.slot.subject ?? '',
             batch: slotModal.slot.batch ?? '',
-            dayOfWeek: slotModal.slot.dayOfWeek ?? 1,
+            dayOfWeek: slotModal.slot.dayOfWeek ?? new Date().getDay(),
             startTime: slotModal.slot.startTime ?? '09:00 AM',
             endTime: slotModal.slot.endTime ?? '10:00 AM',
             room: slotModal.slot.room ?? '',
@@ -596,7 +596,7 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
             effectiveTo: slotModal.slot.effectiveTo ?? '',
             isActive: slotModal.slot.isActive ?? true,
             schoolId: slotModal.slot.schoolId ?? '',
-          } : EMPTY_SLOT}
+          } : { ...EMPTY_SLOT, dayOfWeek: new Date().getDay(), effectiveFrom: new Date().toISOString().split('T')[0] }}
           isEdit={slotModal.mode === 'edit'}
           onClose={() => setSlotModal(null)}
           onSubmit={saveSlot}

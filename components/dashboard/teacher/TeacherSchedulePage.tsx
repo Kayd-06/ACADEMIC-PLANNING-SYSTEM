@@ -186,9 +186,9 @@ function SpecialClassModal({ initial, isEdit, onClose, onSaved, batches }: { ini
 // Modal: create a weekly recurring timetable slot
 function WeeklySlotModal({ initial, isEdit, onClose, onSaved, batches }: { initial?: any; isEdit?: boolean; onClose: () => void; onSaved: () => void; batches: any[] }) {
   const [form, setForm] = useState(initial || {
-    subject: '', batch: '', dayOfWeek: 1,
+    subject: '', batch: '', dayOfWeek: new Date().getDay(),
     startTime: '09:00 AM', endTime: '10:00 AM', room: '',
-    effectiveFrom: '', effectiveTo: '',
+    effectiveFrom: new Date().toISOString().split('T')[0], effectiveTo: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')

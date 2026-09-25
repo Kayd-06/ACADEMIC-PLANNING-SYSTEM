@@ -6,13 +6,9 @@ import { logAuditAction } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const url = new URL(req.url)
-    const schoolId = url.searchParams.get('schoolId')
-    let query = db.select().from(teacherAppraisals)
-    if (schoolId) query = query.where(eq(teacherAppraisals.schoolId, schoolId)) as any
-    const rows = await query.orderBy(desc(teacherAppraisals.createdAt))
+    const rows = await db.select().from(teacherAppraisals).orderBy(desc(teacherAppraisals.createdAt))
     const formatted = rows.map(r => ({
       ...r,
       _id: r.id,

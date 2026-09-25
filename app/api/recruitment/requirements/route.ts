@@ -7,13 +7,9 @@ import { notifyRoleInSchool } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const url = new URL(req.url)
-    const schoolId = url.searchParams.get('schoolId')
-    let query = db.select().from(recruitmentRequirements)
-    if (schoolId) query = query.where(eq(recruitmentRequirements.schoolId, schoolId)) as any
-    const rows = await query.orderBy(desc(recruitmentRequirements.createdAt))
+    const rows = await db.select().from(recruitmentRequirements).orderBy(desc(recruitmentRequirements.createdAt))
     const formatted = rows.map(r => ({
       ...r,
       _id: r.id,
