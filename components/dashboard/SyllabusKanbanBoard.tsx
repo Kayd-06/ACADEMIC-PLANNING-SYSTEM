@@ -399,6 +399,10 @@ export default function SyllabusKanbanBoard({ batches }: { batches: string[] }) 
 
   const [toast, setToast] = useState<string | null>(null)
 
+  // Drag-and-drop state for the Kanban board
+  const [draggedChapterId, setDraggedChapterId] = useState<string | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
+
   // Export Modal States
   const [exportModalOpen, setExportModalOpen] = useState(false)
   const [exportBatch, setExportBatch] = useState('ALL')
@@ -1134,8 +1138,27 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {COLUMNS.map(col => {
             const colChapters = chapters.filter(c => c.status === col.key)
+            const isDragOver = dragOverColumn === col.key
             return (
-              <div key={col.key} className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200 flex flex-col min-h-[500px]">
+              <div
+                key={col.key}
+                onDragOver={e => {
+                  e.preventDefault()
+                  if (draggedChapterId) setDragOverColumn(col.key)
+                }}
+                onDragLeave={() => setDragOverColumn(prev => (prev === col.key ? null : prev))}
+                onDrop={e => {
+                  e.preventDefault()
+                  setDragOverColumn(null)
+                  const chapterId = draggedChapterId ?? e.dataTransfer.getData('text/plain')
+                  setDraggedChapterId(null)
+                  const chapter = chapters.find(c => c._id === chapterId)
+                  if (chapterId && chapter && chapter.status !== col.key) {
+                    handleUpdateChapterStatus(chapterId, col.key)
+                  }
+                }}
+                className={`bg-slate-50/70 rounded-2xl p-4 border flex flex-col min-h-[500px] transition-colors ${isDragOver ? 'border-indigo-400 bg-indigo-50/60 ring-2 ring-indigo-200' : 'border-slate-200'}`}
+              >
                 <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-200/80">
                   <span className="font-bold text-xs uppercase tracking-wider text-slate-700">{col.label}</span>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${col.badge}`}>
@@ -1144,7 +1167,7 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                 </div>
                 <div className="space-y-3 flex-1 overflow-y-auto max-h-[550px] pr-1">
                   {colChapters.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl">
+                    <div className={`h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed rounded-xl ${isDragOver ? 'border-indigo-300' : 'border-slate-200'}`}>
                       <p className="text-xs font-semibold text-slate-400">No chapters in this stage</p>
                     </div>
                   ) : (
@@ -1154,7 +1177,17 @@ ${sSch},${sProg},${sBat},${sSub},Chapter 03: Motion in a Straight Line,14 hrs es
                       <div
                         key={chap._id}
                         onClick={() => openEditModal(chap)}
-                        className={`bg-white rounded-xl border border-slate-200 shadow-xs hover:shadow-md hover:border-indigo-200 cursor-pointer transition-all group overflow-hidden ${col.key === 'COMPLETED' ? 'opacity-90' : ''}`}
+                        draggable
+                        onDragStart={e => {
+                          setDraggedChapterId(chap._id)
+                          e.dataTransfer.effectAllowed = 'move'
+                          e.dataTransfer.setData('text/plain', chap._id)
+                        }}
+                        onDragEnd={() => {
+                          setDraggedChapterId(null)
+                          setDragOverColumn(null)
+                        }}
+                        className={`bg-white rounded-xl border border-slate-200 shadow-xs hover:shadow-md hover:border-indigo-200 cursor-pointer transition-all group overflow-hidden active:cursor-grabbing ${col.key === 'COMPLETED' ? 'opacity-90' : ''} ${draggedChapterId === chap._id ? 'opacity-40 ring-2 ring-indigo-300' : ''}`}
                       >
                         <div className={`h-1 w-full ${URGENCY_BAR_CLASS[urgency.level]}`} />
                         <div className="p-4 space-y-3">
