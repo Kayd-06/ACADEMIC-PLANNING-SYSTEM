@@ -687,18 +687,10 @@ export default function CurriculumManagerView() {
               </div>
 
               {/* Table footer */}
-              <div className="border-t border-slate-100 px-4 py-2.5 flex items-center justify-between">
+              <div className="border-t border-slate-100 px-4 py-2.5">
                 <p className="text-[11px] text-slate-400">
                   Showing <span className="font-bold text-slate-600">{masterRows.length}</span> rows — 8 field alignment matching Excel Master Sheet spec
                 </p>
-                <button
-                  onClick={handleExportExcel}
-                  disabled={masterExporting}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  {masterExporting ? 'Exporting…' : 'Export .xlsx'}
-                </button>
               </div>
             </div>
           )}
