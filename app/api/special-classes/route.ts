@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { specialClasses, batches, type NewSpecialClass } from '@/lib/db/schema'
-import { eq, and, asc, gte, inArray, isNull } from 'drizzle-orm'
+import { eq, and, asc, gte, inArray, isNull, or } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
 
 function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): Date {
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
         )
       }
     } else {
-      conditions.push(schoolId ? eq(specialClasses.schoolId, schoolId) : isNull(specialClasses.schoolId))
+      conditions.push(schoolId ? or(eq(specialClasses.schoolId, schoolId), isNull(specialClasses.schoolId)) : isNull(specialClasses.schoolId))
     }
     if (mine && session.user.email) {
       conditions.push(eq(specialClasses.teacherEmail, session.user.email.toLowerCase().trim()))

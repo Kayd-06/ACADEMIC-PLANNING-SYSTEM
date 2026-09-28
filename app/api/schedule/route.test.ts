@@ -139,3 +139,31 @@ describe('GET /api/schedule', () => {
     expect(body.map((s: any) => s._id)).toEqual([slotLinked.id])
   })
 })
+
+  it('allows teachers to see general slots (schoolId = null) even if they belong to a school', async () => {
+    const [school] = await db.insert(schools).values({ name: 'Teacher School' }).returning()
+    createdIds.schools.push(school.id)
+
+    // General slot (null schoolId)
+    const [generalSlot] = await db.insert(classSchedules).values({
+      teacherEmail: 'teacher@example.com', subject: 'Math', batch: 'Batch General',
+      dayOfWeek: 3, startTime: '10:00 AM', endTime: '11:00 AM', schoolId: null,
+    }).returning()
+    createdIds.classSchedules.push(generalSlot.id)
+
+    // Specific slot (schoolId)
+    const [specificSlot] = await db.insert(classSchedules).values({
+      teacherEmail: 'teacher@example.com', subject: 'Math', batch: 'Batch Specific',
+      dayOfWeek: 4, startTime: '11:00 AM', endTime: '12:00 PM', schoolId: school.id,
+    }).returning()
+    createdIds.classSchedules.push(specificSlot.id)
+
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'teacher', email: 'teacher@example.com', schoolId: school.id } })
+    const res = await GET(req('http://localhost/api/schedule?mine=true'))
+    const body = await res.json()
+
+    const returnedIds = body.map((s: any) => s._id)
+    expect(returnedIds).toContain(generalSlot.id)
+    expect(returnedIds).toContain(specificSlot.id)
+  })
+

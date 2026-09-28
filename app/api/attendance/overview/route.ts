@@ -136,10 +136,6 @@ export async function GET(req: NextRequest) {
     })
     studentTableData.sort((a, b) => a.rate - b.rate)
 
-    const heatmap = Object.keys(dailyStats).map(d => {
-      const stat = dailyStats[d]
-      return { date: d, rate: stat.total > 0 ? Math.round((stat.present / stat.total) * 100) : null }
-    })
 
     const trendVal = Number((overallRate - 90.3).toFixed(1))
     const trend = totalRecords > 0 ? (trendVal >= 0 ? `+${trendVal}%` : `${trendVal}%`) : '—'
@@ -162,19 +158,61 @@ export async function GET(req: NextRequest) {
     const selectedProgramId = program !== 'All' ? programRows.find(r => r.name === program)?.id : undefined
 
     const batchRows = selectedProgramId
-      ? await db.select({ name: batches.name })
+      ? await db.select({ name: batches.name, programId: batches.programId })
           .from(batches)
           .where(and(batchSchoolCondition, eq(batches.programId, selectedProgramId)))
           .orderBy(asc(batches.name))
-      : await db.select({ name: batches.name }).from(batches).where(batchSchoolCondition).orderBy(asc(batches.name))
+      : await db.select({ name: batches.name, programId: batches.programId }).from(batches).where(batchSchoolCondition).orderBy(asc(batches.name))
     const distinctBatches = batchRows.map(r => r.name).filter(Boolean)
+
+    const programNameById = new Map(programRows.map(p => [p.id, p.name]))
+    const programByBatch = new Map(batchRows.map(b => [b.name, b.programId ? (programNameById.get(b.programId) || 'Unknown') : 'Unknown']))
+
+    const gridStats: Record<string, { program: string, batch: string, subject: string, daily: Record<string, { present: number, total: number }> }> = {}
+    for (const entry of entries) {
+      const sheet = sessionById.get(entry.sessionId)
+      if (!sheet || entry.status === 'Excused') continue
+      
+      const pName = programByBatch.get(sheet.batch) || 'Unknown'
+      const gridKey = `${pName}::${sheet.batch}::${sheet.subject}`
+      
+      if (!gridStats[gridKey]) {
+        const dailyInit: Record<string, { present: number, total: number }> = {}
+        dates.forEach(d => { dailyInit[d] = { present: 0, total: 0 } })
+        gridStats[gridKey] = { program: pName, batch: sheet.batch, subject: sheet.subject, daily: dailyInit }
+      }
+      gridStats[gridKey].daily[sheet.date].total++
+      if (entry.status === 'Present' || entry.status === 'Late') {
+        gridStats[gridKey].daily[sheet.date].present++
+      }
+    }
+
+    const heatmapGrid = Object.values(gridStats).map(row => {
+      const days = dates.map(d => {
+        const stat = row.daily[d]
+        return { date: d, rate: stat.total > 0 ? Math.round((stat.present / stat.total) * 100) : null }
+      })
+      return {
+        program: row.program,
+        batch: row.batch,
+        subject: row.subject,
+        days
+      }
+    })
+    heatmapGrid.sort((a, b) => {
+      if (a.program !== b.program) return a.program.localeCompare(b.program)
+      if (a.batch !== b.batch) return a.batch.localeCompare(b.batch)
+      return a.subject.localeCompare(b.subject)
+    })
+
 
     return NextResponse.json({
       overallRate,
       trend,
       batchesBelow75,
       perfectAttendanceCount,
-      heatmap,
+      heatmapGrid,
+      dates,
       batchesAttention: batchesAttention.slice(0, 4),
       studentTable: studentTableData,
       distinctBatches,

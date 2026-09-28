@@ -56,7 +56,7 @@ const EMPTY_SPECIAL = {
   notes: '', teacherName: '', teacherEmail: '', schoolId: '',
 }
 
-function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, adminSchools, batchOptions }: {
+function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, adminSchools, batchOptions, facultyOptions }: {
   initial: typeof EMPTY_SLOT
   isEdit: boolean
   onClose: () => void
@@ -65,6 +65,7 @@ function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, admi
   error: string
   adminSchools: any[]
   batchOptions: { id: string; name: string }[]
+  facultyOptions: any[]
 }) {
   const [form, setForm] = useState(initial)
   const set = (f: string) => (e: React.ChangeEvent<any>) =>
@@ -80,13 +81,35 @@ function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, admi
         <div className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
           {error && <p className="text-sm text-rose-600 font-medium bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">{error}</p>}
           <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className={labelClass}>Faculty / Teacher *</label>
+              <select
+                value={form.teacherEmail}
+                onChange={e => {
+                  const sel = facultyOptions.find(f => f.email === e.target.value)
+                  if (sel) {
+                    setForm(prev => ({ ...prev, teacherName: sel.name, teacherEmail: sel.email || '', subject: sel.subject || prev.subject }))
+                  } else {
+                    setForm(prev => ({ ...prev, teacherName: '', teacherEmail: '' }))
+                  }
+                }}
+                className={inputClass + ' bg-white font-semibold text-indigo-900 border-indigo-200'}
+              >
+                <option value="">Select Faculty...</option>
+                {facultyOptions.map(f => (
+                  <option key={f.id} value={f.email || ''}>
+                    {f.name} {f.email ? `(${f.email})` : ''} {f.subject ? `— ${f.subject}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className={labelClass}>Teacher Name</label>
-              <input value={form.teacherName} onChange={set('teacherName')} className={inputClass} />
+              <input value={form.teacherName} onChange={set('teacherName')} className={inputClass} readOnly placeholder="Auto-filled" />
             </div>
             <div>
               <label className={labelClass}>Teacher Email *</label>
-              <input value={form.teacherEmail} onChange={set('teacherEmail')} className={inputClass} />
+              <input value={form.teacherEmail} onChange={set('teacherEmail')} className={inputClass} readOnly placeholder="Auto-filled" />
             </div>
             <div>
               <label className={labelClass}>Subject *</label>
@@ -163,7 +186,7 @@ function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, admi
   )
 }
 
-function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, adminSchools, batchOptions }: {
+function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, adminSchools, batchOptions, facultyOptions }: {
   initial: typeof EMPTY_SPECIAL
   isEdit: boolean
   onClose: () => void
@@ -172,6 +195,7 @@ function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, a
   error: string
   adminSchools: any[]
   batchOptions: { id: string; name: string }[]
+  facultyOptions: any[]
 }) {
   const [form, setForm] = useState(initial)
   const set = (f: string) => (e: React.ChangeEvent<any>) =>
@@ -224,13 +248,35 @@ function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, a
               <label className={labelClass}>End Time *</label>
               <TimeInput value={form.endTime} onChange={v => setForm({ ...form, endTime: v })} />
             </div>
+            <div className="col-span-2">
+              <label className={labelClass}>Faculty / Teacher</label>
+              <select
+                value={form.teacherEmail}
+                onChange={e => {
+                  const sel = facultyOptions.find(f => f.email === e.target.value)
+                  if (sel) {
+                    setForm(prev => ({ ...prev, teacherName: sel.name, teacherEmail: sel.email || '', subject: sel.subject || prev.subject }))
+                  } else {
+                    setForm(prev => ({ ...prev, teacherName: '', teacherEmail: '' }))
+                  }
+                }}
+                className={inputClass + ' bg-white font-semibold text-indigo-900 border-indigo-200'}
+              >
+                <option value="">Select Faculty...</option>
+                {facultyOptions.map(f => (
+                  <option key={f.id} value={f.email || ''}>
+                    {f.name} {f.email ? `(${f.email})` : ''} {f.subject ? `— ${f.subject}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className={labelClass}>Teacher Name</label>
-              <input value={form.teacherName} onChange={set('teacherName')} className={inputClass} />
+              <input value={form.teacherName} onChange={set('teacherName')} className={inputClass} readOnly placeholder="Auto-filled" />
             </div>
             <div>
               <label className={labelClass}>Teacher Email</label>
-              <input value={form.teacherEmail} onChange={set('teacherEmail')} className={inputClass} />
+              <input value={form.teacherEmail} onChange={set('teacherEmail')} className={inputClass} readOnly placeholder="Auto-filled" />
             </div>
             {adminSchools && adminSchools.length > 0 && (
               <div className="col-span-2">
@@ -272,6 +318,7 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
   const [schedules, setSchedules] = useState<any[]>([])
   const [specials, setSpecials] = useState<any[]>([])
   const [adminSchools, setAdminSchools] = useState<any[]>([])
+  const [facultyOptions, setFacultyOptions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [slotModal, setSlotModal] = useState<{ mode: 'add' | 'edit'; slot?: any } | null>(null)
   const [specialModal, setSpecialModal] = useState<{ mode: 'add' | 'edit'; special?: any } | null>(null)
@@ -294,14 +341,16 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
       else if (programFilter) qs.set('programId', programFilter.id)
       const query = qs.toString() ? `?${qs}` : ''
 
-      const [schedRes, specRes, schoolsRes] = await Promise.all([
+      const [schedRes, specRes, schoolsRes, facultyRes] = await Promise.all([
         fetch(`/api/schedule${query}`),
         fetch(`/api/special-classes${query}`),
         fetch('/api/admin/schools'),
+        fetch('/api/teacher-portal/faculty'),
       ])
       if (schedRes.ok) setSchedules(await schedRes.json())
       if (specRes.ok) setSpecials(await specRes.json())
       if (schoolsRes.ok) setAdminSchools(await schoolsRes.json())
+      if (facultyRes.ok) setFacultyOptions(await facultyRes.json())
     } catch { /* ignore */ } finally {
       setLoading(false)
     }
@@ -604,6 +653,7 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
           error={error}
           adminSchools={adminSchools}
           batchOptions={batchOptions}
+          facultyOptions={facultyOptions}
         />
       )}
 
@@ -630,6 +680,7 @@ export default function ScheduleManagementView({ onUpdate }: { onUpdate?: () => 
           error={error}
           adminSchools={adminSchools}
           batchOptions={batchOptions}
+          facultyOptions={facultyOptions}
         />
       )}
     </div>

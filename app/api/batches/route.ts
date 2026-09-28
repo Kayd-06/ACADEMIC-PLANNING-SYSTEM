@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { batches, students, programs, faculty, teacherBatches, schools, type NewBatch } from '@/lib/db/schema'
 import { eq, and, asc, isNull, inArray, count } from 'drizzle-orm'
@@ -101,7 +101,8 @@ export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
+    const role = (session.user as any).role as string | undefined
 
     await syncBatches(schoolId)
 
@@ -111,7 +112,37 @@ export async function GET(req: NextRequest) {
     const condition = programIdFilter
       ? and(schoolCondition(schoolId), eq(batches.programId, programIdFilter))
       : schoolCondition(schoolId)
-    const batchRows = await db.select().from(batches).where(condition).orderBy(asc(batches.name))
+    let batchRows = await db.select().from(batches).where(condition).orderBy(asc(batches.name))
+
+    if (role === 'teacher') {
+      const { findTeacherFaculty } = await import('@/lib/db/queries/faculty')
+      const { teacherPrograms } = await import('@/lib/db/schema')
+      const profile = await findTeacherFaculty(session.user.id!, session.user.email ?? '', schoolId)
+
+      if (profile) {
+        const [programRows, batchAssignments] = await Promise.all([
+          db.select({ name: teacherPrograms.programName }).from(teacherPrograms).where(eq(teacherPrograms.teacherId, profile.id)),
+          db.select({ name: teacherBatches.batchName }).from(teacherBatches).where(eq(teacherBatches.teacherId, profile.id)),
+        ])
+        const programSet = new Set(programRows.map(r => r.name).filter(Boolean))
+        const batchSet = new Set(batchAssignments.map(r => r.name).filter(Boolean))
+
+        if (programSet.size > 0 || batchSet.size > 0) {
+          const programIdsForBatchRows = [...new Set(batchRows.map(b => b.programId).filter(Boolean))] as string[]
+          let progNameById = new Map<string, string>()
+          if (programIdsForBatchRows.length) {
+            const pRows = await db.select({ id: programs.id, name: programs.name }).from(programs).where(inArray(programs.id, programIdsForBatchRows))
+            progNameById = new Map(pRows.map(p => [p.id, p.name]))
+          }
+
+          batchRows = batchRows.filter(b => {
+            const bProgName = b.programId ? (progNameById.get(b.programId) || '') : ''
+            return (programSet.size === 0 || programSet.has(bProgName)) &&
+                   (batchSet.size === 0 || batchSet.has(b.name))
+          })
+        }
+      }
+    }
 
     const teacherIds = [...new Set(batchRows.map(b => b.teacherId).filter((x): x is string => !!x))]
     const programIds = [...new Set(batchRows.map(b => b.programId).filter((x): x is string => !!x))]

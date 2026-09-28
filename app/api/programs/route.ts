@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { programs, batches, programSubjects, students, type NewProgram } from '@/lib/db/schema'
 import { eq, and, asc, inArray, count } from 'drizzle-orm'
@@ -22,11 +22,49 @@ export async function GET() {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = getSchoolId(session)
+    const role = (session.user as any).role as string | undefined
 
-    const rows = schoolId
+    let rows = schoolId
       ? await db.select().from(programs).where(eq(programs.schoolId, schoolId)).orderBy(asc(programs.createdAt))
       : await db.select().from(programs).orderBy(asc(programs.createdAt))
+
+    if (role === 'teacher') {
+      const { findTeacherFaculty } = await import('@/lib/db/queries/faculty')
+      const { teacherPrograms, teacherBatches } = await import('@/lib/db/schema')
+      const profile = await findTeacherFaculty(session.user.id!, session.user.email ?? '', schoolId)
+
+      if (profile) {
+        const [programAssignments, batchAssignments] = await Promise.all([
+          db.select({ name: teacherPrograms.programName }).from(teacherPrograms).where(eq(teacherPrograms.teacherId, profile.id)),
+          db.select({ name: teacherBatches.batchName }).from(teacherBatches).where(eq(teacherBatches.teacherId, profile.id)),
+        ])
+        const programSet = new Set(programAssignments.map(r => r.name).filter(Boolean))
+        const batchSet = new Set(batchAssignments.map(r => r.name).filter(Boolean))
+
+        if (programSet.size > 0 || batchSet.size > 0) {
+          // If the teacher has batch assignments, we must also allow the programs those batches belong to
+          let allowedProgramIdsFromBatches = new Set<string>()
+          if (batchSet.size > 0) {
+             const bRows = await db.select({ programId: batches.programId }).from(batches).where(
+               and(schoolId ? eq(batches.schoolId, schoolId) : undefined, inArray(batches.name, Array.from(batchSet)))
+             )
+             bRows.forEach(b => { if (b.programId) allowedProgramIdsFromBatches.add(b.programId) })
+          }
+
+          rows = rows.filter(r => {
+            if (programSet.size > 0 && batchSet.size > 0) {
+              return programSet.has(r.name) || allowedProgramIdsFromBatches.has(r.id)
+            } else if (programSet.size > 0) {
+              return programSet.has(r.name)
+            } else if (batchSet.size > 0) {
+              return allowedProgramIdsFromBatches.has(r.id)
+            }
+            return true
+          })
+        }
+      }
+    }
 
     const ids = rows.map(p => p.id)
     const studentCondition = schoolId

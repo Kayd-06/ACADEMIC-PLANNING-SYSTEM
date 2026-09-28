@@ -91,3 +91,30 @@ describe('GET /api/special-classes', () => {
     expect(body.map((s: any) => s._id)).toEqual([scLinked.id])
   })
 })
+
+  it('allows teachers to see general special classes (schoolId = null) even if they belong to a school', async () => {
+    const [school] = await db.insert(schools).values({ name: 'Special Teacher School' }).returning()
+    createdIds.schools.push(school.id)
+
+    const [generalClass] = await db.insert(specialClasses).values({
+      title: 'General Revision', type: 'Revision',
+      teacherEmail: 'special-teacher@example.com', subject: 'Math', batch: 'Batch General',
+      date: '2024-05-10', startTime: '10:00 AM', endTime: '11:00 AM', schoolId: null,
+    }).returning()
+    createdIds.specialClasses.push(generalClass.id)
+
+    const [specificClass] = await db.insert(specialClasses).values({
+      title: 'Specific Revision', type: 'Revision',
+      teacherEmail: 'special-teacher@example.com', subject: 'Math', batch: 'Batch Specific',
+      date: '2024-05-11', startTime: '11:00 AM', endTime: '12:00 PM', schoolId: school.id,
+    }).returning()
+    createdIds.specialClasses.push(specificClass.id)
+
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'teacher', email: 'special-teacher@example.com', schoolId: school.id } })
+    const res = await GET(req('http://localhost/api/special-classes?mine=true'))
+    const body = await res.json()
+
+    const returnedIds = body.map((s: any) => s._id)
+    expect(returnedIds).toContain(generalClass.id)
+    expect(returnedIds).toContain(specificClass.id)
+  })

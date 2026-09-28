@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth, getSchoolId } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { classSchedules, batches, type NewClassSchedule } from '@/lib/db/schema'
-import { eq, and, asc, inArray, isNull } from 'drizzle-orm'
+import { eq, and, asc, inArray, isNull, or } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
 
 function getFirstOccurrence(effectiveFromStr: string | null, targetDayOfWeek: number): Date {
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
         )
       }
     } else {
-      conditions.push(schoolId ? eq(classSchedules.schoolId, schoolId) : isNull(classSchedules.schoolId))
+      conditions.push(schoolId ? or(eq(classSchedules.schoolId, schoolId), isNull(classSchedules.schoolId)) : isNull(classSchedules.schoolId))
     }
     if (mine && session.user.email) {
       conditions.push(eq(classSchedules.teacherEmail, session.user.email.toLowerCase().trim()))

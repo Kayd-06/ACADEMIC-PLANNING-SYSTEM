@@ -312,39 +312,56 @@ export default function AttendanceOverviewView() {
             </div>
 
             {loading ? (
-              <div className="grid grid-cols-6 sm:grid-cols-10 gap-3">
-                {Array.from({ length: 30 }).map((_, i) => (
-                  <div 
-                    key={i} 
-                    className="p-3 rounded-xl bg-slate-100 animate-pulse border border-slate-200/20" 
-                    style={{ minHeight: '68px' }} 
-                  />
-                ))}
+              <div className="h-[200px] bg-slate-50 animate-pulse rounded-xl" />
+            ) : data.heatmapGrid && data.heatmapGrid.length > 0 ? (
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase sticky left-0 bg-white z-10 whitespace-nowrap min-w-[160px] border-b border-slate-100">Class</th>
+                      {data.dates.map((d: string) => (
+                        <th key={d} className="px-1 py-2 text-[9px] font-bold text-slate-400 uppercase text-center border-b border-slate-100 min-w-[24px]">
+                          {d.split('-')[2]}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.heatmapGrid.map((row: any, rIndex: number) => (
+                      <tr key={rIndex} className="border-b border-slate-50 hover:bg-slate-50/50 group">
+                        <td className="px-3 py-2 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap">
+                          <p className="text-[11px] font-extrabold text-slate-800">{row.program} • {row.batch}</p>
+                          <p className="text-[9px] font-semibold text-slate-500">{row.subject}</p>
+                        </td>
+                        {row.days.map((day: any, i: number) => {
+                          const isSunday = getDayName(day.date) === 'Sun';
+                          const rate = isSunday ? null : day.rate;
+                          
+                          let colorClass = 'bg-slate-100';
+                          if (rate !== null) {
+                            if (rate >= 95) colorClass = 'bg-emerald-600';
+                            else if (rate >= 90) colorClass = 'bg-emerald-400';
+                            else if (rate >= 80) colorClass = 'bg-amber-300';
+                            else if (rate >= 70) colorClass = 'bg-orange-400';
+                            else colorClass = 'bg-rose-500';
+                          }
+
+                          return (
+                            <td key={i} className="px-0.5 py-1 text-center">
+                              <div 
+                                title={`${formatShortDate(day.date)}: ${rate !== null ? rate + '%' : 'No Data'}`}
+                                className={`w-5 h-5 mx-auto rounded-sm cursor-pointer hover:scale-125 hover:z-20 relative transition-transform shadow-sm ${colorClass}`} 
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ) : (
-              <div className="grid grid-cols-6 sm:grid-cols-10 gap-3">
-                {data.heatmap.map((day: any, i: number) => {
-                  const dayName = getDayName(day.date)
-                  const isSunday = dayName === 'Sun'
-                  const colorClass = getHeatmapColor(isSunday ? null : day.rate)
-
-                  return (
-                    <div 
-                      key={day.date}
-                      className={`p-3 rounded-xl flex flex-col items-center justify-between border border-slate-200/40 relative group cursor-pointer shadow-sm transition-all hover:scale-105 ${colorClass}`}
-                      style={{ minHeight: '68px' }}
-                    >
-                      <span className="text-[9px] uppercase tracking-wider font-extrabold opacity-75">{dayName}</span>
-                      <span className="text-sm font-extrabold mt-1">{day.date.split('-')[2]}</span>
-                      
-                      {/* Tooltip on Hover */}
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-slate-900 text-white rounded text-[10px] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-md">
-                        {formatShortDate(day.date)}: {day.rate !== null ? `${day.rate}%` : 'No Data'}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              <p className="text-xs text-slate-400 py-6 text-center">No attendance data found for this period.</p>
             )}
           </div>
 
