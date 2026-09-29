@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { CalendarDays, Users, BookOpen, ClipboardList, CheckCircle2, Flag, Loader2, RefreshCw, TrendingUp, Pencil, Trash2, X, Download } from 'lucide-react'
+import { CalendarDays, Users, BookOpen, ClipboardList, CheckCircle2, Flag, Loader2, RefreshCw, Pencil, Trash2, X, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { formatDateWithWeekday } from '@/lib/date'
 import ExportFormatModal from '@/components/dashboard/ExportFormatModal'
@@ -57,19 +57,19 @@ export default function DailyReportsViewer() {
   const [showExportModal, setShowExportModal] = useState(false)
 
   async function handleExport(format: 'PDF' | 'CSV') {
-    const headers = ['Teacher', 'Batch', 'Subject', 'Chapter', 'Present', 'Absent', 'Status']
-    const dataRows = filtered.map(r => [r.teacherName, r.batch, r.subject, r.chapter || '—', r.presentCount, r.absentCount, r.isLate ? 'Late' : 'On Time'])
+    const headers = ['Teacher', 'Batch', 'Subject', 'Chapter', 'Status']
+    const dataRows = filtered.map(r => [r.teacherName, r.batch, r.subject, r.chapter || '—', r.isLate ? 'Late' : 'On Time'])
 
     if (format === 'CSV') {
       const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows])
-      ws['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }]
+      ws['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 10 }]
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Daily Reports')
       XLSX.writeFile(wb, `daily_reports_${selectedDate}.csv`)
       return
     }
 
-    const rows = filtered.map((r, idx) => [idx + 1, r.teacherName, r.batch, r.subject, r.chapter || '—', r.presentCount, r.absentCount, r.isLate ? 'Late' : 'On Time'])
+    const rows = filtered.map((r, idx) => [idx + 1, r.teacherName, r.batch, r.subject, r.chapter || '—', r.isLate ? 'Late' : 'On Time'])
     await downloadTabularReportPDF({
       title: 'Daily Teacher Reports',
       subtitle: `EduAdmin Pro • ${formatDisplayDate(selectedDate)}`,
@@ -77,7 +77,6 @@ export default function DailyReportsViewer() {
         { label: 'Reports Submitted', value: reports.length.toString() },
         { label: 'Teachers Reported', value: uniqueTeachers.toString() },
         { label: 'Classes Logged', value: uniqueBatches.toString() },
-        { label: 'Students Reached', value: totalStudents.toString() },
       ],
       columns: ['#', ...headers],
       rows,
@@ -100,7 +99,6 @@ export default function DailyReportsViewer() {
     filterStatus === 'All' ? true : filterStatus === 'Late' ? r.isLate : !r.isLate
   )
 
-  const totalStudents = reports.reduce((s, r) => s + r.presentCount + r.absentCount, 0)
   const uniqueTeachers = new Set(reports.map(r => r.teacherEmail)).size
   const uniqueBatches = new Set(reports.map(r => r.batch)).size
   const lateCount = reports.filter(r => r.isLate).length
@@ -132,12 +130,11 @@ export default function DailyReportsViewer() {
       </motion.div>
 
       {/* KPIs */}
-      <motion.div {...fadeUp(0.05)} className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <motion.div {...fadeUp(0.05)} className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         {[
           { icon: ClipboardList, label: 'Reports Submitted', value: reports.length, sub: `${lateCount} late`, color: 'bg-green-50 text-green-600' },
           { icon: Users, label: 'Teachers Reported', value: uniqueTeachers, sub: 'for this date', color: 'bg-blue-50 text-blue-600' },
           { icon: BookOpen, label: 'Classes Logged', value: uniqueBatches, sub: 'total batches', color: 'bg-amber-50 text-amber-600' },
-          { icon: TrendingUp, label: 'Students Reached', value: totalStudents, sub: 'across all classes', color: 'bg-rose-50 text-rose-600' },
         ].map((kpi, i) => (
           <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${kpi.color}`}><kpi.icon className="w-5 h-5" /></div>
@@ -196,10 +193,6 @@ export default function DailyReportsViewer() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-[11px] font-semibold text-gray-500">{new Date(report.submittedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
-                    <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400 justify-end">
-                      <span className="text-emerald-600 font-bold">✓ {report.presentCount} present</span>
-                      <span className="text-red-500 font-bold">✗ {report.absentCount} absent</span>
-                    </div>
                   </div>
                 </button>
 
