@@ -81,6 +81,8 @@ export async function listGeneratedReports(
       studentName: students.name,
       studentRollNo: students.rollNo,
       batchName: batches.name,
+      studentBatch: students.batch,
+      studentClass: students.class,
     })
     .from(generatedStudentReports)
     .leftJoin(students, eq(generatedStudentReports.studentId, students.id))
@@ -93,7 +95,9 @@ export async function listGeneratedReports(
     student: {
       name: r.studentName,
       rollNo: r.studentRollNo,
-      batch: r.batchName ? { name: r.batchName } : null
+      // Reports saved without a batch_id fall back to the student's own batch
+      batch: (r.batchName || r.studentBatch) ? { name: r.batchName || r.studentBatch } : null,
+      classLevel: r.studentClass || null,
     }
   })) as any
 }

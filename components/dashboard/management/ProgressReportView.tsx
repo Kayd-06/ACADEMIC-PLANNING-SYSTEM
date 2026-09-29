@@ -102,7 +102,7 @@ export default function ProgressReportView() {
           studentId: d.studentId || d.student?.id,
           studentName: d.student?.name || 'Unknown',
           rollNo: d.student?.rollNo || '',
-          batch: d.student?.batch?.name || 'Unknown',
+          batch: [d.student?.batch?.name, d.student?.classLevel ? `Class ${d.student.classLevel}` : ''].filter(Boolean).join(' · ') || 'Unknown',
           termType: d.term,
           academicYear: d.academicYear,
           percentage: d.overallPercentage || '0%',
