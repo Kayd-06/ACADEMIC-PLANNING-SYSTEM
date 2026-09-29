@@ -4,6 +4,7 @@ import { students, type Student, type NewStudent } from '../schema'
 
 export interface ListStudentsFilters {
   class?: string
+  batch?: string
   activeOnly?: boolean
   schoolId?: string | null
 }
@@ -12,6 +13,7 @@ export async function listStudents(filters: ListStudentsFilters = {}): Promise<S
   const conditions: any[] = []
   if (filters.activeOnly !== false) conditions.push(eq(students.isActive, true))
   if (filters.class) conditions.push(eq(students.class, filters.class))
+  if (filters.batch) conditions.push(eq(students.batch, filters.batch))
   if (filters.schoolId) conditions.push(eq(students.schoolId, filters.schoolId))
 
   if (conditions.length === 0) {

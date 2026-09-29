@@ -55,10 +55,12 @@ export async function GET(req: NextRequest) {
     const schoolId = (session.user as any).schoolId as string | null
     const { searchParams } = new URL(req.url)
     const classFilter = searchParams.get('class')
+    const batchFilter = searchParams.get('batch')
     const activeOnly = searchParams.get('activeOnly') !== 'false'
 
     const filters: ListStudentsFilters = { activeOnly, schoolId }
     if (classFilter) filters.class = classFilter
+    if (batchFilter) filters.batch = batchFilter
 
     const rows = await listStudents(filters)
     return NextResponse.json(rows.map(toApiShape))
