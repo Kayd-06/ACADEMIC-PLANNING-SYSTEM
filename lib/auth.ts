@@ -93,6 +93,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
         // Refresh token values from database
         token.role = dbUser.role
+        if (dbUser.name) token.name = dbUser.name
         token.schoolId = dbUser.role === 'management'
           ? (dbUser.activeSchoolId ?? dbUser.schoolId ?? null)
           : (dbUser.schoolId ?? null)

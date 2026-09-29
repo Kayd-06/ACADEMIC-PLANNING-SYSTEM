@@ -148,6 +148,10 @@ export async function PATCH(req: NextRequest) {
       .where(condition)
       .returning()
     if (!updated) return NextResponse.json({ error: 'Faculty not found' }, { status: 404 })
+    // Keep the linked login account's display name (header/profile menu) in sync
+    if (data.name && updated.userId) {
+      await db.update(users).set({ name: data.name as string }).where(eq(users.id, updated.userId))
+    }
     return NextResponse.json(updated)
   } catch (error: any) {
     if (error.code === '23505' || error.cause?.code === '23505') {
