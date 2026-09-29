@@ -104,7 +104,7 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [uploadingBlob, setUploadingBlob] = useState(false)
-  const [availableBatches, setAvailableBatches] = useState<{ id: string; name: string }[]>([])
+  const [availableBatches, setAvailableBatches] = useState<{ id: string; name: string; programName: string }[]>([])
   const [availablePrograms, setAvailablePrograms] = useState<{ id: string; name: string }[]>([])
   const [availableClasses, setAvailableClasses] = useState<string[]>([])
 
@@ -112,7 +112,7 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
     fetch('/api/batches')
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data)) setAvailableBatches(data.map((b: any) => ({ id: b.id, name: b.name })))
+        if (Array.isArray(data)) setAvailableBatches(data.map((b: any) => ({ id: b.id, name: b.name, programName: b.programName ?? '' })))
       })
       .catch(() => {})
 
@@ -136,6 +136,16 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
         setAvailableClasses(parseSchoolClassLevels(''))
       })
   }, [])
+
+  // Batches belong to a program: when the form opens with a batch but no
+  // (matching) program, derive it from the batch.
+  useEffect(() => {
+    if (availableBatches.length === 0) return
+    setForm((f) => {
+      const b = availableBatches.find((x) => x.id === f.batchId) ?? availableBatches.find((x) => x.name === f.batch)
+      return b?.programName && b.programName !== f.program ? { ...f, program: b.programName } : f
+    })
+  }, [availableBatches])
 
   useEffect(() => {
     if (mode !== 'add' || !defaultBatch || availableBatches.length === 0) return
@@ -340,7 +350,19 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
               </div>
               <div>
                 <label className={labelClass}>Program</label>
-                <select value={form.program} onChange={set('program')} className={inputClass}>
+                <select
+                  value={form.program}
+                  onChange={(e) => {
+                    const program = e.target.value
+                    setForm((f) => {
+                      // Drop the batch if it belongs to a different program
+                      const cur = availableBatches.find((b) => b.id === f.batchId)
+                      const mismatch = program && cur?.programName && cur.programName !== program
+                      return { ...f, program, ...(mismatch ? { batchId: '', batch: '' } : {}) }
+                    })
+                  }}
+                  className={inputClass}
+                >
                   <option value="">Select…</option>
                   {availablePrograms.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>
@@ -351,12 +373,12 @@ export default function StudentFormModal({ mode, student, defaultBatch, defaultP
                   value={form.batchId}
                   onChange={(e) => {
                     const selected = availableBatches.find((b) => b.id === e.target.value)
-                    setForm((f) => ({ ...f, batchId: e.target.value, batch: selected?.name ?? '' }))
+                    setForm((f) => ({ ...f, batchId: e.target.value, batch: selected?.name ?? '', program: selected?.programName || f.program }))
                   }}
                   className={inputClass}
                 >
                   <option value="">Unassigned</option>
-                  {availableBatches.map((b) => (
+                  {availableBatches.filter((b) => !form.program || !b.programName || b.programName === form.program).map((b) => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
