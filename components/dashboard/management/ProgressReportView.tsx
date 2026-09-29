@@ -106,7 +106,7 @@ export default function ProgressReportView() {
           termType: d.term,
           academicYear: d.academicYear,
           percentage: d.overallPercentage || '0%',
-          rank: d.rankInBatch?.toString() || 'N/A',
+          rank: d.batchRank && d.batchRank !== '-' ? d.batchRank : 'N/A',
           percentile: d.overallPercentage || '0%',
           teacherRemarks: d.teacherRemarks || '',
           principalRemarks: d.principalRemarks || '',
@@ -421,7 +421,7 @@ export default function ProgressReportView() {
 
   // KPIs
   const totalReports = reports.length
-  const topRankers = reports.filter(r => r.rank === '1st' || r.rank === '2nd' || r.rank === '3rd').length
+  const topRankers = reports.filter(r => { const n = parseInt(r.rank, 10); return n >= 1 && n <= 3 }).length
   const avgPct = reports.length > 0
     ? Math.round(reports.reduce((acc, r) => acc + parseInt(r.percentage || '0', 10), 0) / reports.length)
     : 0

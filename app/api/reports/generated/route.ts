@@ -6,6 +6,7 @@ import {
   updateGeneratedReport,
   deleteGeneratedReport,
   type CreateReportPayload,
+  recalculateReportRanks,
 } from '@/lib/db/queries/generated-reports'
 
 export const dynamic = 'force-dynamic'
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
       generatedBy: userId ?? null,
     } as CreateReportPayload)
 
+    await recalculateReportRanks(schoolId).catch(() => {})
     return NextResponse.json(report, { status: 201 })
   } catch (error: any) {
     console.error('generated-reports POST error:', error)
@@ -87,6 +89,7 @@ export async function PATCH(req: NextRequest) {
     const report = await updateGeneratedReport(id, body, schoolId)
     if (!report) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
 
+    await recalculateReportRanks(schoolId).catch(() => {})
     return NextResponse.json(report)
   } catch (error: any) {
     console.error('generated-reports PATCH error:', error)
@@ -105,6 +108,7 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
     await deleteGeneratedReport(id, schoolId)
+    await recalculateReportRanks(schoolId).catch(() => {})
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('generated-reports DELETE error:', error)

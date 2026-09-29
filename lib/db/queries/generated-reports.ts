@@ -295,3 +295,65 @@ export async function deleteGeneratedReport(
     : eq(generatedStudentReports.id, id)
   await db.delete(generatedStudentReports).where(condition)
 }
+
+// ── Rank recalculation ────────────────────────────────────────────────────────
+
+function ordinal(n: number): string {
+  const v = n % 100
+  return `${n}${['th', 'st', 'nd', 'rd'][(v - 20) % 10] || ['th', 'st', 'nd', 'rd'][v] || 'th'}`
+}
+
+const parsePct = (v?: string | null) => parseFloat(String(v ?? '0').replace(/%/g, '').trim()) || 0
+
+/**
+ * Recomputes batch_rank (within a student's batch) and class_rank (within
+ * their class level) for every generated report in the school, cohorted by
+ * academic year + term. Ties share a rank. Returns how many rows changed.
+ */
+export async function recalculateReportRanks(schoolId: string | null): Promise<{ cohorts: number; updated: number }> {
+  const rows = await db
+    .select({
+      id: generatedStudentReports.id,
+      pct: generatedStudentReports.overallPercentage,
+      year: generatedStudentReports.academicYear,
+      term: generatedStudentReports.term,
+      batchRank: generatedStudentReports.batchRank,
+      classRank: generatedStudentReports.classRank,
+      batch: sql<string>`coalesce(${batches.name}, ${students.batch}, '')`,
+      classLevel: sql<string>`coalesce(${students.class}, '')`,
+    })
+    .from(generatedStudentReports)
+    .leftJoin(students, eq(generatedStudentReports.studentId, students.id))
+    .leftJoin(batches, eq(generatedStudentReports.batchId, batches.id))
+    .where(schoolId ? eq(generatedStudentReports.schoolId, schoolId) : undefined)
+
+  const next = new Map<string, { batchRank: string; classRank: string }>()
+  const rankWithin = (keyOf: (r: typeof rows[number]) => string | null, field: 'batchRank' | 'classRank') => {
+    const groups = new Map<string, typeof rows>()
+    for (const r of rows) {
+      const key = keyOf(r)
+      if (!key) continue
+      groups.set(key, [...(groups.get(key) ?? []), r])
+    }
+    for (const list of groups.values()) {
+      for (const r of list) {
+        const rank = 1 + list.filter(o => parsePct(o.pct) > parsePct(r.pct)).length
+        const entry = next.get(r.id) ?? { batchRank: '-', classRank: '-' }
+        entry[field] = `${ordinal(rank)} / ${list.length}`
+        next.set(r.id, entry)
+      }
+    }
+  }
+  rankWithin(r => r.batch ? `${r.batch}|${r.year}|${r.term}` : null, 'batchRank')
+  rankWithin(r => r.classLevel ? `${r.classLevel}|${r.year}|${r.term}` : null, 'classRank')
+
+  let updated = 0
+  for (const r of rows) {
+    const n = next.get(r.id) ?? { batchRank: '-', classRank: '-' }
+    if (n.batchRank !== r.batchRank || n.classRank !== r.classRank) {
+      await db.update(generatedStudentReports).set(n).where(eq(generatedStudentReports.id, r.id))
+      updated++
+    }
+  }
+  return { cohorts: new Set(rows.map(r => `${r.batch}|${r.year}|${r.term}`)).size, updated }
+}
