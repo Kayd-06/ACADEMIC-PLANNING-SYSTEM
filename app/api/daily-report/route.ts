@@ -1,6 +1,8 @@
 // Daily report API route - updated and verified
 import { NextRequest, NextResponse } from 'next/server'
 import { db, dailyReports, students, batches as batchesTable } from '@/lib/db'
+import { teacherBatches } from '@/lib/db/schema'
+import { findTeacherFaculty } from '@/lib/db/queries/faculty'
 import { eq, and, desc, isNull, asc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
@@ -15,6 +17,16 @@ function isLateSubmission(reportDate: string): boolean {
     return hour >= 20
   }
   return false
+}
+
+// A teacher may only file/edit reports for batches management has assigned
+// to them (no assignments = no batches). Returns null for non-teachers.
+async function assignedBatchNames(session: any, schoolId: string | null): Promise<string[] | null> {
+  if ((session.user as any).role !== 'teacher') return null
+  const profile = await findTeacherFaculty(session.user.id, session.user.email ?? '', schoolId)
+  if (!profile) return []
+  const rows = await db.select({ name: teacherBatches.batchName }).from(teacherBatches).where(eq(teacherBatches.teacherId, profile.id))
+  return [...new Set(rows.map(r => r.name).filter(Boolean))].sort()
 }
 
 export async function GET(req: NextRequest) {
@@ -53,6 +65,11 @@ export async function POST(req: NextRequest) {
 
   if (!date || !batch || !subject) {
     return NextResponse.json({ error: 'date, batch, and subject are required' }, { status: 400 })
+  }
+
+  const allowed = await assignedBatchNames(session, schoolId)
+  if (allowed && !allowed.includes(batch)) {
+    return NextResponse.json({ error: 'You are not assigned to this batch' }, { status: 403 })
   }
 
   const isLate = isLateSubmission(date)
@@ -104,6 +121,12 @@ export async function PATCH(req: NextRequest) {
   conditions.push(eq(dailyReports.teacherEmail, session.user.email!))
 
   const body = await req.json()
+  if (body.batch !== undefined) {
+    const allowed = await assignedBatchNames(session, schoolId)
+    if (allowed && !allowed.includes(body.batch)) {
+      return NextResponse.json({ error: 'You are not assigned to this batch' }, { status: 403 })
+    }
+  }
   const updates: Record<string, any> = {}
   for (const f of ['date', 'batch', 'subject', 'chapter', 'topicsCovered', 'homeworkGiven', 'observations'] as const) {
     if (body[f] !== undefined) updates[f] = body[f]
@@ -166,6 +189,9 @@ export async function PUT() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const schoolId = (session.user as any).schoolId as string | null
+
+  const assigned = await assignedBatchNames(session, schoolId)
+  if (assigned) return NextResponse.json(assigned)
 
   const condition = schoolId ? eq(batchesTable.schoolId, schoolId) : isNull(batchesTable.schoolId)
   const rows = await db.select({ name: batchesTable.name }).from(batchesTable).where(condition).orderBy(asc(batchesTable.name))
