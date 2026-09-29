@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     const filters = {
       studentId:    searchParams.get('studentId')   || null,
       batchId:      searchParams.get('batchId')     || null,
+      batch:        searchParams.get('batch')       || null,
       academicYear: searchParams.get('academicYear')|| null,
       term:         searchParams.get('term')        || null,
       status:       searchParams.get('status')      || null,

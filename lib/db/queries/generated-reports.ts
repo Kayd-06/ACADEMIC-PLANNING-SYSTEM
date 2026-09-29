@@ -16,6 +16,7 @@ import {
 export interface GeneratedReportFilters {
   studentId?:   string | null
   batchId?:     string | null
+  batch?:       string | null // batch name (report's batch, else the student's own)
   academicYear?: string | null
   term?:        string | null
   status?:      string | null
@@ -72,6 +73,8 @@ export async function listGeneratedReports(
   if (filters.academicYear) conditions.push(eq(generatedStudentReports.academicYear, filters.academicYear))
   if (filters.term)        conditions.push(eq(generatedStudentReports.term, filters.term))
   if (filters.status)      conditions.push(eq(generatedStudentReports.status, filters.status))
+
+  if (filters.batch) conditions.push(sql`coalesce(${batches.name}, ${students.batch}) = ${filters.batch}`)
 
   const where = conditions.length > 0 ? and(...conditions) : undefined
 

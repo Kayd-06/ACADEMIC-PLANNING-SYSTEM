@@ -94,7 +94,7 @@ export default function ProgressReportView() {
   const fetchReports = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/reports/generated?batchId=${encodeURIComponent(selectedBatch === 'All' ? '' : selectedBatch)}&term=${encodeURIComponent(selectedTerm === 'All' ? '' : selectedTerm)}`)
+      const res = await fetch(`/api/reports/generated?batch=${encodeURIComponent(selectedBatch === 'All' ? '' : selectedBatch)}&term=${encodeURIComponent(selectedTerm === 'All' ? '' : selectedTerm)}`)
       const data = await res.json()
       if (Array.isArray(data)) {
         const mapped = data.map((d: any) => ({
@@ -121,6 +121,8 @@ export default function ProgressReportView() {
           }))
         }))
         setReports(mapped)
+      } else {
+        setReports([])
       }
     } catch (e) {
       console.error(e)
@@ -173,8 +175,10 @@ export default function ProgressReportView() {
     updated[index] = { ...updated[index], [field]: field === 'marksObtained' || field === 'totalMarks' ? Number(value) : value }
     // Auto calculate grade if marks modified
     if (field === 'marksObtained' || field === 'totalMarks') {
-      const obt = field === 'marksObtained' ? Number(value) : updated[index].marksObtained
-      const tot = field === 'totalMarks' ? Number(value) : updated[index].totalMarks
+      // Obtained marks can never be negative or exceed the total
+      const tot = Math.max(0, updated[index].totalMarks)
+      updated[index].marksObtained = Math.min(Math.max(0, updated[index].marksObtained), tot)
+      const obt = updated[index].marksObtained
       const pct = tot > 0 ? (obt / tot) * 100 : 0
       updated[index].grade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B+' : pct >= 60 ? 'B' : pct >= 50 ? 'C' : 'D'
     }
@@ -716,7 +720,7 @@ export default function ProgressReportView() {
                                 className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded font-medium text-gray-900 focus:outline-none focus:bg-white" />
                             </td>
                             <td className="py-2 px-3">
-                              <input type="number" required min={0} value={sub.marksObtained} onChange={e => handleSubjectChange(idx, 'marksObtained', e.target.value)}
+                              <input type="number" required min={0} max={sub.totalMarks} value={sub.marksObtained} onChange={e => handleSubjectChange(idx, 'marksObtained', e.target.value)}
                                 className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded font-medium text-gray-900 focus:outline-none focus:bg-white text-right" />
                             </td>
                             <td className="py-2 px-3">
