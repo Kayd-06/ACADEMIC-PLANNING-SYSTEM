@@ -20,7 +20,7 @@ type Material = { _id: string; title: string; type: string; fileUrl: string; spe
 type CounselingLog = { _id: string; student: string; teacher: string; date: string; rawDate?: string; notes?: string; status?: string; type?: string; counselor?: string; time?: string; duration?: string; flagged?: boolean }
 
 const EMPTY_FACULTY_FORM = {
-  name: '', subject: '', specialization: '', batches: '0', experience: '', status: 'ACTIVE', email: '', phone: '',
+  name: '', subject: '', specialization: '', batches: '0', batchNames: [] as string[], experience: '', status: 'ACTIVE', email: '', phone: '',
   employeeId: '', dob: '', gender: '', bio: '', profileImgUrl: '',
   altPhone: '', addressLine1: '', city: '', state: '', pincode: '',
   qualification: '', experienceYears: '', primaryStream: '', joiningDate: '',
@@ -29,7 +29,42 @@ const EMPTY_FACULTY_FORM = {
 const fieldInput = 'mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
 const fieldLabel = 'text-xs font-semibold text-slate-500 uppercase tracking-wide'
 
-function FacultyFormFields({ form, setForm }: { form: typeof EMPTY_FACULTY_FORM; setForm: (f: typeof EMPTY_FACULTY_FORM) => void }) {
+type BatchOption = { id: string; name: string; label: string }
+
+function BatchMultiSelect({ options, selected, onChange }: { options: BatchOption[]; selected: string[]; onChange: (names: string[]) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [])
+  const toggle = (name: string) => onChange(selected.includes(name) ? selected.filter(n => n !== name) : [...selected, name])
+  // Keep already-assigned batches visible even if they're not in the school's batch list
+  const all = [...options, ...selected.filter(n => !options.some(o => o.name === n)).map(n => ({ id: `sel_${n}`, name: n, label: n }))]
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)} className={fieldInput + ' text-left flex items-center justify-between'}>
+        <span className={selected.length ? 'text-slate-900 truncate' : 'text-slate-400'}>
+          {selected.length ? selected.join(', ') : 'Select batches…'}
+        </span>
+        <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-20 bottom-full mb-1 w-full max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg py-1">
+          {all.length === 0 ? <p className="px-3 py-2 text-xs text-slate-400">No batches available</p> : all.map(o => (
+            <label key={o.id} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-slate-50 cursor-pointer">
+              <input type="checkbox" checked={selected.includes(o.name)} onChange={() => toggle(o.name)} className="accent-slate-900" />
+              {o.label}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FacultyFormFields({ form, setForm, batchOptions }: { form: typeof EMPTY_FACULTY_FORM; setForm: (f: typeof EMPTY_FACULTY_FORM) => void; batchOptions: BatchOption[] }) {
   return (
     <div className="space-y-4">
       <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest pt-1">Identity</p>
@@ -110,7 +145,7 @@ function FacultyFormFields({ form, setForm }: { form: typeof EMPTY_FACULTY_FORM;
         <div><label className={fieldLabel}>Joining Date</label>
           <input type="date" value={form.joiningDate} onChange={e => setForm({ ...form, joiningDate: e.target.value })} className={fieldInput} /></div>
         <div><label className={fieldLabel}>Batches</label>
-          <input type="number" min="0" value={form.batches} onChange={e => setForm({ ...form, batches: e.target.value })} className={fieldInput} /></div>
+          <BatchMultiSelect options={batchOptions} selected={form.batchNames} onChange={batchNames => setForm({ ...form, batchNames, batches: String(batchNames.length) })} /></div>
         <div><label className={fieldLabel}>Status</label>
           <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className={fieldInput}>
             <option value="ACTIVE">Active</option><option value="ON_LEAVE">On Leave</option><option value="INACTIVE">Inactive</option>
@@ -123,7 +158,7 @@ function FacultyFormFields({ form, setForm }: { form: typeof EMPTY_FACULTY_FORM;
 function formFromFaculty(f: any): typeof EMPTY_FACULTY_FORM {
   return {
     name: f.name ?? '', subject: f.subject ?? '', specialization: f.specialization ?? '',
-    batches: String(f.batches ?? 0), experience: f.experience ?? '', status: f.status ?? 'ACTIVE',
+    batches: String(f.batches ?? 0), batchNames: (f.batchAssignments ?? []).map((b: any) => b.batchName as string), experience: f.experience ?? '', status: f.status ?? 'ACTIVE',
     email: f.email ?? '', phone: f.phone ?? '',
     employeeId: f.employeeId ?? '', dob: formatDateForInput(f.dob), gender: f.gender ?? '', bio: f.bio ?? '', profileImgUrl: f.profileImgUrl ?? '',
     altPhone: f.altPhone ?? '', addressLine1: f.addressLine1 ?? '', city: f.city ?? '', state: f.state ?? '', pincode: f.pincode ?? '',
@@ -171,6 +206,16 @@ export default function TeacherPortalView() {
   // Edit Faculty modal
   const [editFaculty, setEditFaculty] = useState<FacultyMember | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FACULTY_FORM)
+  const [batchOptions, setBatchOptions] = useState<BatchOption[]>([])
+  const [origBatches, setOrigBatches] = useState<{ id: string; batchName: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/batches').then(r => r.ok ? r.json() : []).then(list => {
+      setBatchOptions((Array.isArray(list) ? list : []).map((b: any) => ({
+        id: b._id || b.id, name: b.name, label: b.programName ? `${b.name} (${b.programName})` : b.name,
+      })))
+    }).catch(() => {})
+  }, [])
   const [savingEdit, setSavingEdit] = useState(false)
 
   // Material preview modal
@@ -221,11 +266,13 @@ export default function TeacherPortalView() {
         if (full) {
           setEditFaculty(fac)
           setEditForm(formFromFaculty(full))
+          setOrigBatches(full.batchAssignments ?? [])
           return
         }
       }
     } catch { /* fall through */ }
     setEditFaculty(fac)
+    setOrigBatches([])
     setEditForm({ ...EMPTY_FACULTY_FORM, name: fac.name, subject: fac.sub, specialization: fac.spec, batches: String(fac.batches), experience: fac.exp, status: fac.status })
   }
 
@@ -252,8 +299,19 @@ export default function TeacherPortalView() {
     if (!isValidEmail(editForm.email)) { showToast(EMAIL_FORMAT_ERROR); return }
     setSavingEdit(true)
     try {
-      const res = await fetch('/api/teacher-portal/faculty', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editFaculty._id, ...editForm, batches: Number(editForm.batches) }) })
-      if (res.ok) { showToast('Faculty updated'); setEditFaculty(null); fetchData() }
+      // Batches are driven by assignments (the count is derived), so sync those instead of sending a number
+      const { batches: _count, batchNames, ...rest } = editForm
+      const res = await fetch('/api/teacher-portal/faculty', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editFaculty._id, ...rest }) })
+      if (res.ok) {
+        const base = `/api/teacher-portal/faculty/${editFaculty._id}/assignments`
+        const toRemove = origBatches.filter(o => !batchNames.includes(o.batchName))
+        const toAdd = batchNames.filter(n => !origBatches.some(o => o.batchName === n))
+        await Promise.all([
+          ...toRemove.map(o => fetch(`${base}?type=batch&assignmentId=${o.id}`, { method: 'DELETE' })),
+          ...toAdd.map(n => fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'batch', batchName: n, role: 'primary' }) })),
+        ])
+        showToast('Faculty updated'); setEditFaculty(null); fetchData()
+      }
       else showToast((await res.json()).error || 'Failed to update')
     } catch { showToast('Failed to update') } finally { setSavingEdit(false) }
   }
@@ -441,7 +499,7 @@ export default function TeacherPortalView() {
                 <button onClick={() => setEditFaculty(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
               </div>
               <div className="overflow-y-auto flex-1 pr-1">
-                <FacultyFormFields form={editForm} setForm={setEditForm} />
+                <FacultyFormFields form={editForm} setForm={setEditForm} batchOptions={batchOptions} />
               </div>
               <div className="flex gap-3 mt-6 shrink-0">
                 <button onClick={() => setEditFaculty(null)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50">Cancel</button>
