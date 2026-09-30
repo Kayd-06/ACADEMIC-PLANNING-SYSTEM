@@ -323,44 +323,7 @@ export default function TeacherSchedulePage() {
 
   const todayStr = getLocalToday()
 
-  // Days of the shown week (MON..SUN)
-  const days = DAY_NAMES.map((name, i) => {
-    const d = new Date(weekStart)
-    d.setDate(weekStart.getDate() + i)
-    const iso = dateStr(d)
-    return { name, date: d.getDate(), iso, active: iso === todayStr }
-  })
-
-  // Build grid events: recurring slots + this week's special classes
-  const events: any[] = []
-  days.forEach((day, colIdx) => {
-    const jsDay = (colIdx + 1) % 7 // MON=1 … SAT=6, SUN=0
-    schedules.forEach(s => {
-      if (s.dayOfWeek !== jsDay) return
-      if (s.effectiveFrom && day.iso < s.effectiveFrom) return
-      if (s.effectiveTo && day.iso > s.effectiveTo) return
-      events.push({
-        col: colIdx, start: parseHour(s.startTime), end: parseHour(s.endTime),
-        title: s.subject, sub: s.batch, room: s.room, kind: 'regular', id: s._id,
-      })
-    })
-    specials.forEach(sc => {
-      if (sc.date !== day.iso) return
-      events.push({
-        col: colIdx, start: parseHour(sc.startTime), end: parseHour(sc.endTime),
-        title: sc.title, sub: sc.batch || sc.subject || sc.type, room: sc.room, kind: 'special', type: sc.type, id: sc._id,
-      })
-    })
-  })
-
   const upcomingSpecials = specials.filter(sc => sc.date >= todayStr)
-  const weekLabel = `${formatDate(weekStart)} - ${days[6] ? formatDate(days[6].iso) : ''}`
-
-  function shiftWeek(delta: number) {
-    const d = new Date(weekStart)
-    d.setDate(d.getDate() + delta * 7)
-    setWeekStart(d)
-  }
 
   return (
     <div className="flex-1 p-8 overflow-auto bg-slate-50 min-h-screen">
@@ -395,103 +358,6 @@ export default function TeacherSchedulePage() {
           className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
           <Repeat className="w-4 h-4" /> Add Weekly Slot
         </button>
-      </div>
-
-      {/* Calendar */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => shiftWeek(-1)} className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-50"><ChevronLeft className="w-5 h-5" /></button>
-            <span className="text-[13px] font-bold text-slate-900">{weekLabel}</span>
-            <button onClick={() => shiftWeek(1)} className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-50"><ChevronRight className="w-5 h-5" /></button>
-          </div>
-          <button onClick={() => setWeekStart(getMonday(new Date()))}
-            className="px-4 py-1.5 border border-slate-200 text-indigo-600 text-[13px] font-semibold rounded-md hover:bg-slate-50">
-            Today
-          </button>
-        </div>
-
-        <div className="grid grid-cols-8 border-b border-slate-100">
-          <div className="col-span-1 p-4 flex flex-col items-center justify-center border-r border-slate-100">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">TIME</span>
-          </div>
-          {days.map(day => (
-            <div key={day.name} className={`col-span-1 relative p-3 flex flex-col items-center justify-center border-r border-slate-100 last:border-0 ${day.active ? 'bg-indigo-50/50' : ''}`}>
-              <span className={`text-[10px] font-bold tracking-widest mb-1 ${day.active ? 'text-indigo-600' : 'text-slate-400'}`}>{day.name}</span>
-              <span className={`text-[15px] font-bold ${day.active ? 'text-indigo-700' : 'text-slate-900'}`}>{day.date}</span>
-              {day.active && <div className="h-0.5 w-full bg-indigo-600 absolute bottom-0 left-0" />}
-            </div>
-          ))}
-        </div>
-
-        <div className="relative">
-          {TIMES.map(time => (
-            <div key={time} className="grid grid-cols-8 border-b border-slate-100 border-dashed last:border-0 h-24">
-              <div className="col-span-1 flex justify-end pr-4 pt-2 border-r border-slate-100">
-                <span className="text-[11px] font-semibold text-slate-500">{time}</span>
-              </div>
-              {[1, 2, 3, 4, 5, 6, 7].map(col => (
-                <div key={col} className="col-span-1 border-r border-slate-100 border-dashed last:border-0" />
-              ))}
-            </div>
-          ))}
-
-          {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-30">
-              <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-            </div>
-          )}
-
-          <div className="absolute inset-0 pl-[12.5%] pointer-events-none">
-            <div className="relative w-full h-full">
-              {events.map((evt, idx) => {
-                const start = Math.max(evt.start, GRID_START)
-                const end = Math.min(Math.max(evt.end, start + 0.5), GRID_START + GRID_HOURS)
-                if (start >= GRID_START + GRID_HOURS) return null
-                const topPercent = ((start - GRID_START) / GRID_HOURS) * 100
-                const heightPercent = ((end - start) / GRID_HOURS) * 100
-                const leftPercent = (evt.col / 7) * 100
-                const widthPercent = 100 / 7
-
-                const isSpecial = evt.kind === 'special'
-                return (
-                  <div key={`${evt.id}-${idx}`}
-                    className={`absolute p-2.5 rounded-lg shadow-sm pointer-events-auto cursor-pointer hover:shadow-md transition-all overflow-hidden ${
-                      isSpecial ? 'bg-white border-2 border-dashed border-slate-200' : 'bg-[#eef2ff] border-l-4 border-l-[#312e81]'
-                    }`}
-                    onClick={() => {
-                      if (isSpecial) {
-                        const sc = specials.find(x => x._id === evt.id)
-                        if (sc) setShowSpecialModal({ mode: 'edit', special: sc })
-                      } else {
-                        const sl = schedules.find(x => x._id === evt.id)
-                        if (sl) setShowSlotModal({ mode: 'edit', slot: sl })
-                      }
-                    }}
-                    style={{
-                      top: `${Math.max(0, topPercent)}%`,
-                      height: `calc(${heightPercent}% - 8px)`,
-                      left: `calc(${leftPercent}% + 4px)`,
-                      width: `calc(${widthPercent}% - 8px)`,
-                      marginTop: '4px',
-                    }}>
-                    {isSpecial && (
-                      <span className={`absolute top-2 right-2 px-1.5 py-0.5 text-[8px] font-black tracking-widest rounded uppercase ${TYPE_BADGE[evt.type] ?? 'bg-indigo-100 text-indigo-700'}`}>{evt.type}</span>
-                    )}
-                    <h4 className="text-[11px] font-bold text-slate-900 leading-tight mb-0.5 truncate pr-8">{evt.title}</h4>
-                    <p className="text-[10px] text-slate-600 mb-2 truncate">{evt.sub}</p>
-                    {evt.room && (
-                      <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 mt-auto absolute bottom-2.5 left-2.5">
-                        <MapPin className="w-3 h-3 flex-shrink-0" />
-                        <span className="truncate">{evt.room}</span>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* My Weekly Slots */}
