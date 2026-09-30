@@ -29,9 +29,11 @@ interface MeetingLike {
 
 function formatDate(value: string): string {
   if (!value) return '—'
-  const parsed = new Date(value)
-  if (isNaN(parsed.getTime())) return value
-  return parsed.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+  const parts = value.split('-')
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`
+  }
+  return value
 }
 
 function safeFileTag(title: string): string {
