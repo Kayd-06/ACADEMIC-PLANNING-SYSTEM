@@ -61,6 +61,15 @@ const PRIORITY_COLORS = {
   'High': 'bg-rose-50 text-rose-600 border-rose-200'
 }
 
+const formatDate = (dateString: string | undefined | null) => {
+  if (!dateString) return ''
+  const parts = dateString.split('-')
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`
+  }
+  return dateString
+}
+
 export default function MeetingsView() {
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null)
@@ -384,7 +393,7 @@ export default function MeetingsView() {
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold shrink-0 group-hover:opacity-0 transition-opacity">{meeting.type}</span>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-slate-500 mt-2">
-                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {meeting.date}</span>
+                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(meeting.date)}</span>
                   <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {meeting.time}</span>
                 </div>
               </motion.div>
@@ -444,7 +453,7 @@ export default function MeetingsView() {
                     <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Calendar className="w-5 h-5" /></div>
                     <div>
                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date</p>
-                      <p className="text-sm font-semibold text-slate-800">{selectedMeeting.date}</p>
+                      <p className="text-sm font-semibold text-slate-800">{formatDate(selectedMeeting.date)}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -479,7 +488,7 @@ export default function MeetingsView() {
                     <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><Calendar className="w-5 h-5" /></div>
                     <div>
                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Next Meeting Date</p>
-                      <p className="text-sm font-semibold text-slate-800">{selectedMeeting.nextMeetingDate || 'Not scheduled'}</p>
+                      <p className="text-sm font-semibold text-slate-800">{selectedMeeting.nextMeetingDate ? formatDate(selectedMeeting.nextMeetingDate) : 'Not scheduled'}</p>
                     </div>
                   </div>
                 </div>
@@ -602,7 +611,7 @@ export default function MeetingsView() {
                                 {item.targetDate && (
                                   <div>
                                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Target Date</h4>
-                                    <p className="text-sm font-medium text-slate-800">{item.targetDate}</p>
+                                    <p className="text-sm font-medium text-slate-800">{formatDate(item.targetDate)}</p>
                                   </div>
                                 )}
                                 {item.communicatedTo && (

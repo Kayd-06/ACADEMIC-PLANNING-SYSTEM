@@ -71,6 +71,12 @@ function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, admi
   const set = (f: string) => (e: React.ChangeEvent<any>) =>
     setForm(prev => ({ ...prev, [f]: f === 'dayOfWeek' ? Number(e.target.value) : e.target.value }))
 
+  const selectedTeacher = facultyOptions.find(f => f.email === form.teacherEmail)
+  const allowedBatchNames = selectedTeacher?.batchAssignments?.map((b: any) => b.batchName) || []
+  const availableBatches = form.teacherEmail
+    ? batchOptions.filter(b => allowedBatchNames.includes(b.name))
+    : batchOptions
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
@@ -119,8 +125,11 @@ function SlotFormModal({ initial, isEdit, onClose, onSubmit, saving, error, admi
               <label className={labelClass}>Batch *</label>
               <select value={form.batch} onChange={set('batch')} className={inputClass + ' bg-white'}>
                 <option value="">Select Batch...</option>
-                {batchOptions.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                {availableBatches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
               </select>
+              {form.teacherEmail && availableBatches.length === 0 && (
+                <p className="text-[10px] text-amber-600 mt-1">This teacher has no assigned batches.</p>
+              )}
             </div>
             <div>
               <label className={labelClass}>Day of Week</label>
@@ -201,6 +210,12 @@ function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, a
   const set = (f: string) => (e: React.ChangeEvent<any>) =>
     setForm(prev => ({ ...prev, [f]: e.target.value }))
 
+  const selectedTeacher = facultyOptions.find(f => f.email === form.teacherEmail)
+  const allowedBatchNames = selectedTeacher?.batchAssignments?.map((b: any) => b.batchName) || []
+  const availableBatches = form.teacherEmail
+    ? batchOptions.filter(b => allowedBatchNames.includes(b.name))
+    : batchOptions
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
@@ -229,8 +244,11 @@ function SpecialFormModal({ initial, isEdit, onClose, onSubmit, saving, error, a
               <label className={labelClass}>Batch</label>
               <select value={form.batch} onChange={set('batch')} className={inputClass + ' bg-white'}>
                 <option value="">Select Batch...</option>
-                {batchOptions.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                {availableBatches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
               </select>
+              {form.teacherEmail && availableBatches.length === 0 && (
+                <p className="text-[10px] text-amber-600 mt-1">This teacher has no assigned batches.</p>
+              )}
             </div>
             <div>
               <label className={labelClass}>Date *</label>
