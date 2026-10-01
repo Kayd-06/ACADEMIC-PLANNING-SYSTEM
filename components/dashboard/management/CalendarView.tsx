@@ -37,6 +37,11 @@ export default function CalendarView() {
   // Navigation & View States
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear())
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth() + 1) // 1-indexed
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    const today = new Date()
+    const dayOffset = (today.getDay() + 6) % 7
+    return new Date(today.getFullYear(), today.getMonth(), today.getDate() - dayOffset)
+  })
   const [activeTab, setActiveTab] = useState<'Month' | 'Week' | 'List'>('Month')
   
   // Database Events States
@@ -100,31 +105,42 @@ export default function CalendarView() {
     }
   }, [message])
 
-  // Month navigation helpers
-  const handlePrevMonth = () => {
-    setCurrentMonth(prev => {
-      if (prev === 1) {
-        setCurrentYear(y => y - 1)
-        return 12
-      }
-      return prev - 1
-    })
+  // Month/Week navigation helpers
+  const handlePrev = () => {
+    if (activeTab === 'Week') {
+      setCurrentWeekStart(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7))
+    } else {
+      setCurrentMonth(prev => {
+        if (prev === 1) {
+          setCurrentYear(y => y - 1)
+          return 12
+        }
+        return prev - 1
+      })
+    }
   }
 
-  const handleNextMonth = () => {
-    setCurrentMonth(prev => {
-      if (prev === 12) {
-        setCurrentYear(y => y + 1)
-        return 1
-      }
-      return prev + 1
-    })
+  const handleNext = () => {
+    if (activeTab === 'Week') {
+      setCurrentWeekStart(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7))
+    } else {
+      setCurrentMonth(prev => {
+        if (prev === 12) {
+          setCurrentYear(y => y + 1)
+          return 1
+        }
+        return prev + 1
+      })
+    }
   }
 
   const handleToday = () => {
     const today = new Date()
     setCurrentYear(today.getFullYear())
     setCurrentMonth(today.getMonth() + 1)
+    
+    const dayOffset = (today.getDay() + 6) % 7
+    setCurrentWeekStart(new Date(today.getFullYear(), today.getMonth(), today.getDate() - dayOffset))
   }
 
   // Get matching events for a specific cell date
@@ -416,16 +432,19 @@ export default function CalendarView() {
           <div className="flex items-center justify-between border-b border-slate-100 pb-5 mb-5">
             <div className="flex items-center gap-2">
               <button
-                onClick={handlePrevMonth}
+                onClick={handlePrev}
                 className="p-2 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 text-slate-600 transition cursor-pointer"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <h2 className="text-lg font-bold text-slate-800 min-w-[140px] text-center">
-                {MONTH_NAMES[currentMonth - 1]} {currentYear}
+                {activeTab === 'Week' 
+                  ? `${MONTH_NAMES[currentWeekStart.getMonth()]} ${currentWeekStart.getFullYear()}`
+                  : `${MONTH_NAMES[currentMonth - 1]} ${currentYear}`
+                }
               </h2>
               <button
-                onClick={handleNextMonth}
+                onClick={handleNext}
                 className="p-2 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 text-slate-600 transition cursor-pointer"
               >
                 <ChevronRight className="w-5 h-5" />
@@ -509,13 +528,7 @@ export default function CalendarView() {
             /* Week View list of days */
             <div className="space-y-4">
               {Array.from({ length: 7 }).map((_, i) => {
-                const today = new Date()
-                let refDate = new Date(currentYear, currentMonth - 1, 1)
-                if (currentYear === today.getFullYear() && currentMonth === today.getMonth() + 1) {
-                  refDate = today
-                }
-                const dayOffset = (refDate.getDay() + 6) % 7
-                const dateToRender = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() - dayOffset + i)
+                const dateToRender = new Date(currentWeekStart.getFullYear(), currentWeekStart.getMonth(), currentWeekStart.getDate() + i)
                 
                 const yyyy = dateToRender.getFullYear()
                 const mm = String(dateToRender.getMonth() + 1).padStart(2, '0')
