@@ -509,20 +509,29 @@ export default function CalendarView() {
             /* Week View list of days */
             <div className="space-y-4">
               {Array.from({ length: 7 }).map((_, i) => {
-                const start = new Date(currentYear, currentMonth - 1, 1)
-                const dayOffset = (start.getDay() + 6) % 7
-                const mondayDate = new Date(currentYear, currentMonth - 1, 1 - dayOffset + i * 7)
-                const dateStr = mondayDate.toISOString().split('T')[0]
+                const today = new Date()
+                let refDate = new Date(currentYear, currentMonth - 1, 1)
+                if (currentYear === today.getFullYear() && currentMonth === today.getMonth() + 1) {
+                  refDate = today
+                }
+                const dayOffset = (refDate.getDay() + 6) % 7
+                const dateToRender = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() - dayOffset + i)
+                
+                const yyyy = dateToRender.getFullYear()
+                const mm = String(dateToRender.getMonth() + 1).padStart(2, '0')
+                const dd = String(dateToRender.getDate()).padStart(2, '0')
+                const dateStr = `${yyyy}-${mm}-${dd}`
+                
                 const dayEvents = getEventsForDate(dateStr)
 
                 return (
                   <div key={i} className="flex border-b border-slate-100 pb-4 items-start gap-4">
                     <div className="w-24 shrink-0">
                       <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                        {mondayDate.toLocaleDateString('en-US', { weekday: 'short' })}
+                        {dateToRender.toLocaleDateString('en-US', { weekday: 'short' })}
                       </span>
                       <span className="text-xl font-extrabold text-slate-800">
-                        {mondayDate.getDate()}
+                        {dateToRender.getDate()}
                       </span>
                     </div>
                     
