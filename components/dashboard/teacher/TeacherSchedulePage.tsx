@@ -86,9 +86,9 @@ const TimeInput = ({ value, onChange }: { value: string, onChange: (v: string) =
 }
 
 // Modal: create a one-off special class
-function SpecialClassModal({ initial, isEdit, onClose, onSaved, batches }: { initial?: any; isEdit?: boolean; onClose: () => void; onSaved: () => void; batches: any[] }) {
+function SpecialClassModal({ initial, isEdit, onClose, onSaved, batches, teacherSubject }: { initial?: any; isEdit?: boolean; onClose: () => void; onSaved: () => void; batches: any[]; teacherSubject?: string }) {
   const [form, setForm] = useState(initial || {
-    title: '', type: 'Extra', subject: '', batch: '',
+    title: '', type: 'Extra', subject: teacherSubject || '', batch: '',
     date: getLocalToday(), startTime: '10:00 AM', endTime: '11:00 AM', room: '', notes: '',
   })
   const [saving, setSaving] = useState(false)
@@ -184,9 +184,9 @@ function SpecialClassModal({ initial, isEdit, onClose, onSaved, batches }: { ini
 }
 
 // Modal: create a weekly recurring timetable slot
-function WeeklySlotModal({ initial, isEdit, onClose, onSaved, batches }: { initial?: any; isEdit?: boolean; onClose: () => void; onSaved: () => void; batches: any[] }) {
+function WeeklySlotModal({ initial, isEdit, onClose, onSaved, batches, teacherSubject }: { initial?: any; isEdit?: boolean; onClose: () => void; onSaved: () => void; batches: any[]; teacherSubject?: string }) {
   const [form, setForm] = useState(initial || {
-    subject: '', batch: '', dayOfWeek: new Date().getDay(),
+    subject: teacherSubject || '', batch: '', dayOfWeek: new Date().getDay(),
     startTime: '09:00 AM', endTime: '10:00 AM', room: '',
     effectiveFrom: new Date().toISOString().split('T')[0], effectiveTo: '',
   })
@@ -286,20 +286,26 @@ export default function TeacherSchedulePage() {
   const [schedules, setSchedules] = useState<any[]>([])
   const [specials, setSpecials] = useState<any[]>([])
   const [batches, setBatches] = useState<any[]>([])
+  const [teacherSubject, setTeacherSubject] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [showSpecialModal, setShowSpecialModal] = useState<{ mode: 'add' | 'edit'; special?: any } | null>(null)
   const [showSlotModal, setShowSlotModal] = useState<{ mode: 'add' | 'edit'; slot?: any } | null>(null)
 
   const fetchAll = async () => {
     try {
-      const [schedRes, specRes, batchRes] = await Promise.all([
+      const [schedRes, specRes, batchRes, profileRes] = await Promise.all([
         fetch('/api/schedule?mine=true&activeOnly=true'),
         fetch('/api/special-classes?mine=true'),
         fetch('/api/batches'),
+        fetch('/api/teacher/profile')
       ])
       if (schedRes.ok) setSchedules(await schedRes.json())
       if (specRes.ok) setSpecials(await specRes.json())
       if (batchRes.ok) setBatches(await batchRes.json())
+      if (profileRes.ok) {
+        const data = await profileRes.json()
+        if (data?.profile?.subject) setTeacherSubject(data.profile.subject)
+      }
     } catch (err) {
       console.error(err)
     } finally {
@@ -335,6 +341,7 @@ export default function TeacherSchedulePage() {
             onClose={() => setShowSpecialModal(null)} 
             onSaved={fetchAll} 
             batches={batches}
+            teacherSubject={teacherSubject}
           />
         )}
         {showSlotModal && (
@@ -344,6 +351,7 @@ export default function TeacherSchedulePage() {
             onClose={() => setShowSlotModal(null)} 
             onSaved={fetchAll} 
             batches={batches}
+            teacherSubject={teacherSubject}
           />
         )}
       </AnimatePresence>
