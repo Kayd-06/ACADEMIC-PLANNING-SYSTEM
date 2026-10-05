@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       isAnonymous: false,
       rating: typeof i.rating === 'number' && !isNaN(i.rating) && i.rating >= 1 && i.rating <= 5 ? i.rating : 5,
       content: i.content?.trim() || 'General feedback',
-      type: FLOW_TYPES.includes(i.type) ? i.type : 'Student -> Teacher',
+      type: FLOW_TYPES.includes(i.type) ? i.type : 'Teacher -> Management',
       status: 'Submitted',
       subject: i.subject?.trim() || '',
       batch: i.batch?.trim() || '',
@@ -94,7 +94,9 @@ export async function POST(req: NextRequest) {
 
     if (toInsert.length === 0) return NextResponse.json({ error: 'No valid rows to insert' }, { status: 400 })
     const created = await db.insert(feedback).values(toInsert).returning()
-    return NextResponse.json({ count: created.length, created }, { status: 201 })
+    // Student/parent rows are stored but hidden from the UI; tell the uploader how many
+    const hiddenCount = created.filter(c => !isStaffFlow(c.type)).length
+    return NextResponse.json({ count: created.length, hiddenCount, created }, { status: 201 })
   }
 
   const { content, rating, subject, batch, category } = body

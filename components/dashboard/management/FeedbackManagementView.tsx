@@ -66,6 +66,7 @@ export default function FeedbackManagementView() {
   const [previewRows, setPreviewRows] = useState<any[]>([])
   const [uploadingBulk, setUploadingBulk] = useState(false)
   const [bulkError, setBulkError] = useState('')
+  const [uploadNotice, setUploadNotice] = useState('')
 
 
 
@@ -154,23 +155,13 @@ export default function FeedbackManagementView() {
   function handleDownloadTemplate() {
     const sampleData = [
       {
-        Type: 'Student -> Teacher',
-        Sender: 'Aarav Sharma',
+        Type: 'Management -> Teacher',
+        Sender: 'Principal Mehta',
         Rating: 5,
-        Content: 'Sir explains physics problems very clearly with real-life examples.',
-        Subject: 'Physics',
-        Batch: 'JEE Batch A',
-        Category: 'Academics',
-        Date: new Date().toISOString().split('T')[0]
-      },
-      {
-        Type: 'Parent -> School',
-        Sender: 'Parent of Rohan',
-        Rating: 4,
-        Content: 'We appreciate the weekly progress reports and timely PTM notifications.',
-        Subject: 'General',
-        Batch: 'Class 11',
-        Category: 'Communication',
+        Content: 'Excellent results in the last unit test, keep it up.',
+        Subject: 'alice@school.example',
+        Batch: 'Alice Teacher',
+        Category: 'Appraisal',
         Date: new Date().toISOString().split('T')[0]
       },
       {
@@ -203,7 +194,7 @@ export default function FeedbackManagementView() {
         const ws = wb.Sheets[wsname]
         const data = XLSX.utils.sheet_to_json(ws)
         const parsedRows = data.map((row: any) => ({
-          type: row.Type || row.type || 'Student -> Teacher',
+          type: row.Type || row.type || 'Teacher -> Management',
           senderName: row.Sender || row.senderName || row.Name || 'Anonymous',
           rating: Math.max(1, Math.min(5, Number(row.Rating || row.rating || 5))),
           content: row.Content || row.content || row.Feedback || row.Comment || '',
@@ -240,6 +231,10 @@ export default function FeedbackManagementView() {
         setBulkError(d.error || 'Bulk upload failed')
         return
       }
+      const result = await res.json().catch(() => ({}))
+      setUploadNotice(result.hiddenCount > 0
+        ? `${result.hiddenCount} student/parent row(s) were stored but are not shown here. Only Teacher ↔ Management feedback is listed.`
+        : '')
       setShowExcelModal(false)
       setPreviewRows([])
       fetchFeedback()
@@ -313,6 +308,13 @@ export default function FeedbackManagementView() {
             </button>
           </div>
         </div>
+
+        {uploadNotice && (
+          <div className="mb-6 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-semibold text-amber-800 flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" /> {uploadNotice}</span>
+            <button onClick={() => setUploadNotice('')} className="text-amber-700 hover:text-amber-900 font-bold shrink-0">Dismiss</button>
+          </div>
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -743,7 +745,7 @@ export default function FeedbackManagementView() {
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <Folder className="w-5 h-5 text-emerald-600" /> Bulk Upload Feedbacks via Excel / CSV
                 </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">Import student reviews, survey data, and parent feedback directly into the console</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Import feedback between management and faculty directly into the console</p>
               </div>
               <button onClick={() => setShowExcelModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg cursor-pointer">
                 <XCircle className="w-5 h-5" />
@@ -791,22 +793,22 @@ export default function FeedbackManagementView() {
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-600">
                       <tr>
-                        <td className="px-3.5 py-2 font-medium">Student -&gt; Teacher</td>
-                        <td className="px-3.5 py-2">Aarav Sharma</td>
+                        <td className="px-3.5 py-2 font-medium">Management -&gt; Teacher</td>
+                        <td className="px-3.5 py-2">Principal Mehta</td>
                         <td className="px-3.5 py-2 font-bold text-amber-600">5</td>
-                        <td className="px-3.5 py-2 italic">"Sir explains physics problems clearly."</td>
-                        <td className="px-3.5 py-2">Physics</td>
-                        <td className="px-3.5 py-2">JEE Batch A</td>
-                        <td className="px-3.5 py-2">Academics</td>
+                        <td className="px-3.5 py-2 italic">"Excellent results in the last unit test."</td>
+                        <td className="px-3.5 py-2">alice@school.example</td>
+                        <td className="px-3.5 py-2">Alice Teacher</td>
+                        <td className="px-3.5 py-2">Appraisal</td>
                       </tr>
                       <tr>
-                        <td className="px-3.5 py-2 font-medium">Parent -&gt; School</td>
-                        <td className="px-3.5 py-2">Anonymous</td>
-                        <td className="px-3.5 py-2 font-bold text-amber-600">4</td>
-                        <td className="px-3.5 py-2 italic">"Appreciate the weekly test reports."</td>
-                        <td className="px-3.5 py-2">—</td>
-                        <td className="px-3.5 py-2">Class 11</td>
-                        <td className="px-3.5 py-2">Communication</td>
+                        <td className="px-3.5 py-2 font-medium">Teacher -&gt; Management</td>
+                        <td className="px-3.5 py-2">Mrs. Gupta</td>
+                        <td className="px-3.5 py-2 font-bold text-amber-600">5</td>
+                        <td className="px-3.5 py-2 italic">"New smartboard in Lab 3 works great."</td>
+                        <td className="px-3.5 py-2">Chemistry Lab</td>
+                        <td className="px-3.5 py-2">Staff</td>
+                        <td className="px-3.5 py-2">Infrastructure</td>
                       </tr>
                     </tbody>
                   </table>

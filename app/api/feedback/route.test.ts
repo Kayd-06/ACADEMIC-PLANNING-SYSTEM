@@ -89,6 +89,33 @@ describe('POST /api/feedback', () => {
     expect(body.created[0].senderName).toBe('Carol')
   })
 
+  it('defaults a bulk row with no type to a staff flow so it is visible', async () => {
+    const schoolId = await makeSchool()
+    asUser({ role: 'management', schoolId, name: 'Admin', email: 'admin@school.test' })
+    const res = await POST(postBody({ action: 'bulk', items: [{ content: 'no type given' }] }))
+    const body = await res.json()
+    expect(res.status).toBe(201)
+    expect(body.created[0].type).toBe('Teacher -> Management')
+    expect(body.hiddenCount).toBe(0)
+  })
+
+  it('reports how many bulk rows are stored but hidden from the UI', async () => {
+    const schoolId = await makeSchool()
+    asUser({ role: 'management', schoolId, name: 'Admin', email: 'admin@school.test' })
+    const res = await POST(postBody({
+      action: 'bulk',
+      items: [
+        { content: 'staff row', type: 'Teacher -> Management' },
+        { content: 'student row', type: 'Student -> Teacher' },
+        { content: 'parent row', type: 'Parent -> School' },
+      ],
+    }))
+    const body = await res.json()
+    expect(res.status).toBe(201)
+    expect(body.count).toBe(3)
+    expect(body.hiddenCount).toBe(2)
+  })
+
   it('stores the real sender name even when isAnonymous is sent', async () => {
     const schoolId = await makeSchool()
     asUser({ role: 'teacher', schoolId, name: 'Alice Teacher', email: 'alice@school.test' })
