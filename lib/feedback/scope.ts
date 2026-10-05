@@ -8,7 +8,7 @@ interface TeacherIdentity {
 function isAddressedTo(item: Feedback, name: string, email: string): boolean {
   const batch = (item.batch ?? '').trim()
   if (!batch || batch === 'All Faculty') return true
-  if (name && batch.toLowerCase().includes(name)) return true
+  if (name && batch.toLowerCase() === name) return true
   if (email && (item.subject ?? '').trim().toLowerCase() === email) return true
   return false
 }

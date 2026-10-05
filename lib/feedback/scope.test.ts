@@ -37,6 +37,18 @@ describe('splitTeacherFeedback — received', () => {
     expect(result).toEqual([byName, byEmail])
   })
 
+  it('does not match a teacher whose name is only part of the addressee\'s name', () => {
+    const toRajesh = row({ batch: 'Rajesh Kumar', subject: 'rajesh@school.test' })
+    const toRaviSingh = row({ batch: 'Ravi Kumar Singh', subject: '' })
+    expect(splitTeacherFeedback([toRajesh, toRaviSingh], { name: 'Raj', email: 'raj@school.test' }).received).toEqual([])
+    expect(splitTeacherFeedback([toRaviSingh], { name: 'Ravi Kumar', email: 'ravi@school.test' }).received).toEqual([])
+  })
+
+  it('matches the addressee name ignoring case and surrounding spaces', () => {
+    const item = row({ batch: '  alice teacher ', subject: '' })
+    expect(splitTeacherFeedback([item], alice).received).toEqual([item])
+  })
+
   it('excludes feedback addressed to another teacher', () => {
     const toBob = row({ batch: 'Bob Teacher', subject: 'bob@school.test' })
     expect(splitTeacherFeedback([toBob], alice).received).toEqual([])
