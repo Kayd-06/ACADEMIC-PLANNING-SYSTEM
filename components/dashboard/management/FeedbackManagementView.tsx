@@ -42,10 +42,10 @@ const TYPE_BADGE: Record<string, string> = {
 
 
 export default function FeedbackManagementView() {
-  const [data, setData] = useState<any>({ totalCount: 0, avgRating: 0, pendingCount: 0, actionedCount: 0, ratingDistribution: {}, feedbackList: [] })
+  const [data, setData] = useState<any>({ totalCount: 0, thisMonthCount: 0, avgRating: 0, pendingCount: 0, actionedCount: 0, ratingDistribution: {}, feedbackList: [] })
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'pending' | 'actioned'>('pending')
-  const [activeTab, setActiveTab] = useState<'All' | 'Student -> Teacher' | 'Parent -> School' | 'Teacher -> Management' | 'Management -> Teacher'>('All')
+  const [activeTab, setActiveTab] = useState<'All' | 'Teacher -> Management' | 'Management -> Teacher'>('All')
   const [searchQuery, setSearchQuery] = useState('')
   const [ratingFilter, setRatingFilter] = useState<number | null>(null)
 
@@ -256,12 +256,7 @@ export default function FeedbackManagementView() {
     ))
   }
 
-  function getProfileIcon(name: string, isAnon: boolean) {
-    if (isAnon) return (
-      <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200/50 shrink-0">
-        <User className="w-4 h-4" />
-      </div>
-    )
+  function getProfileIcon(name: string) {
     const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     return (
       <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-extrabold text-xs shadow-sm border border-emerald-200/50 shrink-0">
@@ -273,7 +268,7 @@ export default function FeedbackManagementView() {
   const filteredList = (data.feedbackList || []).filter((item: any) => {
     const q = searchQuery.toLowerCase()
     const matchSearch = !q || item.content.toLowerCase().includes(q) ||
-      (item.isAnonymous ? 'anonymous' : item.senderName.toLowerCase()).includes(q) ||
+      item.senderName.toLowerCase().includes(q) ||
       (item.subject || '').toLowerCase().includes(q) ||
       (item.batch || '').toLowerCase().includes(q) ||
       (item.category || '').toLowerCase().includes(q) ||
@@ -290,7 +285,7 @@ export default function FeedbackManagementView() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Feedback Management</h1>
-            <p className="text-[13px] text-slate-500 mt-1">Review feedback from students, parents, and staff</p>
+            <p className="text-[13px] text-slate-500 mt-1">Review feedback exchanged between management and faculty</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -323,7 +318,7 @@ export default function FeedbackManagementView() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Feedback This Month</span>
-            <span className="text-3xl font-extrabold text-slate-900 mt-2 block">{data.totalCount}</span>
+            <span className="text-3xl font-extrabold text-slate-900 mt-2 block">{data.thisMonthCount}</span>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Average Rating</span>
@@ -364,8 +359,6 @@ export default function FeedbackManagementView() {
           <div className="flex items-center gap-1 border-b border-slate-200 flex-1 overflow-x-auto whitespace-nowrap">
             {([
               { id: 'All', label: 'All' },
-              { id: 'Student -> Teacher', label: 'Student → Teacher' },
-              { id: 'Parent -> School', label: 'Parent → School' },
               { id: 'Teacher -> Management', label: 'Teacher → Management' },
               { id: 'Management -> Teacher', label: 'Management → Teacher' },
             ] as const).map(tab => (
@@ -400,7 +393,7 @@ export default function FeedbackManagementView() {
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-bold text-slate-900">Actioned Feedback</p>
-                  <p className="text-xs text-slate-400 mt-0.5">All investigated, reviewed, and dismissed entries</p>
+                  <p className="text-xs text-slate-400 mt-0.5">All actioned and dismissed entries</p>
                 </div>
                 <span className="text-xs font-bold text-slate-500">{filteredList.length} records</span>
               </div>
@@ -427,9 +420,9 @@ export default function FeedbackManagementView() {
                           <tr key={item.id} className="hover:bg-slate-50/40 transition-colors">
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-2">
-                                {getProfileIcon(item.senderName, item.isAnonymous)}
+                                {getProfileIcon(item.senderName)}
                                 <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
-                                  {item.isAnonymous ? 'Anonymous' : item.senderName}
+                                  {item.senderName}
                                 </span>
                               </div>
                             </td>
@@ -486,10 +479,10 @@ export default function FeedbackManagementView() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      {getProfileIcon(item.senderName, item.isAnonymous)}
+                      {getProfileIcon(item.senderName)}
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] font-bold text-slate-800">{item.isAnonymous ? 'Anonymous' : item.senderName}</span>
+                          <span className="text-[13px] font-bold text-slate-800">{item.senderName}</span>
                           <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${TYPE_BADGE[item.type] ?? 'bg-slate-50 text-slate-600 border-slate-100'}`}>{item.type}</span>
                         </div>
                         <div className="flex items-center gap-0.5 mt-1">{renderStars(item.rating)}</div>
