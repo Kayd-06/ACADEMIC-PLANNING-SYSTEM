@@ -4,10 +4,12 @@ import { feedback } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { STAFF_FLOW_TYPES, isStaffFlow, computeFeedbackStats, filterByView } from '@/lib/feedback/stats'
+import { splitTeacherFeedback } from '@/lib/feedback/scope'
 
 export const dynamic = 'force-dynamic'
 
-// Interaction flows per spec
+// All interaction flows the table can hold (bulk upload may still carry student/parent rows)
 const FLOW_TYPES = ['Student -> Teacher', 'Parent -> School', 'Teacher -> Management', 'Management -> Teacher']
 // Process statuses per spec
 const PROCESS_STATUSES = ['Submitted', 'Reviewed', 'Actioned', 'Dismissed']
@@ -20,27 +22,16 @@ export async function GET(req: NextRequest) {
   const role = (session.user as any).role
   const schoolId = (session.user as any).schoolId as string | null
 
-  // Teachers see the flows that involve them: feedback they sent up, and feedback sent to them
+  // Teachers see only the staff flows that involve them: feedback addressed to them, and feedback they sent up
   if (role === 'teacher') {
-    const teacherTypes = ['Management -> Teacher', 'Teacher -> Management']
-    const conditions = [inArray(feedback.type, teacherTypes)]
+    const conditions = [inArray(feedback.type, [...STAFF_FLOW_TYPES])]
     if (schoolId) conditions.push(eq(feedback.schoolId, schoolId))
     const items = await db.select().from(feedback).where(and(...conditions))
     items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    const teacherName = session.user?.name || ''
-    const teacherEmail = session.user?.email || ''
-    return NextResponse.json({
-      received: items.filter(i => 
-        i.type === 'Management -> Teacher' && (
-          !i.batch || 
-          i.batch === 'All Faculty' || 
-          i.batch === teacherName || 
-          i.subject === teacherEmail ||
-          i.batch.includes(teacherName)
-        )
-      ),
-      sent: items.filter(i => i.type === 'Teacher -> Management'),
-    })
+    return NextResponse.json(splitTeacherFeedback(items, {
+      name: session.user?.name || '',
+      email: session.user?.email || '',
+    }))
   }
 
   if (role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -53,39 +44,25 @@ export async function GET(req: NextRequest) {
     ? await db.select().from(feedback).where(eq(feedback.schoolId, schoolId))
     : await db.select().from(feedback)
 
-  const totalCount = allItems.length
-  const avgRating = totalCount > 0
-    ? Number((allItems.reduce((s, i) => s + i.rating, 0) / totalCount).toFixed(1))
-    : 0
-  const pendingCount = allItems.filter(i => i.status === 'Submitted' || i.status === 'Reviewed').length
-  const actionedCount = allItems.filter(i => i.status === 'Actioned' || i.status === 'Dismissed').length
+  // Student/parent rows stay in the table but are hidden from the UI for now
+  const staffItems = allItems.filter(i => isStaffFlow(i.type))
+  const stats = computeFeedbackStats(staffItems, new Date())
 
-  const distribution: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
-  allItems.forEach(i => { const r = Math.round(i.rating); if (distribution[r] !== undefined) distribution[r]++ })
-  const ratingDistribution = Object.fromEntries(
-    Object.entries(distribution).map(([k, v]) => [k, totalCount > 0 ? Math.round((v / totalCount) * 100) : 0])
-  )
-
-  let filtered = allItems
-  if (type !== 'All') filtered = filtered.filter(i => i.type === type)
-  if (view === 'actioned') {
-    filtered = filtered.filter(i => i.status === 'Actioned' || i.status === 'Dismissed' || i.status === 'Reviewed')
-  } else {
-    filtered = filtered.filter(i => i.status === 'Submitted' || i.status === 'Reviewed')
-  }
-
-  filtered.sort((a, b) => {
+  const byType = type === 'All' ? staffItems : staffItems.filter(i => i.type === type)
+  const feedbackList = filterByView(byType, view)
+  feedbackList.sort((a, b) => {
     const ap = STATUS_PRIORITY[a.status] ?? 4
     const bp = STATUS_PRIORITY[b.status] ?? 4
     if (ap !== bp) return ap - bp
     return new Date(b.date).getTime() - new Date(a.date).getTime()
   })
 
-  return NextResponse.json({ totalCount, avgRating, pendingCount, actionedCount, ratingDistribution, feedbackList: filtered })
+  return NextResponse.json({ ...stats, feedbackList })
 }
 
 // POST — create feedback.
 // Management sends 'Management -> Teacher'; teachers send 'Teacher -> Management'.
+// Feedback is never anonymous: the sender's real name is always stored.
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -97,11 +74,13 @@ export async function POST(req: NextRequest) {
   const schoolId = (session.user as any).schoolId as string | null
   const body = await req.json()
 
-  // Handle bulk upload via Excel / CSV
+  // Bulk upload via Excel / CSV is management-only
   if (body.action === 'bulk' && Array.isArray(body.items)) {
+    if (role !== 'management') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
     const toInsert = body.items.map((i: any) => ({
       senderName: i.senderName?.trim() || 'Anonymous',
-      isAnonymous: i.senderName?.toLowerCase() === 'anonymous' || !!i.isAnonymous,
+      isAnonymous: false,
       rating: typeof i.rating === 'number' && !isNaN(i.rating) && i.rating >= 1 && i.rating <= 5 ? i.rating : 5,
       content: i.content?.trim() || 'General feedback',
       type: FLOW_TYPES.includes(i.type) ? i.type : 'Student -> Teacher',
@@ -118,7 +97,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ count: created.length, created }, { status: 201 })
   }
 
-  const { content, rating, isAnonymous, subject, batch, category } = body
+  const { content, rating, subject, batch, category } = body
 
   if (!content?.trim()) return NextResponse.json({ error: 'Feedback content is required' }, { status: 400 })
   const parsedRating = Number(rating)
@@ -127,10 +106,9 @@ export async function POST(req: NextRequest) {
   }
 
   const type = role === 'management' ? 'Management -> Teacher' : 'Teacher -> Management'
-  const anonymous = !!isAnonymous
   const [created] = await db.insert(feedback).values({
-    senderName: anonymous ? 'Anonymous' : (session.user.name ?? ''),
-    isAnonymous: anonymous,
+    senderName: session.user.name ?? '',
+    isAnonymous: false,
     rating: rating !== undefined ? parsedRating : 5,
     content: content.trim(),
     type,
@@ -144,8 +122,8 @@ export async function POST(req: NextRequest) {
 
   // Notify the receiving side's inbox
   if (type === 'Management -> Teacher') {
-    const titleText = batch && batch !== 'All Faculty' 
-      ? `New personalised feedback from management for ${batch}` 
+    const titleText = batch && batch !== 'All Faculty'
+      ? `New personalised feedback from management for ${batch}`
       : 'New feedback from management'
     await notifyRoleInSchool(['teacher'], schoolId, {
       category: 'General',
