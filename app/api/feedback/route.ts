@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { feedback } from '@/lib/db/schema'
-import { eq, and, inArray } from 'drizzle-orm'
+import { feedback, faculty } from '@/lib/db/schema'
+import { eq, and, or, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
 import { STAFF_FLOW_TYPES, isStaffFlow, computeFeedbackStats, filterByView } from '@/lib/feedback/stats'
@@ -28,9 +28,22 @@ export async function GET(req: NextRequest) {
     if (schoolId) conditions.push(eq(feedback.schoolId, schoolId))
     const items = await db.select().from(feedback).where(and(...conditions))
     items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    // Admins address feedback by the faculty-directory name, which can differ from the account
+    // name. Resolve the caller's own faculty record(s) within their school only.
+    const userId = (session.user as any).id as string | undefined
+    const email = session.user?.email || ''
+    const identity = [email ? eq(faculty.email, email) : undefined, userId ? eq(faculty.userId, userId) : undefined]
+      .filter((c): c is NonNullable<typeof c> => !!c)
+    const aliases = schoolId && identity.length > 0
+      ? (await db.select({ name: faculty.name }).from(faculty)
+          .where(and(eq(faculty.schoolId, schoolId), or(...identity)))).map(f => f.name)
+      : []
+
     return NextResponse.json(splitTeacherFeedback(items, {
       name: session.user?.name || '',
-      email: session.user?.email || '',
+      email,
+      aliases,
     }))
   }
 

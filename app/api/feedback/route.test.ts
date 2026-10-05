@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { feedback, schools } from '@/lib/db/schema'
+import { feedback, schools, faculty } from '@/lib/db/schema'
 import { inArray } from 'drizzle-orm'
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }))
@@ -141,6 +141,37 @@ describe('GET /api/feedback as teacher', () => {
 
     expect(body.sent.map((f: any) => f.content)).toEqual(['alice up'])
     expect(body.received.map((f: any) => f.content)).toEqual(['broadcast'])
+  })
+})
+
+describe('GET /api/feedback as teacher whose faculty-directory name differs from their account name', () => {
+  async function makeFaculty(schoolId: string, o: Partial<typeof faculty.$inferInsert>) {
+    const [f] = await db.insert(faculty).values({
+      name: 'Rohit Sir', subject: 'General', specialization: '', schoolId, ...o,
+    }).returning()
+    return f
+  }
+
+  it('delivers feedback addressed to the teacher\'s faculty record, found by email', async () => {
+    const schoolId = await makeSchool()
+    await makeFaculty(schoolId, { name: 'Rohit Sir', email: 'rohit@school.test' })
+    await seed(schoolId, { type: 'Management -> Teacher', batch: 'Rohit Sir', subject: 'General', content: 'for rohit' })
+    await seed(schoolId, { type: 'Management -> Teacher', batch: 'Someone Else', subject: 'General', content: 'for someone else' })
+
+    asUser({ id: '00000000-0000-4000-8000-000000000001', role: 'teacher', schoolId, name: 'Rohit Gupta', email: 'rohit@school.test' })
+    const body = await (await GET(req('http://localhost/api/feedback'))).json()
+    expect(body.received.map((f: any) => f.content)).toEqual(['for rohit'])
+  })
+
+  it('does not use a same-email faculty record from another school', async () => {
+    const schoolId = await makeSchool()
+    const otherSchoolId = await makeSchool()
+    await makeFaculty(otherSchoolId, { name: 'Rohit Sir', email: 'rohit@school.test' })
+    await seed(schoolId, { type: 'Management -> Teacher', batch: 'Rohit Sir', subject: 'General', content: 'not for this teacher' })
+
+    asUser({ id: '00000000-0000-4000-8000-000000000001', role: 'teacher', schoolId, name: 'Rohit Gupta', email: 'rohit@school.test' })
+    const body = await (await GET(req('http://localhost/api/feedback'))).json()
+    expect(body.received).toEqual([])
   })
 })
 

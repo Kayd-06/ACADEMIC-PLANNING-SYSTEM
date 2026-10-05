@@ -49,6 +49,23 @@ describe('splitTeacherFeedback — received', () => {
     expect(splitTeacherFeedback([item], alice).received).toEqual([item])
   })
 
+  it('matches feedback addressed to the teacher\'s faculty-directory name when it differs from their account name', () => {
+    const toFacultyName = row({ batch: 'Rohit Sir', subject: 'General' })
+    const teacher = { name: 'Rohit Gupta', email: 'rohit@school.test', aliases: ['Rohit Sir'] }
+    expect(splitTeacherFeedback([toFacultyName], teacher).received).toEqual([toFacultyName])
+  })
+
+  it('does not match a faculty-name alias that belongs to someone else', () => {
+    const toOther = row({ batch: 'Rohit Sir Junior', subject: 'General' })
+    const teacher = { name: 'Rohit Gupta', email: 'rohit@school.test', aliases: ['Rohit Sir'] }
+    expect(splitTeacherFeedback([toOther], teacher).received).toEqual([])
+  })
+
+  it('ignores blank aliases', () => {
+    const personal = row({ batch: 'Someone Else', subject: '' })
+    expect(splitTeacherFeedback([personal], { name: 'Alice Teacher', email: '', aliases: ['', '  '] }).received).toEqual([])
+  })
+
   it('excludes feedback addressed to another teacher', () => {
     const toBob = row({ batch: 'Bob Teacher', subject: 'bob@school.test' })
     expect(splitTeacherFeedback([toBob], alice).received).toEqual([])
