@@ -1,6 +1,6 @@
 'use client'
 
-import { LayoutDashboard, Users, BookOpen, ShieldCheck, UserCircle, Calendar, GraduationCap, BarChart2, ClipboardList, ClipboardCheck, CreditCard, FileQuestion, CheckSquare, MessageSquare, MessageSquareText, HeartHandshake, Bell, BookText, FileCheck, ListTodo, Award } from 'lucide-react'
+import { LayoutDashboard, Users, BookOpen, ShieldCheck, UserCircle, Calendar, GraduationCap, BarChart2, ClipboardList, ClipboardCheck, CreditCard, FileQuestion, CheckSquare, MessageSquare, HeartHandshake, Bell, BookText, FileCheck, ListTodo, Award } from 'lucide-react'
 
 export const MANAGEMENT_NAV = [
   { label: 'Dashboard', href: '/management', icon: <LayoutDashboard className="w-4 h-4" /> },
@@ -33,7 +33,6 @@ export const TEACHER_NAV = [
   { label: 'Attendance', href: '/teacher/attendance', icon: <CheckSquare className="w-4 h-4" /> },
   { label: 'Tests & Question Bank', href: '/teacher/tests', icon: <FileQuestion className="w-4 h-4" /> },
   { label: 'Academic Records', href: '/teacher/academic-records', icon: <FileCheck className="w-4 h-4" /> },
-  { label: 'Feedback', href: '/teacher/feedback', icon: <MessageSquareText className="w-4 h-4" /> },
   { label: 'Counseling Log', href: '/teacher/counseling-log', icon: <HeartHandshake className="w-4 h-4" /> },
 ]
 
