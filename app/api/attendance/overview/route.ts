@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth, getSchoolId } from '@/lib/auth'
+import { auth } from '@/lib/auth'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse } from '@/lib/api/http'
 import { db } from '@/lib/db'
 import { attendanceSessions, attendanceEntries, students, programs, batches } from '@/lib/db/schema'
-import { eq, and, gte, lte, inArray, isNull, asc } from 'drizzle-orm'
+import { eq, and, gte, lte, inArray, asc } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +24,7 @@ export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const schoolId = getSchoolId(session)
+    const schoolId = requireSchool(session)
 
     const { searchParams } = new URL(req.url)
     const rangeDays = Number(searchParams.get('range') || '30')
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
     const endDate = dates[dates.length - 1]
 
     const conditions = [gte(attendanceSessions.date, startDate), lte(attendanceSessions.date, endDate)]
-    if (schoolId) conditions.push(eq(attendanceSessions.schoolId, schoolId))
+    conditions.push(eq(attendanceSessions.schoolId, schoolId))
     if (batchFilter !== 'All') {
       conditions.push(eq(attendanceSessions.batch, batchFilter))
     } else if (program !== 'All') {
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
           and(
             eq(students.program, program),
             eq(students.isActive, true),
-            ...(schoolId ? [eq(students.schoolId, schoolId)] : [])
+            eq(students.schoolId, schoolId),
           )
         )
       const programBatches = studentBatches.map(b => b.batch).filter(Boolean)
@@ -147,14 +149,14 @@ export async function GET(req: NextRequest) {
     // derived options from students, and (before getSchoolId() above) a
     // malformed session schoolId silently fell through to "no filter",
     // leaking every school's program/batch names into this list.
-    const programSchoolCondition = schoolId ? eq(programs.schoolId, schoolId) : isNull(programs.schoolId)
+    const programSchoolCondition = eq(programs.schoolId, schoolId)
     const programRows = await db.select({ id: programs.id, name: programs.name })
       .from(programs)
       .where(programSchoolCondition)
       .orderBy(asc(programs.name))
     const distinctPrograms = programRows.map(r => r.name).filter(Boolean)
 
-    const batchSchoolCondition = schoolId ? eq(batches.schoolId, schoolId) : isNull(batches.schoolId)
+    const batchSchoolCondition = eq(batches.schoolId, schoolId)
     const selectedProgramId = program !== 'All' ? programRows.find(r => r.name === program)?.id : undefined
 
     const batchRows = selectedProgramId
@@ -218,7 +220,7 @@ export async function GET(req: NextRequest) {
       distinctBatches,
       distinctPrograms,
     })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'GET /api/attendance/overview')
   }
 }

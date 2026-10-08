@@ -8,6 +8,8 @@ import {
   type ListStudentsFilters,
 } from '@/lib/db/queries/students'
 import type { NewStudent, Student } from '@/lib/db/schema'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,7 +54,7 @@ export async function GET(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = requireSchool(session)
     const { searchParams } = new URL(req.url)
     const classFilter = searchParams.get('class')
     const batchFilter = searchParams.get('batch')
@@ -64,8 +66,8 @@ export async function GET(req: NextRequest) {
 
     const rows = await listStudents(filters)
     return NextResponse.json(rows.map(toApiShape))
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'GET /api/students')
   }
 }
 
@@ -79,7 +81,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only staff can add students' }, { status: 403 })
     }
 
-    const schoolId = (session.user as any).schoolId as string | null
     const body = await req.json()
     const data = pickStudentFields(body)
 
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
     }
     const phoneError = phoneLengthError(data)
     if (phoneError) return NextResponse.json({ error: phoneError }, { status: 400 })
+    const schoolId = requireSchool(session)
 
     const student = await createStudent({
       ...data,
@@ -100,11 +102,10 @@ export async function POST(req: NextRequest) {
       schoolId,
     })
     return NextResponse.json(toApiShape(student), { status: 201 })
-  } catch (error: any) {
-    if (error.code === '23505' || error.cause?.code === '23505') {
-      return NextResponse.json({ error: 'A student with that roll number already exists in this class.' }, { status: 409 })
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'POST /api/students', {
+      conflictMessage: 'A student with that roll number already exists in this class.',
+    })
   }
 }
 
@@ -117,7 +118,6 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Only management can edit students' }, { status: 403 })
     }
 
-    const schoolId = (session.user as any).schoolId as string | null
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Student ID is required' }, { status: 400 })
@@ -129,13 +129,16 @@ export async function PATCH(req: NextRequest) {
     }
     const phoneError = phoneLengthError(updateData)
     if (phoneError) return NextResponse.json({ error: phoneError }, { status: 400 })
+    const schoolId = requireSchool(session)
 
     const student = await updateStudent(id, updateData, schoolId)
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
     return NextResponse.json(toApiShape(student))
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'PATCH /api/students', {
+      conflictMessage: 'A student with that roll number already exists in this class.',
+    })
   }
 }
 
@@ -148,16 +151,17 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Only management can remove students' }, { status: 403 })
     }
 
-    const schoolId = (session.user as any).schoolId as string | null
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
 
     if (!id) return NextResponse.json({ error: 'Student ID is required' }, { status: 400 })
+    const schoolId = requireSchool(session)
 
-    await deleteStudent(id, schoolId)
+    const deleted = await deleteStudent(id, schoolId)
+    if (!deleted) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'DELETE /api/students')
   }
 }

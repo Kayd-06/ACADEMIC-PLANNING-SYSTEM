@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse } from '@/lib/api/http'
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { parentsGuardians, programs, batches } from '@/lib/db/schema'
@@ -193,15 +195,18 @@ export async function DELETE(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    if (role !== 'management' && role !== 'teacher') {
-      return NextResponse.json({ error: 'Only staff can clear all rosters' }, { status: 403 })
+    // Wiping the whole roster is a management-only action (teachers used to be
+    // allowed too, which contradicted this handler's own contract).
+    if (role !== 'management') {
+      return NextResponse.json({ error: 'Only management can clear all rosters' }, { status: 403 })
     }
 
-    const schoolId = (session.user as any).schoolId as string | null
+    // Never "no school = every school": without an active school this is refused.
+    const schoolId = requireSchool(session)
     await deleteAllStudents(schoolId)
 
     return NextResponse.json({ success: true, message: 'All students deleted successfully' })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'DELETE /api/students/bulk')
   }
 }
