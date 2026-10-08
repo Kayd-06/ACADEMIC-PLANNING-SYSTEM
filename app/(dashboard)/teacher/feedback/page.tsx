@@ -12,7 +12,9 @@ function getInitials(name: string) {
 export default async function FeedbackPage() {
   const session = await auth()
   if (!session) redirect('/login')
-  if (session.user.role !== 'teacher' && session.user.role !== 'management') redirect('/')
+  // Management has its own feedback console; this page posts as Teacher -> Management
+  if (session.user.role === 'management') redirect('/management/feedback')
+  if (session.user.role !== 'teacher') redirect('/')
 
   const initials = getInitials(session.user.name ?? 'EA')
   
@@ -20,7 +22,7 @@ export default async function FeedbackPage() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar 
         userName={session.user.name ?? ''} 
-        userRole={session.user.role === 'management' ? 'Academic Administration' : 'Faculty'} 
+        userRole="Faculty"
         navItems={TEACHER_NAV} 
         initials={initials} 
       />

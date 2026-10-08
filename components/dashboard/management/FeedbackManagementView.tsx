@@ -42,10 +42,10 @@ const TYPE_BADGE: Record<string, string> = {
 
 
 export default function FeedbackManagementView() {
-  const [data, setData] = useState<any>({ totalCount: 0, avgRating: 0, pendingCount: 0, actionedCount: 0, ratingDistribution: {}, feedbackList: [] })
+  const [data, setData] = useState<any>({ totalCount: 0, thisMonthCount: 0, avgRating: 0, pendingCount: 0, actionedCount: 0, ratingDistribution: {}, feedbackList: [] })
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'pending' | 'actioned'>('pending')
-  const [activeTab, setActiveTab] = useState<'All' | 'Student -> Teacher' | 'Parent -> School' | 'Teacher -> Management' | 'Management -> Teacher'>('All')
+  const [activeTab, setActiveTab] = useState<'All' | 'Teacher -> Management' | 'Management -> Teacher'>('All')
   const [searchQuery, setSearchQuery] = useState('')
   const [ratingFilter, setRatingFilter] = useState<number | null>(null)
 
@@ -66,6 +66,7 @@ export default function FeedbackManagementView() {
   const [previewRows, setPreviewRows] = useState<any[]>([])
   const [uploadingBulk, setUploadingBulk] = useState(false)
   const [bulkError, setBulkError] = useState('')
+  const [uploadNotice, setUploadNotice] = useState('')
 
 
 
@@ -154,23 +155,13 @@ export default function FeedbackManagementView() {
   function handleDownloadTemplate() {
     const sampleData = [
       {
-        Type: 'Student -> Teacher',
-        Sender: 'Aarav Sharma',
+        Type: 'Management -> Teacher',
+        Sender: 'Principal Mehta',
         Rating: 5,
-        Content: 'Sir explains physics problems very clearly with real-life examples.',
-        Subject: 'Physics',
-        Batch: 'JEE Batch A',
-        Category: 'Academics',
-        Date: new Date().toISOString().split('T')[0]
-      },
-      {
-        Type: 'Parent -> School',
-        Sender: 'Parent of Rohan',
-        Rating: 4,
-        Content: 'We appreciate the weekly progress reports and timely PTM notifications.',
-        Subject: 'General',
-        Batch: 'Class 11',
-        Category: 'Communication',
+        Content: 'Excellent results in the last unit test, keep it up.',
+        Subject: 'alice@school.example',
+        Batch: 'Alice Teacher',
+        Category: 'Appraisal',
         Date: new Date().toISOString().split('T')[0]
       },
       {
@@ -203,7 +194,7 @@ export default function FeedbackManagementView() {
         const ws = wb.Sheets[wsname]
         const data = XLSX.utils.sheet_to_json(ws)
         const parsedRows = data.map((row: any) => ({
-          type: row.Type || row.type || 'Student -> Teacher',
+          type: row.Type || row.type || 'Teacher -> Management',
           senderName: row.Sender || row.senderName || row.Name || 'Anonymous',
           rating: Math.max(1, Math.min(5, Number(row.Rating || row.rating || 5))),
           content: row.Content || row.content || row.Feedback || row.Comment || '',
@@ -240,6 +231,10 @@ export default function FeedbackManagementView() {
         setBulkError(d.error || 'Bulk upload failed')
         return
       }
+      const result = await res.json().catch(() => ({}))
+      setUploadNotice(result.hiddenCount > 0
+        ? `${result.hiddenCount} student/parent row(s) were stored but are not shown here. Only Teacher ↔ Management feedback is listed.`
+        : '')
       setShowExcelModal(false)
       setPreviewRows([])
       fetchFeedback()
@@ -256,12 +251,7 @@ export default function FeedbackManagementView() {
     ))
   }
 
-  function getProfileIcon(name: string, isAnon: boolean) {
-    if (isAnon) return (
-      <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200/50 shrink-0">
-        <User className="w-4 h-4" />
-      </div>
-    )
+  function getProfileIcon(name: string) {
     const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     return (
       <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-extrabold text-xs shadow-sm border border-emerald-200/50 shrink-0">
@@ -273,7 +263,7 @@ export default function FeedbackManagementView() {
   const filteredList = (data.feedbackList || []).filter((item: any) => {
     const q = searchQuery.toLowerCase()
     const matchSearch = !q || item.content.toLowerCase().includes(q) ||
-      (item.isAnonymous ? 'anonymous' : item.senderName.toLowerCase()).includes(q) ||
+      item.senderName.toLowerCase().includes(q) ||
       (item.subject || '').toLowerCase().includes(q) ||
       (item.batch || '').toLowerCase().includes(q) ||
       (item.category || '').toLowerCase().includes(q) ||
@@ -290,7 +280,7 @@ export default function FeedbackManagementView() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Feedback Management</h1>
-            <p className="text-[13px] text-slate-500 mt-1">Review feedback from students, parents, and staff</p>
+            <p className="text-[13px] text-slate-500 mt-1">Review feedback exchanged between management and faculty</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -319,11 +309,18 @@ export default function FeedbackManagementView() {
           </div>
         </div>
 
+        {uploadNotice && (
+          <div className="mb-6 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-semibold text-amber-800 flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" /> {uploadNotice}</span>
+            <button onClick={() => setUploadNotice('')} className="text-amber-700 hover:text-amber-900 font-bold shrink-0">Dismiss</button>
+          </div>
+        )}
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Feedback This Month</span>
-            <span className="text-3xl font-extrabold text-slate-900 mt-2 block">{data.totalCount}</span>
+            <span className="text-3xl font-extrabold text-slate-900 mt-2 block">{data.thisMonthCount}</span>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Average Rating</span>
@@ -364,8 +361,6 @@ export default function FeedbackManagementView() {
           <div className="flex items-center gap-1 border-b border-slate-200 flex-1 overflow-x-auto whitespace-nowrap">
             {([
               { id: 'All', label: 'All' },
-              { id: 'Student -> Teacher', label: 'Student → Teacher' },
-              { id: 'Parent -> School', label: 'Parent → School' },
               { id: 'Teacher -> Management', label: 'Teacher → Management' },
               { id: 'Management -> Teacher', label: 'Management → Teacher' },
             ] as const).map(tab => (
@@ -400,7 +395,7 @@ export default function FeedbackManagementView() {
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-bold text-slate-900">Actioned Feedback</p>
-                  <p className="text-xs text-slate-400 mt-0.5">All investigated, reviewed, and dismissed entries</p>
+                  <p className="text-xs text-slate-400 mt-0.5">All actioned and dismissed entries</p>
                 </div>
                 <span className="text-xs font-bold text-slate-500">{filteredList.length} records</span>
               </div>
@@ -427,9 +422,9 @@ export default function FeedbackManagementView() {
                           <tr key={item.id} className="hover:bg-slate-50/40 transition-colors">
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-2">
-                                {getProfileIcon(item.senderName, item.isAnonymous)}
+                                {getProfileIcon(item.senderName)}
                                 <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
-                                  {item.isAnonymous ? 'Anonymous' : item.senderName}
+                                  {item.senderName}
                                 </span>
                               </div>
                             </td>
@@ -486,10 +481,10 @@ export default function FeedbackManagementView() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      {getProfileIcon(item.senderName, item.isAnonymous)}
+                      {getProfileIcon(item.senderName)}
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] font-bold text-slate-800">{item.isAnonymous ? 'Anonymous' : item.senderName}</span>
+                          <span className="text-[13px] font-bold text-slate-800">{item.senderName}</span>
                           <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${TYPE_BADGE[item.type] ?? 'bg-slate-50 text-slate-600 border-slate-100'}`}>{item.type}</span>
                         </div>
                         <div className="flex items-center gap-0.5 mt-1">{renderStars(item.rating)}</div>
@@ -750,7 +745,7 @@ export default function FeedbackManagementView() {
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <Folder className="w-5 h-5 text-emerald-600" /> Bulk Upload Feedbacks via Excel / CSV
                 </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">Import student reviews, survey data, and parent feedback directly into the console</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Import feedback between management and faculty directly into the console</p>
               </div>
               <button onClick={() => setShowExcelModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg cursor-pointer">
                 <XCircle className="w-5 h-5" />
@@ -798,22 +793,22 @@ export default function FeedbackManagementView() {
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-600">
                       <tr>
-                        <td className="px-3.5 py-2 font-medium">Student -&gt; Teacher</td>
-                        <td className="px-3.5 py-2">Aarav Sharma</td>
+                        <td className="px-3.5 py-2 font-medium">Management -&gt; Teacher</td>
+                        <td className="px-3.5 py-2">Principal Mehta</td>
                         <td className="px-3.5 py-2 font-bold text-amber-600">5</td>
-                        <td className="px-3.5 py-2 italic">"Sir explains physics problems clearly."</td>
-                        <td className="px-3.5 py-2">Physics</td>
-                        <td className="px-3.5 py-2">JEE Batch A</td>
-                        <td className="px-3.5 py-2">Academics</td>
+                        <td className="px-3.5 py-2 italic">"Excellent results in the last unit test."</td>
+                        <td className="px-3.5 py-2">alice@school.example</td>
+                        <td className="px-3.5 py-2">Alice Teacher</td>
+                        <td className="px-3.5 py-2">Appraisal</td>
                       </tr>
                       <tr>
-                        <td className="px-3.5 py-2 font-medium">Parent -&gt; School</td>
-                        <td className="px-3.5 py-2">Anonymous</td>
-                        <td className="px-3.5 py-2 font-bold text-amber-600">4</td>
-                        <td className="px-3.5 py-2 italic">"Appreciate the weekly test reports."</td>
-                        <td className="px-3.5 py-2">—</td>
-                        <td className="px-3.5 py-2">Class 11</td>
-                        <td className="px-3.5 py-2">Communication</td>
+                        <td className="px-3.5 py-2 font-medium">Teacher -&gt; Management</td>
+                        <td className="px-3.5 py-2">Mrs. Gupta</td>
+                        <td className="px-3.5 py-2 font-bold text-amber-600">5</td>
+                        <td className="px-3.5 py-2 italic">"New smartboard in Lab 3 works great."</td>
+                        <td className="px-3.5 py-2">Chemistry Lab</td>
+                        <td className="px-3.5 py-2">Staff</td>
+                        <td className="px-3.5 py-2">Infrastructure</td>
                       </tr>
                     </tbody>
                   </table>
