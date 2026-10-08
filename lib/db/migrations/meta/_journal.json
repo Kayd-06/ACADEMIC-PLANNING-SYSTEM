@@ -274,6 +274,13 @@
       "when": 1791441747619,
       "tag": "0051_data_integrity_unique_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791441807619,
+      "tag": "0052_academic_planning_tables",
+      "breakpoints": true
     }
   ]
 }

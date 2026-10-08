@@ -1,6 +1,6 @@
 # Academic Planning System
 
-An enterprise-grade, multi-tenant Academic Planning and Management System built with **Next.js 16 (App Router)**, **React 19**, **Drizzle ORM**, **PostgreSQL (Neon)**, **MongoDB**, and **Tailwind CSS v4**.
+An enterprise-grade, multi-tenant Academic Planning and Management System built with **Next.js 16 (App Router)**, **React 19**, **Drizzle ORM**, **PostgreSQL (Neon)**, and **Tailwind CSS v4**.
 
 Designed specifically for educational institutions, the platform hosts two distinct dashboards: **Management Portal** for coordinators/admins and **Teacher Portal** for faculty members, providing comprehensive control over academic operations.
 
@@ -38,7 +38,7 @@ Designed specifically for educational institutions, the platform hosts two disti
 ## Tech Stack
 
 - **Framework**: [Next.js 16 (App Router)](https://nextjs.org/) + [React 19](https://react.dev/)
-- **Database**: [PostgreSQL (Neon Serverless)](https://neon.tech/) & [MongoDB](https://www.mongodb.com/)
+- **Database**: [PostgreSQL (Neon Serverless)](https://neon.tech/)
 - **ORM & Migrations**: [Drizzle ORM](https://orm.drizzle.team/) & [Drizzle Kit](https://orm.drizzle.team/kit-docs/overview)
 - **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) + [Framer Motion](https://www.framer.com/motion/) + [Lucide Icons](https://lucide.dev/)
 - **Authentication**: [NextAuth.js (v5 Beta)](https://authjs.dev/) with Email OTP codes and secure credentials hashes (bcryptjs)
@@ -55,12 +55,10 @@ Designed specifically for educational institutions, the platform hosts two disti
 Ensure you have the following installed on your system:
 * [Node.js](https://nodejs.org/) (v18+ recommended)
 * A PostgreSQL instance (or [Neon database](https://neon.tech/))
-* A MongoDB instance (used for legacy features)
 
 ### 2. Environment Variables Configuration
 Set up your environment variables based on the standard configuration format. Make sure to populate:
 - `DATABASE_URL`: Your PostgreSQL connection string.
-- `MONGODB_URI`: Your MongoDB connection string.
 - `AUTH_SECRET`: Secret key used to encrypt NextAuth tokens.
 - `NEXT_PUBLIC_APP_URL`: App domain (e.g., `http://localhost:3000`).
 - `GMAIL_USER` & `GMAIL_APP_PASSWORD`: SMTP credentials for Nodemailer OTP emails.

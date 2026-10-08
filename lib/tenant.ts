@@ -6,6 +6,11 @@ import { HttpError } from '@/lib/api/http'
 // module with only `{ auth }`, and this helper must keep working under mocks.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+/** True for a syntactically valid UUID (use before querying uuid columns with user input). */
+export function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && UUID_RE.test(value)
+}
+
 export const NO_SCHOOL_MESSAGE = 'Your account is not linked to a school yet. Select or join a school first.'
 
 /** The active school id from the session, or null when missing/invalid. */

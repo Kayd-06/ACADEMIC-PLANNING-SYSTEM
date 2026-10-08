@@ -1,6 +1,6 @@
 import type { NextAuthConfig } from 'next-auth'
 
-// Edge-runtime compatible config — no Node.js imports (no mongoose, bcrypt, etc.)
+// Edge-runtime compatible config — no Node.js imports (no bcrypt, DB drivers, etc.)
 // Used by both middleware and lib/auth.ts
 export const authConfig: NextAuthConfig = {
   providers: [],

@@ -1,123 +1,202 @@
 import { NextResponse } from 'next/server'
-import { Milestone, PlanningLog, AcademicMetric } from '@/models/AcademicPlanning'
-import mongoose from 'mongoose'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { academicMetrics, academicMilestones, academicPlanningLogs } from '@/lib/db/schema'
+import { isUuid, requireSchool } from '@/lib/tenant'
+import { errorResponse, HttpError } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
 
-async function connectDB() {
-  if (mongoose.connection.readyState >= 1) return
-  if (!process.env.MONGODB_URI) {
-    throw new Error('MONGODB_URI is not defined in environment variables')
+// Academic Planning board (milestones, planning logs, metrics) — moved from
+// MongoDB to Postgres (migration 0052). Response shapes are unchanged:
+// GET -> { milestones, logs, metrics }, items carry `_id` as before.
+// Differences: requires a signed-in staff user, data is per school, and an
+// empty board stays empty (the old GET seeded demo rows into the database).
+
+type BoardRole = 'management' | 'teacher'
+type ModelType = 'milestone' | 'log' | 'metric'
+
+const withMongoId = <T extends { id: string }>(row: T) => ({ ...row, _id: row.id })
+
+async function requireStaff() {
+  const session = await auth()
+  if (!session) throw new HttpError(401, 'Unauthorized')
+  const role = (session.user as any).role as string
+  if (role !== 'management' && role !== 'teacher') throw new HttpError(403, 'Forbidden')
+  return { session, role: role as BoardRole }
+}
+
+/** Management may use either board; a teacher only the teacher board. */
+function checkBoard(userRole: BoardRole, board: unknown): BoardRole {
+  if (board !== 'management' && board !== 'teacher') throw new HttpError(400, 'Role is required')
+  if (userRole === 'teacher' && board !== 'teacher') throw new HttpError(403, 'Forbidden')
+  return board
+}
+
+function str(body: Record<string, unknown>, key: string, max: number, required: boolean): string | undefined {
+  const v = body[key]
+  if (v === undefined || v === null || v === '') {
+    if (required) throw new HttpError(400, `${key} is required`)
+    return undefined
   }
-  await mongoose.connect(process.env.MONGODB_URI)
+  if (typeof v !== 'string' && typeof v !== 'number') throw new HttpError(400, `${key} is invalid`)
+  const s = String(v).trim()
+  if (required && !s) throw new HttpError(400, `${key} is required`)
+  if (s.length > max) throw new HttpError(400, `${key} is too long`)
+  return s
+}
+
+function milestoneFields(body: Record<string, unknown>, partial: boolean) {
+  const out = {
+    name: str(body, 'name', 255, !partial),
+    type: str(body, 'type', 100, !partial),
+    date: str(body, 'date', 10, !partial),
+    subject: str(body, 'subject', 255, !partial),
+    status: str(body, 'status', 50, false),
+  }
+  return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined))
+}
+
+function logFields(body: Record<string, unknown>, partial: boolean) {
+  const out = {
+    title: str(body, 'title', 255, !partial),
+    focus: str(body, 'focus', 5000, !partial),
+    type: str(body, 'type', 50, !partial),
+    measure: str(body, 'measure', 5000, !partial),
+    measureLabel: str(body, 'measureLabel', 255, !partial),
+  }
+  return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined))
+}
+
+function metricFields(body: Record<string, unknown>) {
+  const out: Record<string, unknown> = {
+    label: str(body, 'label', 255, false),
+    value: str(body, 'value', 50, false),
+    trend: str(body, 'trend', 50, false),
+  }
+  if (Array.isArray(body.chartData)) {
+    out.chartData = body.chartData.map(Number).filter((n) => Number.isFinite(n)).slice(0, 50)
+  }
+  return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined))
 }
 
 export async function GET(request: Request) {
   try {
-    await connectDB()
+    const { session, role } = await requireStaff()
     const { searchParams } = new URL(request.url)
-    const role = searchParams.get('role')
+    const board = checkBoard(role, searchParams.get('role'))
+    const schoolId = requireSchool(session)
 
-    if (!role) return NextResponse.json({ error: 'Role is required' }, { status: 400 })
+    // Read-only: no seeding on GET.
+    const [milestones, logs, metrics] = await Promise.all([
+      db.select().from(academicMilestones)
+        .where(and(eq(academicMilestones.schoolId, schoolId), eq(academicMilestones.role, board)))
+        .orderBy(asc(academicMilestones.date)),
+      db.select().from(academicPlanningLogs)
+        .where(and(eq(academicPlanningLogs.schoolId, schoolId), eq(academicPlanningLogs.role, board)))
+        .orderBy(desc(academicPlanningLogs.createdAt)),
+      db.select().from(academicMetrics)
+        .where(and(eq(academicMetrics.schoolId, schoolId), eq(academicMetrics.role, board)))
+        .orderBy(asc(academicMetrics.createdAt)),
+    ])
 
-    const count = await Milestone.countDocuments()
-    if (count === 0) {
-      await Milestone.insertMany([
-        { name: 'Annual Quality Audit', type: 'Institutional', date: '2024-10-30', subject: 'All Departments', status: 'Pending', role: 'management' },
-        { name: 'Faculty Performance Review', type: 'Internal', date: '2024-11-05', subject: 'Academic Staff', status: 'Scheduled', role: 'management' },
-        { name: 'Physics Unit 4', type: 'Fortnightly', date: '2024-10-15', subject: 'Grade 11 • Physics', status: 'Scheduled', role: 'teacher' },
-        { name: 'Math Quiz 2', type: 'Weekly', date: '2024-10-20', subject: 'Grade 10 • Math', status: 'Scheduled', role: 'teacher' },
-      ])
-      await PlanningLog.insertMany([
-        { title: 'Institutional Compliance Audit', focus: 'Safety and Academic Standards for 2024-25.', type: 'review', measure: 'Allocate $25k for lab equipment upgrades.', measureLabel: 'Budget Allocation:', role: 'management' },
-        { title: 'Science Dept. Periodic Review', focus: 'Grade 10 Physics Mid-term results analysis.', type: 'review', measure: 'Schedule additional tutorial sessions for mechanics.', measureLabel: 'Corrective Measure:', role: 'teacher' },
-        { title: 'Curriculum Sync', focus: 'Aligning Grade 11 syllabus with board standards.', type: 'sync', measure: 'Updated lesson plans for the next 3 weeks.', measureLabel: 'Action Item:', role: 'teacher' },
-      ])
-      await AcademicMetric.insertMany([
-        { label: 'Overall GPA', value: '3.6', trend: '+0.2', role: 'management', category: 'header_stat' },
-        { label: 'Staff Capacity', value: '92%', trend: '-2%', role: 'management', category: 'header_stat' },
-        { label: 'Budget Util.', value: '64%', trend: '+4%', role: 'management', category: 'header_stat' },
-        { label: 'Course Progress', value: '78%', trend: '+5%', role: 'teacher', category: 'header_stat' },
-        { label: 'Avg Attendance', value: '94%', trend: '+1%', role: 'teacher', category: 'header_stat' },
-        { label: 'Assignment Completion', value: '86%', trend: '+2%', role: 'teacher', category: 'header_stat' },
-        { label: 'Staff Retention', value: '96.8%', trend: '+0.8%', role: 'management', category: 'quality_stat', chartData: [40, 70, 45, 90, 65, 80, 50] },
-        { label: 'Student Performance', value: '88.5%', trend: '+3.4%', role: 'teacher', category: 'quality_stat', chartData: [30, 60, 50, 85, 70, 75, 80] },
-      ])
-    }
-
-    const milestones = await Milestone.find({ role }).sort({ date: 1 })
-    const logs = await PlanningLog.find({ role }).sort({ createdAt: -1 })
-    const metrics = await AcademicMetric.find({ role })
-
-    return NextResponse.json({ milestones, logs, metrics }, {
-      headers: {
-        'Cache-Control': 'no-store, max-age=0, must-revalidate'
-      }
+    return NextResponse.json({
+      milestones: milestones.map(withMongoId),
+      logs: logs.map(withMongoId),
+      metrics: metrics.map(withMongoId),
+    }, {
+      headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' },
     })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'GET /api/academic-planning')
   }
 }
 
 export async function POST(request: Request) {
   try {
-    await connectDB()
-    const body = await request.json()
-    const { modelType, ...data } = body
+    const { session, role } = await requireStaff()
+    const body = (await request.json()) as Record<string, unknown>
+    const modelType = body.modelType as ModelType
+    if (modelType !== 'milestone' && modelType !== 'log') {
+      return NextResponse.json({ error: 'Invalid modelType' }, { status: 400 })
+    }
+    const board = checkBoard(role, body.role)
+    const schoolId = requireSchool(session)
+    const createdBy = isUuid((session.user as any).id) ? (session.user as any).id as string : null
 
     if (modelType === 'milestone') {
-      const newItem = await Milestone.create(data)
-      return NextResponse.json(newItem)
-    } else if (modelType === 'log') {
-      const newItem = await PlanningLog.create(data)
-      return NextResponse.json(newItem)
+      const [row] = await db.insert(academicMilestones)
+        .values({ ...(milestoneFields(body, false) as any), role: board, schoolId, createdBy })
+        .returning()
+      return NextResponse.json(withMongoId(row))
     }
-    
-    return NextResponse.json({ error: 'Invalid modelType' }, { status: 400 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const [row] = await db.insert(academicPlanningLogs)
+      .values({ ...(logFields(body, false) as any), role: board, schoolId, createdBy })
+      .returning()
+    return NextResponse.json(withMongoId(row))
+  } catch (error) {
+    return errorResponse(error, 'POST /api/academic-planning')
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    await connectDB()
-    const body = await request.json()
-    const { id, modelType, ...updates } = body
-
-    let updatedItem
-    if (modelType === 'milestone') {
-      updatedItem = await Milestone.findByIdAndUpdate(id, updates, { new: true })
-    } else if (modelType === 'log') {
-      updatedItem = await PlanningLog.findByIdAndUpdate(id, updates, { new: true })
-    } else if (modelType === 'metric') {
-      updatedItem = await AcademicMetric.findByIdAndUpdate(id, updates, { new: true })
+    const { session, role } = await requireStaff()
+    const body = (await request.json()) as Record<string, unknown>
+    const { id, modelType } = body as { id?: unknown; modelType?: ModelType }
+    if (!isUuid(id)) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+    if (modelType !== 'milestone' && modelType !== 'log' && modelType !== 'metric') {
+      return NextResponse.json({ error: 'Invalid modelType' }, { status: 400 })
     }
+    const schoolId = requireSchool(session)
+    // A teacher can only edit the teacher board.
+    const boards: BoardRole[] = role === 'management' ? ['management', 'teacher'] : ['teacher']
 
-    if (!updatedItem) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
-    return NextResponse.json(updatedItem)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    let updated: { id: string } | undefined
+    if (modelType === 'milestone') {
+      const fields = milestoneFields(body, true)
+      ;[updated] = await db.update(academicMilestones).set({ ...fields, updatedAt: new Date() })
+        .where(and(eq(academicMilestones.id, id), eq(academicMilestones.schoolId, schoolId), inArray(academicMilestones.role, boards)))
+        .returning()
+    } else if (modelType === 'log') {
+      const fields = logFields(body, true)
+      ;[updated] = await db.update(academicPlanningLogs).set({ ...fields, updatedAt: new Date() })
+        .where(and(eq(academicPlanningLogs.id, id), eq(academicPlanningLogs.schoolId, schoolId), inArray(academicPlanningLogs.role, boards)))
+        .returning()
+    } else {
+      const fields = metricFields(body)
+      ;[updated] = await db.update(academicMetrics).set({ ...fields, updatedAt: new Date() })
+        .where(and(eq(academicMetrics.id, id), eq(academicMetrics.schoolId, schoolId), inArray(academicMetrics.role, boards)))
+        .returning()
+    }
+    if (!updated) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+    return NextResponse.json(withMongoId(updated))
+  } catch (error) {
+    return errorResponse(error, 'PATCH /api/academic-planning')
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    await connectDB()
+    const { session, role } = await requireStaff()
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     const type = searchParams.get('type')
 
     if (!id || !type) return NextResponse.json({ error: 'ID and Type are required' }, { status: 400 })
+    if (!isUuid(id)) return NextResponse.json({ success: true })
+    const schoolId = requireSchool(session)
+    const boards: BoardRole[] = role === 'management' ? ['management', 'teacher'] : ['teacher']
 
     if (type === 'milestone') {
-      await Milestone.findByIdAndDelete(id)
+      await db.delete(academicMilestones).where(and(eq(academicMilestones.id, id), eq(academicMilestones.schoolId, schoolId), inArray(academicMilestones.role, boards)))
     } else if (type === 'log') {
-      await PlanningLog.findByIdAndDelete(id)
+      await db.delete(academicPlanningLogs).where(and(eq(academicPlanningLogs.id, id), eq(academicPlanningLogs.schoolId, schoolId), inArray(academicPlanningLogs.role, boards)))
     }
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'DELETE /api/academic-planning')
   }
 }

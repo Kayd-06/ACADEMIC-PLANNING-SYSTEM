@@ -1,68 +1,121 @@
 import { NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
-import TeacherSchedule from '@/models/TeacherSchedule'
-import StudentCounseling from '@/models/StudentCounseling'
-import StudyMaterial from '@/models/StudyMaterial'
-import TeacherFeedback from '@/models/TeacherFeedback'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { classSchedules, counselingSessions, feedback, specialClasses, studyMaterials } from '@/lib/db/schema'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse, HttpError } from '@/lib/api/http'
+import { todayIST, toTeacherSchedule } from '@/lib/legacyPortal'
+import { splitTeacherFeedback } from '@/lib/feedback/scope'
 
 export const dynamic = 'force-dynamic'
 
+// Teacher portal overview — moved from four MongoDB collections to the
+// Postgres tables the rest of the app already uses. Same response shape as
+// before: { schedule, counseling, materials, feedback } with `_id` on items.
+//   schedule   today's recurring classes (class_schedules) + one-off classes (special_classes)
+//   counseling recent counseling_sessions
+//   materials  study_materials grouped by provider
+//   feedback   recent management -> teacher feedback (for a teacher: only
+//              what is addressed to them, same rule as /api/feedback)
+// Read-only (the old GET inserted demo rows whenever a collection was empty)
+// and scoped to the session's school; a teacher sees their own classes and
+// counseling sessions.
+
+
 export async function GET() {
   try {
-    await connectDB()
-    
-    const d = new Date()
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-    const today = d.toISOString().split('T')[0]
+    const session = await auth()
+    if (!session) throw new HttpError(401, 'Unauthorized')
+    const role = (session.user as any).role
+    if (role !== 'management' && role !== 'teacher') throw new HttpError(403, 'Forbidden')
+    const schoolId = requireSchool(session)
+    const email = ((session.user as any).email || '') as string
+    const userId = (session.user as any).id as string | undefined
+    const isTeacher = role === 'teacher'
 
-    const [schedule, counseling, materials, feedback] = await Promise.all([
-      TeacherSchedule.find().sort({ createdAt: 1 }),
-      StudentCounseling.find().sort({ createdAt: -1 }),
-      StudyMaterial.find().sort({ createdAt: 1 }),
-      TeacherFeedback.find().sort({ createdAt: -1 })
+    const today = todayIST()
+    const dayOfWeek = new Date(`${today}T00:00:00Z`).getUTCDay()
+
+    const recurringWhere = [eq(classSchedules.schoolId, schoolId), eq(classSchedules.dayOfWeek, dayOfWeek), eq(classSchedules.isActive, true)]
+    const specialWhere = [eq(specialClasses.schoolId, schoolId), eq(specialClasses.date, today)]
+    const counselingWhere = [eq(counselingSessions.schoolId, schoolId)]
+    if (isTeacher) {
+      recurringWhere.push(eq(classSchedules.teacherEmail, email))
+      specialWhere.push(eq(specialClasses.teacherEmail, email))
+      if (userId) counselingWhere.push(eq(counselingSessions.counselorId, userId))
+    }
+
+    const [recurring, specials, counseling, materials, feedbackRows] = await Promise.all([
+      db.select().from(classSchedules).where(and(...recurringWhere)).orderBy(asc(classSchedules.startTime)),
+      db.select().from(specialClasses).where(and(...specialWhere)).orderBy(asc(specialClasses.startTime)),
+      db.select().from(counselingSessions).where(and(...counselingWhere)).orderBy(desc(counselingSessions.createdAt)).limit(20),
+      db.select({
+        provider: studyMaterials.provider,
+        count: sql<number>`count(*)::int`,
+        type: sql<string>`max(${studyMaterials.type})`,
+        subject: sql<string>`max(${studyMaterials.subject})`,
+      }).from(studyMaterials).where(eq(studyMaterials.schoolId, schoolId))
+        .groupBy(studyMaterials.provider).orderBy(asc(studyMaterials.provider)),
+      db.select().from(feedback)
+        .where(and(eq(feedback.schoolId, schoolId), eq(feedback.type, 'Management -> Teacher')))
+        .orderBy(desc(feedback.createdAt)).limit(200),
     ])
 
-    // Seed if empty for today
-    let todaySchedules = await TeacherSchedule.find({ date: today }).sort({ time: 1 })
-    if (todaySchedules.length === 0) {
-      await TeacherSchedule.insertMany([
-        { date: today, time: '09:00 AM', activity: 'Test Conduction: Physics Mid-Term', batch: 'Batch A1', location: 'Hall B', status: 'Upcoming' },
-        { date: today, time: '11:30 AM', activity: 'Periodic Visit: Study Hall Supervision', batch: 'Library Wing C', location: 'Library', status: 'Pending' },
-        { date: today, time: '02:00 PM', activity: 'Doubt Clearing Session', batch: 'Batch B2', location: 'Room 405', status: 'Pending' }
-      ])
-      todaySchedules = await TeacherSchedule.find({ date: today }).sort({ time: 1 })
-    }
-    if (counseling.length === 0) {
-      await StudentCounseling.insertMany([
-        { studentName: 'Rahul Sharma', category: 'Attendance', description: 'Missed last 3 tutorials. Needs immediate follow-up regarding...' },
-        { studentName: 'Priya Patel', category: 'Behavior', description: 'Excellent improvement in class participation. Marked as...' }
-      ])
-    }
-    if (materials.length === 0) {
-      await StudyMaterial.insertMany([
-        { provider: 'Allen Modules', count: 45, type: 'PDFs', subject: 'Physics', initials: 'AL' },
-        { provider: 'Aakash Bank', count: 120, type: 'Tests', subject: 'PCM', initials: 'AK' },
-        { provider: 'Motion DPPS', count: 30, type: 'Daily Practice', subject: 'Physics', initials: 'MO' }
-      ])
-    }
-    if (feedback.length === 0) {
-      await TeacherFeedback.insertMany([
-        { from: 'Student (Batch A1)', context: '2 days ago', content: '"The mid-term review session was extremely helpful for clarifying electromagnetism concepts."', type: 'student' },
-        { from: 'Academic Coordinator', context: '1 week ago', content: '"Syllabus coverage is exactly on track. Good utilization of the Motion study material in class."', type: 'coordinator' }
-      ])
-    }
+    const visibleFeedback = (isTeacher
+      ? splitTeacherFeedback(feedbackRows, { name: session.user?.name || '', email }).received
+      : feedbackRows
+    ).slice(0, 20)
+
+    const schedule = [
+      ...recurring.map(r => ({
+        _id: r.id,
+        id: r.id,
+        date: today,
+        time: r.startTime,
+        activity: r.subject,
+        batch: r.batch,
+        location: r.room,
+        status: 'Upcoming' as const,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+      })),
+      ...specials.map(r => toTeacherSchedule(r, today)),
+    ]
 
     return NextResponse.json({
-      schedule: todaySchedules,
-      counseling: await StudentCounseling.find().sort({ createdAt: -1 }),
-      materials: await StudyMaterial.find().sort({ createdAt: 1 }),
-      feedback: await TeacherFeedback.find().sort({ createdAt: -1 })
+      schedule,
+      counseling: counseling.map(c => ({
+        _id: c.id,
+        id: c.id,
+        studentName: c.studentName,
+        category: c.type,
+        description: c.notes || c.actionItems || '',
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      })),
+      materials: materials.map(m => ({
+        _id: m.provider,
+        provider: m.provider,
+        count: m.count,
+        type: m.type,
+        subject: m.subject,
+        initials: m.provider.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase(),
+      })),
+      feedback: visibleFeedback.map(f => ({
+        _id: f.id,
+        id: f.id,
+        from: f.isAnonymous ? 'Anonymous' : (f.senderName || 'Management'),
+        context: f.date,
+        content: f.content,
+        type: 'coordinator' as const,
+        createdAt: f.createdAt,
+        updatedAt: f.updatedAt,
+      })),
     }, {
-      headers: {
-        'Cache-Control': 'no-store, max-age=0, must-revalidate'
-      }
+      headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' },
     })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'GET /api/teacher-portal')
   }
 }

@@ -1385,3 +1385,54 @@ export const reportSubjectAnalytics = pgTable('report_subject_analytics', {
 
 export type ReportSubjectAnalytics    = typeof reportSubjectAnalytics.$inferSelect
 export type NewReportSubjectAnalytics = typeof reportSubjectAnalytics.$inferInsert
+
+// ── Academic Planning board (migration 0052; formerly MongoDB) ───────────────
+// Milestones, planning logs and header/quality metrics shown on the
+// management and teacher Academic Planning boards. `role` = which board.
+
+export const academicMilestones = pgTable('academic_milestones', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  schoolId: uuid('school_id').notNull().references(() => schools.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  type: varchar('type', { length: 100 }).notNull(),
+  date: varchar('date', { length: 10 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  status: varchar('status', { length: 50 }).notNull().default('Scheduled'),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schoolRoleDateIdx: index('academic_milestones_school_role_date_idx').on(table.schoolId, table.role, table.date),
+}))
+
+export const academicPlanningLogs = pgTable('academic_planning_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  schoolId: uuid('school_id').notNull().references(() => schools.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  focus: text('focus').notNull(),
+  type: varchar('type', { length: 50 }).notNull(),
+  measure: text('measure').notNull(),
+  measureLabel: varchar('measure_label', { length: 255 }).notNull(),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schoolRoleCreatedIdx: index('academic_planning_logs_school_role_created_idx').on(table.schoolId, table.role, table.createdAt),
+}))
+
+export const academicMetrics = pgTable('academic_metrics', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  schoolId: uuid('school_id').notNull().references(() => schools.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull(),
+  label: varchar('label', { length: 255 }).notNull(),
+  value: varchar('value', { length: 50 }).notNull(),
+  trend: varchar('trend', { length: 50 }).notNull(),
+  category: varchar('category', { length: 50 }).notNull(), // 'header_stat' | 'quality_stat'
+  chartData: jsonb('chart_data').$type<number[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schoolRoleIdx: index('academic_metrics_school_role_idx').on(table.schoolId, table.role),
+}))
