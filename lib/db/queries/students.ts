@@ -1,4 +1,4 @@
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and, inArray, sql } from 'drizzle-orm'
 import { db } from '../index'
 import { students, type Student, type NewStudent } from '../schema'
 import { schoolScope } from '@/lib/tenant'
@@ -86,61 +86,26 @@ export async function bulkInsertStudents(data: NewStudent[]): Promise<Student[]>
   return db.insert(students).values(data).returning()
 }
 
+/**
+ * Atomic upsert on the (school_id, roll_no, class, section) unique key
+ * (migration 0051). Rows without a complete key are simply inserted.
+ */
 export async function upsertStudentByRollClassSection(data: NewStudent): Promise<Student> {
-  const conditions: any[] = [
-    eq(students.rollNo, data.rollNo ?? ''),
-    eq(students.class, data.class ?? ''),
-  ]
-  conditions.push(schoolScope(students.schoolId, data.schoolId))
-
-  const existing = await db
-    .select()
-    .from(students)
-    .where(and(...conditions))
-  if (existing[0]) {
-    const updated = await db
-      .update(students)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(students.id, existing[0].id))
-      .returning()
-    return updated[0]
-  }
-  return createStudent(data)
-}
-
-export async function upsertStudentByAdmissionNumber(data: NewStudent): Promise<Student> {
-  const conditions: any[] = [eq(students.admissionNumber, data.admissionNumber ?? '')]
-  conditions.push(schoolScope(students.schoolId, data.schoolId))
-
-  const existing = await db.select().from(students).where(and(...conditions))
-  if (existing[0]) {
-    const updated = await db
-      .update(students)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(students.id, existing[0].id))
-      .returning()
-    return updated[0]
-  }
-  return createStudent(data)
-}
-
-export async function upsertStudentByNameClassSection(data: NewStudent): Promise<Student> {
-  const conditions: any[] = [
-    eq(students.name, data.name),
-    eq(students.class, data.class ?? ''),
-  ]
-  conditions.push(schoolScope(students.schoolId, data.schoolId))
-
-  const existing = await db.select().from(students).where(and(...conditions))
-  if (existing[0]) {
-    const updated = await db
-      .update(students)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(students.id, existing[0].id))
-      .returning()
-    return updated[0]
-  }
-  return createStudent(data)
+  const keyed = !!data.schoolId && !!data.rollNo && !!data.class
+  if (!keyed) return createStudent(data)
+  const updatable: Partial<NewStudent> = { ...data }
+  delete updatable.id
+  delete updatable.createdAt
+  const rows = await db
+    .insert(students)
+    .values({ ...data, section: data.section ?? '' })
+    .onConflictDoUpdate({
+      target: [students.schoolId, students.rollNo, students.class, students.section],
+      targetWhere: sql`"roll_no" <> '' AND "class" <> '' AND "school_id" IS NOT NULL`,
+      set: { ...updatable, updatedAt: new Date() },
+    })
+    .returning()
+  return rows[0]
 }
 
 export async function updateStudent(id: string, data: Partial<NewStudent>, schoolId: string | null | undefined): Promise<Student | null> {

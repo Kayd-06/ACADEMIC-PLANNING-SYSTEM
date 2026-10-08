@@ -1,38 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { chapters, concepts, subjects, programs, type NewChapter, type NewConcept } from '@/lib/db/schema'
-import { eq, and, ilike } from 'drizzle-orm'
+import { subjects, programs } from '@/lib/db/schema'
+import { and, eq, isNull, or } from 'drizzle-orm'
 import { upsertMasterCurriculumRows, type MasterCurriculumImportRow } from '@/lib/db/queries/master-curriculum'
+import { importChaptersAndConcepts, type CurriculumImportRow } from '@/lib/curriculum/bulkImport'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
-interface RawRow {
-  chapterName: string
-  chapterCode?: string
-  board?: string
-  classLevel?: string
-  program?: string
-  expectedHours?: string
-  conceptName?: string
-  conceptCode?: string
-}
-
-interface ImportError {
-  row: string
-  level: 'chapter' | 'concept'
-  message: string
-}
-
-interface ChapterGroup {
-  name: string
-  code: string
-  board: string
-  classLevel: string
-  program: string
-  expectedHours: string
-  rowLabel: string
-}
+type RawRow = CurriculumImportRow & { chapterName: string }
 
 // POST — bulk import chapters and their concepts from one flattened CSV/Excel
 // sheet (one row per concept, chapter columns repeated across a chapter's
@@ -49,7 +28,6 @@ export async function POST(req: NextRequest) {
     if ((session.user as any).role !== 'management') {
       return NextResponse.json({ error: 'Only management can import curriculum data' }, { status: 403 })
     }
-    const schoolId = (session.user as any).schoolId as string | null
 
     const body = await req.json()
     const { subjectId, rows } = body as { subjectId: string; rows: RawRow[] }
@@ -57,158 +35,53 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ error: 'No curriculum data provided' }, { status: 400 })
     }
+    // Chapters are always created in the session's school.
+    const schoolId = requireSchool(session)
 
-    const errors: ImportError[] = []
+    // The subject must be this school's (or a shared one).
+    const [subjectRow] = await db.select({ name: subjects.name }).from(subjects)
+      .where(and(eq(subjects.id, subjectId), or(eq(subjects.schoolId, schoolId), isNull(subjects.schoolId))))
+    if (!subjectRow) return NextResponse.json({ error: 'Subject not found' }, { status: 404 })
 
-    // Programs are matched by name (case-insensitive) within the caller's
-    // school — a row can name a program without knowing its id.
-    const schoolPrograms = schoolId
-      ? await db.select({ id: programs.id, name: programs.name }).from(programs).where(eq(programs.schoolId, schoolId))
-      : []
+    // Programs are matched by name (case-insensitive) within the caller's school.
+    const schoolPrograms = await db.select({ id: programs.id, name: programs.name }).from(programs).where(eq(programs.schoolId, schoolId))
     const programIdByName = new Map(schoolPrograms.map((p) => [p.name.trim().toLowerCase(), p.id]))
 
-    // Pass 1 — group rows into unique chapters by name (case-insensitive),
-    // merging in code/board/classLevel/program/expectedHours from whichever
-    // row first supplies a non-empty value.
-    const chapterGroups = new Map<string, ChapterGroup>()
-    rows.forEach((r, i) => {
-      const name = r.chapterName?.trim() || ''
-      if (!name) {
-        errors.push({ row: `Row ${i + 1}`, level: 'chapter', message: 'Chapter Name is required' })
-        return
-      }
-      const key = name.toLowerCase()
-      const code = r.chapterCode?.trim() || ''
-      const board = r.board?.trim() || ''
-      const classLevel = r.classLevel?.trim() || ''
-      const program = r.program?.trim() || ''
-      const expectedHours = r.expectedHours?.trim() || ''
-      const existing = chapterGroups.get(key)
-      if (!existing) {
-        chapterGroups.set(key, { name, code, board, classLevel, program, expectedHours, rowLabel: `Row ${i + 1}` })
-      } else {
-        if (!existing.code && code) existing.code = code
-        if (!existing.board && board) existing.board = board
-        if (!existing.classLevel && classLevel) existing.classLevel = classLevel
-        if (!existing.program && program) existing.program = program
-        if (!existing.expectedHours && expectedHours) existing.expectedHours = expectedHours
-      }
+    const result = await importChaptersAndConcepts({
+      subjectId, schoolId, rows, programIdByName, updateExisting: true, strictProgram: true,
     })
-
-    // Pass 2 — upsert each unique chapter, matched by name within the subject.
-    const chapterIdByName = new Map<string, string>()
-    const chapterResults = await Promise.allSettled(
-      Array.from(chapterGroups.values()).map(async (group) => {
-        const hours = group.expectedHours ? Number(group.expectedHours) : null
-        if (group.program && !programIdByName.has(group.program.toLowerCase())) {
-          throw new Error(`Program "${group.program}" was not found for this school`)
-        }
-        const data: Partial<NewChapter> = {
-          name: group.name,
-          code: group.code,
-          board: group.board || null,
-          classLevel: group.classLevel || null,
-          expectedHours: hours !== null && !Number.isNaN(hours) ? hours : null,
-        }
-        // Only touch programId when the row actually named one, so re-importing
-        // a chapter without a Program column doesn't blow away an existing link.
-        if (group.program) data.programId = programIdByName.get(group.program.toLowerCase())
-        const matchCondition = schoolId
-          ? and(eq(chapters.subjectId, subjectId), ilike(chapters.name, group.name), eq(chapters.schoolId, schoolId))
-          : and(eq(chapters.subjectId, subjectId), ilike(chapters.name, group.name))
-        const [existingRow] = await db.select().from(chapters).where(matchCondition)
-
-        const chapter = existingRow
-          ? (await db.update(chapters).set(data).where(eq(chapters.id, existingRow.id)).returning())[0]
-          : (await db.insert(chapters).values({ ...data, name: group.name, subjectId, schoolId } as NewChapter).returning())[0]
-
-        chapterIdByName.set(group.name.toLowerCase(), chapter.id)
-        return chapter
-      })
-    )
-    chapterResults.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        const group = Array.from(chapterGroups.values())[i]
-        errors.push({ row: group.rowLabel, level: 'chapter', message: r.reason?.message || String(r.reason) })
-      }
-    })
-
-    // Pass 3 — upsert concepts under their resolved chapter, matched by name
-    // within that chapter. Rows with no concept name are chapter-only rows.
-    const conceptRowsWithIndex = rows
-      .map((r, i) => ({ r, i }))
-      .filter(({ r }) => r.chapterName?.trim() && r.conceptName?.trim())
-
-    const conceptResults = await Promise.allSettled(
-      conceptRowsWithIndex.map(async ({ r }) => {
-        const chapterId = chapterIdByName.get(r.chapterName.trim().toLowerCase())
-        if (!chapterId) {
-          throw new Error(`Skipped — chapter "${r.chapterName.trim()}" failed to import`)
-        }
-        const name = r.conceptName!.trim()
-        const code = r.conceptCode?.trim() || ''
-        const matchCondition = schoolId
-          ? and(eq(concepts.chapterId, chapterId), ilike(concepts.name, name), eq(concepts.schoolId, schoolId))
-          : and(eq(concepts.chapterId, chapterId), ilike(concepts.name, name))
-        const [existingRow] = await db.select().from(concepts).where(matchCondition)
-
-        if (existingRow) {
-          return (await db.update(concepts).set({ code }).where(eq(concepts.id, existingRow.id)).returning())[0]
-        }
-        return (await db.insert(concepts).values({ name, code, chapterId, schoolId } as NewConcept).returning())[0]
-      })
-    )
-    conceptResults.forEach((r, idx) => {
-      if (r.status === 'rejected') {
-        const { i } = conceptRowsWithIndex[idx]
-        errors.push({ row: `Row ${i + 1}`, level: 'concept', message: r.reason?.message || String(r.reason) })
-      }
-    })
-
-    const chaptersSucceeded = chapterResults.filter((r) => r.status === 'fulfilled').length
-    const conceptsSucceeded = conceptResults.filter((r) => r.status === 'fulfilled').length
-
-    if (errors.length > 0) {
-      console.error('Curriculum bulk import failures:', errors)
-    }
+    if (result.errors.length > 0) console.error('Curriculum bulk import failures:', result.errors.length)
 
     // ── Dual-write into master_curriculum (non-fatal) ─────────────────────
     let mcResult: { inserted: number; updated: number; errors: { row: string; message: string }[] } =
       { inserted: 0, updated: 0, errors: [] }
-    if (schoolId) {
-      try {
-        // Resolve subject name
-        const [subjectRow] = await db.select({ name: subjects.name }).from(subjects).where(eq(subjects.id, subjectId))
-        const subjectName = subjectRow?.name ?? ''
-
-        const mcRows: MasterCurriculumImportRow[] = rows
-          .filter(r => r.chapterName?.trim() && r.conceptName?.trim())
-          .map(r => ({
-            board:        r.board?.trim()         ?? '',
-            program:      r.program?.trim()       ?? '',
-            classLevel:   r.classLevel?.trim()    ?? '',
-            subject:      subjectName,
-            chapterName:  r.chapterName.trim(),
-            chapterCode:  r.chapterCode?.trim()   ?? '',
-            expectedHours: r.expectedHours ? Number(r.expectedHours) : 0,
-            conceptName:  r.conceptName!.trim(),
-            conceptCode:  r.conceptCode?.trim()   ?? '',
-          }))
-
-        mcResult = await upsertMasterCurriculumRows(mcRows, schoolId)
-      } catch (err: any) {
-        console.error('master_curriculum dual-write error (non-fatal):', err.message)
-        mcResult.errors.push({ row: 'bulk', message: err.message })
-      }
+    try {
+      const mcRows: MasterCurriculumImportRow[] = rows
+        .filter(r => r.chapterName?.trim() && r.conceptName?.trim())
+        .map(r => ({
+          board:        r.board?.trim()         ?? '',
+          program:      r.program?.trim()       ?? '',
+          classLevel:   r.classLevel?.trim()    ?? '',
+          subject:      subjectRow.name,
+          chapterName:  r.chapterName.trim(),
+          chapterCode:  r.chapterCode?.trim()   ?? '',
+          expectedHours: r.expectedHours ? Number(r.expectedHours) : 0,
+          conceptName:  r.conceptName!.trim(),
+          conceptCode:  r.conceptCode?.trim()   ?? '',
+        }))
+      mcResult = await upsertMasterCurriculumRows(mcRows, schoolId)
+    } catch (err) {
+      console.error('master_curriculum dual-write error (non-fatal):', err)
+      mcResult.errors.push({ row: 'bulk', message: 'Master curriculum could not be updated' })
     }
 
     return NextResponse.json({
-      chapters: { succeeded: chaptersSucceeded, failed: chapterGroups.size - chaptersSucceeded, total: chapterGroups.size },
-      concepts: { succeeded: conceptsSucceeded, failed: conceptRowsWithIndex.length - conceptsSucceeded, total: conceptRowsWithIndex.length },
+      chapters: result.chapters,
+      concepts: result.concepts,
       masterCurriculum: { inserted: mcResult.inserted, errors: mcResult.errors },
-      errors,
+      errors: result.errors,
     }, { status: 201 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'POST /api/curriculum/bulk-import')
   }
 }

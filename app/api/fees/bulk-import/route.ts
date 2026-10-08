@@ -1,13 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import {
-  createFeeStructure,
-  createFeePayment,
-  listFeeStructures
-} from '@/lib/db/queries/fees'
+import { sql } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { feePayments, feeStructures, type NewFeePayment, type NewFeeStructure } from '@/lib/db/schema'
+import { listFeeStructures } from '@/lib/db/queries/fees'
 import { listStudents } from '@/lib/db/queries/students'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse } from '@/lib/api/http'
+import { chunk, mapWithConcurrency } from '@/lib/concurrency'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
+
+const CHUNK_SIZE = 100
+const CONCURRENCY = 3
+
+/** Insert parsed rows in chunks of 100 (3 at a time), one statement per chunk. */
+async function insertChunks<T extends { row: number }>(
+  items: T[],
+  write: (part: T[]) => Promise<number>,
+  errors: string[],
+): Promise<number> {
+  const parts = chunk(items, CHUNK_SIZE)
+  const results = await mapWithConcurrency(parts, CONCURRENCY, write)
+  let saved = 0
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled') {
+      saved += r.value
+      const missing = parts[i].length - r.value
+      if (missing > 0) errors.push(`${missing} row(s) were skipped because their receipt number belongs to another school`)
+      return
+    }
+    console.error('[fees bulk import] chunk failed', r.reason)
+    const rows = parts[i].map(p => p.row)
+    errors.push(`Rows ${rows[0]}–${rows[rows.length - 1]}: could not be saved (duplicate or invalid data)`)
+  })
+  return saved
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,18 +47,20 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { type, records, schoolId } = body
+    const { type, records } = body
 
     if (!type || !Array.isArray(records) || records.length === 0) {
       return NextResponse.json({ error: 'Invalid payload. Must provide type ("structures" | "payments") and non-empty records array.' }, { status: 400 })
     }
 
-    const targetSchoolId = schoolId || (session.user as any)?.schoolId || null
+    // Always the session's school — a schoolId in the body is ignored.
+    const targetSchoolId = requireSchool(session)
     let successCount = 0
     let failedCount = 0
     const errors: string[] = []
 
     if (type === 'structures') {
+      const parsed: Array<{ row: number; value: NewFeeStructure }> = []
       for (let i = 0; i < records.length; i++) {
         const row = records[i]
         try {
@@ -56,7 +87,7 @@ export async function POST(req: NextRequest) {
           const academicYear = (row['Academic Year'] || row.academicYear || '2024-25').toString().trim()
           const description = (row['Description'] || row.description || '').toString().trim()
 
-          await createFeeStructure({
+          parsed.push({ row: i + 1, value: {
             name,
             feeType,
             description,
@@ -69,17 +100,37 @@ export async function POST(req: NextRequest) {
             academicYear,
             schoolId: targetSchoolId,
             isActive: true
-          })
-          successCount++
-        } catch (err: any) {
-          errors.push(`Row ${i + 1}: ${err.message || 'Database error'}`)
+          } })
+        } catch {
+          errors.push(`Row ${i + 1}: invalid data`)
           failedCount++
         }
       }
+      // fee_structures has no natural unique key, so this is a plain multi-row insert.
+      successCount = await insertChunks(parsed, async (part) => {
+        const rows = await db.insert(feeStructures).values(part.map(p => p.value)).returning({ id: feeStructures.id })
+        return rows.length
+      }, errors)
+      failedCount += parsed.length - successCount
     } else if (type === 'payments') {
       // Pre-fetch students & fee structures for fast matching
       const allStudents = await listStudents({ schoolId: targetSchoolId })
       const allStructures = await listFeeStructures({ schoolId: targetSchoolId })
+      const studentByRoll = new Map<string, (typeof allStudents)[number]>()
+      const studentByName = new Map<string, (typeof allStudents)[number]>()
+      for (const st of allStudents) {
+        if (st.rollNo && !studentByRoll.has(st.rollNo.toLowerCase())) studentByRoll.set(st.rollNo.toLowerCase(), st)
+        const n = st.name?.toLowerCase().trim()
+        if (n && !studentByName.has(n)) studentByName.set(n, st)
+      }
+      const structureByName = new Map(allStructures.map(f => [f.name.toLowerCase().trim(), f]))
+
+      // Rows with a receipt number from the file are upserted on the unique
+      // receipt_number (re-importing a sheet updates instead of failing);
+      // rows without one get a generated, collision-resistant receipt.
+      const withReceipt = new Map<string, { row: number; value: NewFeePayment }>()
+      const generated: Array<{ row: number; value: NewFeePayment }> = []
+      const year = new Date().getFullYear()
 
       for (let i = 0; i < records.length; i++) {
         const row = records[i]
@@ -104,9 +155,9 @@ export async function POST(req: NextRequest) {
           }
 
           // Match student by Roll No or Name
-          let matchedStudent = allStudents.find(s => rollNo && s.rollNo?.toLowerCase() === rollNo.toLowerCase())
+          let matchedStudent = rollNo ? studentByRoll.get(rollNo.toLowerCase()) : undefined
           if (!matchedStudent && studentNameRaw) {
-            matchedStudent = allStudents.find(s => s.name?.toLowerCase().trim() === studentNameRaw.toLowerCase())
+            matchedStudent = studentByName.get(studentNameRaw.toLowerCase())
           }
 
           const resolvedStudentId = matchedStudent ? matchedStudent.id : null
@@ -114,7 +165,7 @@ export async function POST(req: NextRequest) {
           const resolvedRollNo = matchedStudent ? (matchedStudent.rollNo || rollNo) : rollNo
 
           // Match fee structure by Name
-          const matchedStructure = allStructures.find(f => f.name.toLowerCase().trim() === feeStructureName.toLowerCase())
+          const matchedStructure = structureByName.get(feeStructureName.toLowerCase())
           const resolvedStructureId = matchedStructure ? matchedStructure.id : null
           const resolvedFeeType = matchedStructure ? (matchedStructure.feeType || 'Monthly Tuition') : (row['Fee Category'] || row.feeType || 'Monthly Tuition')
 
@@ -123,10 +174,9 @@ export async function POST(req: NextRequest) {
           const paymentMethod = (row['Payment Method'] || row.paymentMethod || 'UPI').toString().trim()
           const transactionId = (row['Transaction ID'] || row.transactionId || '').toString().trim()
           
-          let receiptNumber = (row['Receipt Number'] || row.receiptNumber || '').toString().trim()
-          if (!receiptNumber) {
-            receiptNumber = `REC-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
-          }
+          const suppliedReceipt = (row['Receipt Number'] || row.receiptNumber || '').toString().trim()
+          const receiptNumber = suppliedReceipt
+            || `REC-${year}-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`
 
           const nowStr = new Date().toISOString().split('T')[0]
           const dueDate = (row['Due Date'] || row.dueDate || nowStr).toString().trim()
@@ -142,7 +192,7 @@ export async function POST(req: NextRequest) {
 
           const notes = (row['Notes'] || row.notes || '').toString().trim()
 
-          await createFeePayment({
+          const value: NewFeePayment = {
             studentId: resolvedStudentId,
             studentName: resolvedStudentName,
             rollNo: resolvedRollNo,
@@ -165,13 +215,60 @@ export async function POST(req: NextRequest) {
             paidDate,
             status,
             notes
-          })
-          successCount++
-        } catch (err: any) {
-          errors.push(`Row ${i + 1}: ${err.message || 'Database error'}`)
+          }
+          if (suppliedReceipt) {
+            const earlier = withReceipt.get(suppliedReceipt)
+            if (earlier) {
+              errors.push(`Row ${earlier.row}: duplicate Receipt Number ${suppliedReceipt} in this file; row ${i + 1} was used`)
+              failedCount++
+            }
+            withReceipt.set(suppliedReceipt, { row: i + 1, value })
+          } else {
+            generated.push({ row: i + 1, value })
+          }
+        } catch {
+          errors.push(`Row ${i + 1}: invalid data`)
           failedCount++
         }
       }
+
+      const upserted = await insertChunks([...withReceipt.values()], async (part) => {
+        const rows = await db.insert(feePayments).values(part.map(p => p.value))
+          .onConflictDoUpdate({
+            target: feePayments.receiptNumber,
+            set: {
+              studentId: sql.raw('excluded.student_id'),
+              studentName: sql.raw('excluded.student_name'),
+              rollNo: sql.raw('excluded.roll_no'),
+              class: sql.raw('excluded.class'),
+              section: sql.raw('excluded.section'),
+              feeStructureId: sql.raw('excluded.fee_structure_id'),
+              feeName: sql.raw('excluded.fee_name'),
+              feeType: sql.raw('excluded.fee_type'),
+              amountDue: sql.raw('excluded.amount_due'),
+              amountPaid: sql.raw('excluded.amount_paid'),
+              discount: sql.raw('excluded.discount'),
+              lateFee: sql.raw('excluded.late_fee'),
+              paymentMethod: sql.raw('excluded.payment_method'),
+              transactionId: sql.raw('excluded.transaction_id'),
+              dueDate: sql.raw('excluded.due_date'),
+              paidDate: sql.raw('excluded.paid_date'),
+              status: sql.raw('excluded.status'),
+              notes: sql.raw('excluded.notes'),
+              updatedAt: sql`now()`,
+            },
+            // never overwrite another school's payment that happens to share a receipt number
+            setWhere: sql`"fee_payments"."school_id" = excluded.school_id`,
+          })
+          .returning({ id: feePayments.id })
+        return rows.length
+      }, errors)
+      const inserted = await insertChunks(generated, async (part) => {
+        const rows = await db.insert(feePayments).values(part.map(p => p.value)).returning({ id: feePayments.id })
+        return rows.length
+      }, errors)
+      successCount = upserted + inserted
+      failedCount += withReceipt.size + generated.length - successCount
     }
 
     return NextResponse.json({
@@ -180,8 +277,7 @@ export async function POST(req: NextRequest) {
       errors: errors.slice(0, 10), // Return top 10 errors for feedback
       message: `Successfully imported ${successCount} ${type === 'structures' ? 'fee structures' : 'payment records'} into Neon Postgres.`
     }, { status: 201 })
-  } catch (error: any) {
-    console.error('POST /api/fees/bulk-import error:', error)
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'POST /api/fees/bulk-import')
   }
 }

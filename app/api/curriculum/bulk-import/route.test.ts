@@ -47,7 +47,10 @@ describe('POST /api/curriculum/bulk-import', () => {
   })
 
   it('groups multiple concept rows under one chapter, creating both', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    // Imports are scoped to the session's school.
+    const [school] = await db.insert(schools).values({ name: 'BI School' }).returning()
+    createdIds.schools.push(school.id)
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: school.id } })
     const [subject] = await db.insert(subjects).values({ name: 'BI Physics Combined' }).returning()
     createdIds.subjects.push(subject.id)
 
@@ -87,7 +90,10 @@ describe('POST /api/curriculum/bulk-import', () => {
   })
 
   it('supports a chapter-only row with no concept', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    // Imports are scoped to the session's school.
+    const [school] = await db.insert(schools).values({ name: 'BI School' }).returning()
+    createdIds.schools.push(school.id)
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: school.id } })
     const [subject] = await db.insert(subjects).values({ name: 'BI Chapter Only' }).returning()
     createdIds.subjects.push(subject.id)
 
@@ -106,7 +112,10 @@ describe('POST /api/curriculum/bulk-import', () => {
   })
 
   it('flags rows missing a chapter name and re-import updates instead of duplicating', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    // Imports are scoped to the session's school.
+    const [school] = await db.insert(schools).values({ name: 'BI School' }).returning()
+    createdIds.schools.push(school.id)
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: school.id } })
     const [subject] = await db.insert(subjects).values({ name: 'BI Reimport' }).returning()
     createdIds.subjects.push(subject.id)
 

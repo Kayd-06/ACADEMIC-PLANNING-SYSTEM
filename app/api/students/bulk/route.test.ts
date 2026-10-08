@@ -13,9 +13,35 @@ function req(body: any, method = 'POST') {
   return new Request('http://localhost/api/students/bulk', { method, body: JSON.stringify(body) }) as any
 }
 
+// Every request is scoped to the session's school, so DB-backed tests run
+// against their own throwaway school (created lazily, so validation-only
+// tests don't need a database) and only clean up that school's rows.
+let SCHOOL: string
+let schoolCreated = false
+const mgmt = () => ({ user: { role: 'management', schoolId: SCHOOL } })
+async function createSchool() {
+  await db.insert(schools).values({ id: SCHOOL as any })
+  schoolCreated = true
+}
+
+beforeEach(() => {
+  SCHOOL = crypto.randomUUID()
+  schoolCreated = false
+})
+
+afterEach(async () => {
+  if (!schoolCreated) return
+  await db.delete(students).where(eq(students.schoolId, SCHOOL as any))
+  await db.delete(batches).where(eq(batches.schoolId, SCHOOL as any))
+  await db.delete(programs).where(eq(programs.schoolId, SCHOOL as any))
+  await db.delete(schools).where(eq(schools.id, SCHOOL as any))
+})
+
 describe('POST /api/students/bulk', () => {
-  afterEach(async () => {
-    await db.delete(students)
+  it('refuses to import without an active school instead of creating school-less rows', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const res = await POST(req({ students: [{ name: 'X' }] }))
+    expect(res.status).toBe(403)
   })
 
   it('rejects when the role is not staff', async () => {
@@ -25,39 +51,38 @@ describe('POST /api/students/bulk', () => {
   })
 
   it('rejects an empty array', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
     const res = await POST(req({ students: [] }))
     expect(res.status).toBe(400)
   })
 
   it('inserts name-only rows as plain creates', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const res = await POST(req({ students: [{ name: 'A' }, { name: 'B' }] }))
     const body = await res.json()
     expect(res.status).toBe(201)
     expect(body).toEqual({ succeeded: 2, failed: 0, total: 2, errors: [] })
 
-    const rows = await db.select().from(students)
+    const rows = await db.select().from(students).where(eq(students.schoolId, SCHOOL as any))
     expect(rows).toHaveLength(2)
   })
 
   it('upserts rows with rollNo+class+section instead of duplicating them', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const row = { name: 'First', rollNo: '001', class: '11 - A', section: 'A' }
     await POST(req({ students: [row] }))
     await POST(req({ students: [{ ...row, name: 'Updated' }] }))
 
-    const rows = await db.select().from(students)
+    const rows = await db.select().from(students).where(eq(students.schoolId, SCHOOL as any))
     expect(rows).toHaveLength(1)
     expect(rows[0].name).toBe('Updated')
   })
 
   it('upserts the primary guardian instead of duplicating it on repeat import', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    // Unique-per-run roll number — the file's own afterEach uses an unscoped
-    // db.delete(students), which the DB Guard silently blocks, so leftover
-    // rows from prior runs persist. Use a fresh rollNo each run and clean up
-    // this test's own row by ID in the finally block below.
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const rollNo = `GT-${Date.now()}`
     const row = {
       name: 'Guardian Test', rollNo, class: '11 - A', section: 'A',
@@ -78,7 +103,8 @@ describe('POST /api/students/bulk', () => {
   })
 
   it('upserts by admission number when rollNo/class/section are incomplete', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const admissionNumber = `ADM-${Date.now()}`
     const row = { name: 'Admission Match', admissionNumber }
     try {
@@ -95,7 +121,8 @@ describe('POST /api/students/bulk', () => {
   })
 
   it('upserts by name+class+section when no rollNo or admission number is present', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const name = `Name Match ${Date.now()}`
     const row = { name, class: '9 - B', section: 'B' }
     try {
@@ -112,17 +139,19 @@ describe('POST /api/students/bulk', () => {
   })
 
   it('skips rows with no name and reports the total of valid rows', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const res = await POST(req({ students: [{ name: '' }, { name: 'Valid' }] }))
     const body = await res.json()
     expect(body.total).toBe(1)
   })
 
   it('uses the global default program/batch/section when provided, overriding row values', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const name = `Default Applied ${Date.now()}`
-    const [program] = await db.insert(programs).values({ name: 'Default Program' }).returning()
-    const [batch] = await db.insert(batches).values({ name: 'Default Batch', programId: program.id }).returning()
+    const [program] = await db.insert(programs).values({ name: 'Default Program', schoolId: SCHOOL as any }).returning()
+    const [batch] = await db.insert(batches).values({ name: 'Default Batch', programId: program.id, schoolId: SCHOOL as any }).returning()
     try {
       const res = await POST(
         req({
@@ -147,10 +176,11 @@ describe('POST /api/students/bulk', () => {
   })
 
   it('falls back to the row CSV value when no default is provided', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const name = `Row Fallback ${Date.now()}`
-    const [program] = await db.insert(programs).values({ name: 'Row Program' }).returning()
-    const [batch] = await db.insert(batches).values({ name: 'Row Batch', programId: program.id }).returning()
+    const [program] = await db.insert(programs).values({ name: 'Row Program', schoolId: SCHOOL as any }).returning()
+    const [batch] = await db.insert(batches).values({ name: 'Row Batch', programId: program.id, schoolId: SCHOOL as any }).returning()
     try {
       const res = await POST(
         req({ students: [{ name, program: 'Row Program', batch: 'Row Batch', section: 'Row Section' }] })
@@ -172,17 +202,19 @@ describe('POST /api/students/bulk', () => {
   })
 
   it('leaves program and batch empty when neither a default nor a row value is provided', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const res = await POST(req({ students: [{ name: 'A' }] }))
     expect(res.status).toBe(201)
 
-    const rows = await db.select().from(students)
+    const rows = await db.select().from(students).where(eq(students.schoolId, SCHOOL as any))
     expect(rows[0].program).toBe('')
     expect(rows[0].batch).toBe('')
   })
 
   it('skips a row whose Program does not exist and reports a field error', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const res = await POST(req({ students: [{ name: 'Ghost Program', program: 'Nonexistent Program' }] }))
     const body = await res.json()
     expect(res.status).toBe(201)
@@ -197,7 +229,8 @@ describe('POST /api/students/bulk', () => {
   })
 
   it('skips a row whose Batch does not exist and reports a field error', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const res = await POST(req({ students: [{ name: 'Ghost Batch', batch: 'Nonexistent Batch' }] }))
     const body = await res.json()
     expect(res.status).toBe(201)
@@ -211,10 +244,11 @@ describe('POST /api/students/bulk', () => {
   })
 
   it('skips a row whose Batch belongs to a different Program than the one given', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [programA] = await db.insert(programs).values({ name: 'Program A' }).returning()
-    const [programB] = await db.insert(programs).values({ name: 'Program B' }).returning()
-    const [batchOfA] = await db.insert(batches).values({ name: 'Batch Of A', programId: programA.id }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
+    const [programA] = await db.insert(programs).values({ name: 'Program A', schoolId: SCHOOL as any }).returning()
+    const [programB] = await db.insert(programs).values({ name: 'Program B', schoolId: SCHOOL as any }).returning()
+    const [batchOfA] = await db.insert(batches).values({ name: 'Batch Of A', programId: programA.id, schoolId: SCHOOL as any }).returning()
     try {
       const res = await POST(req({ students: [{ name: 'Mismatch', program: 'Program B', batch: 'Batch Of A' }] }))
       const body = await res.json()
@@ -230,7 +264,8 @@ describe('POST /api/students/bulk', () => {
   })
 
   it('imports valid rows and skips only the invalid ones in the same request', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const name = `Valid Row ${Date.now()}`
     try {
       const res = await POST(req({
@@ -274,9 +309,6 @@ describe('POST /api/students/bulk', () => {
 })
 
 describe('DELETE /api/students/bulk', () => {
-  afterEach(async () => {
-    await db.delete(students)
-  })
 
   it('rejects when the role is not staff', async () => {
     ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'student' } })
@@ -284,15 +316,30 @@ describe('DELETE /api/students/bulk', () => {
     expect(res.status).toBe(403)
   })
 
-  it('deletes every student row', async () => {
+  it('refuses without an active school (never "all schools")', async () => {
     ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    await db.insert(students).values({ name: 'One' })
-    await db.insert(students).values({ name: 'Two' })
-
     const res = await DELETE(req(undefined, 'DELETE'))
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(403)
+  })
 
-    const rows = await db.select().from(students)
-    expect(rows).toHaveLength(0)
+  it('deletes every student row of the active school only', async () => {
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
+    const other = crypto.randomUUID()
+    await db.insert(schools).values({ id: other as any })
+    try {
+      await db.insert(students).values({ name: 'One', schoolId: SCHOOL as any })
+      await db.insert(students).values({ name: 'Two', schoolId: SCHOOL as any })
+      await db.insert(students).values({ name: 'Elsewhere', schoolId: other as any })
+
+      const res = await DELETE(req(undefined, 'DELETE'))
+      expect(res.status).toBe(200)
+
+      expect(await db.select().from(students).where(eq(students.schoolId, SCHOOL as any))).toHaveLength(0)
+      expect(await db.select().from(students).where(eq(students.schoolId, other as any))).toHaveLength(1)
+    } finally {
+      await db.delete(students).where(eq(students.schoolId, other as any))
+      await db.delete(schools).where(eq(schools.id, other as any))
+    }
   })
 })

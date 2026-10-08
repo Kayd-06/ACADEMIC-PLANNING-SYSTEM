@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { upsertMasterCurriculumRows, type MasterCurriculumImportRow } from '@/lib/db/queries/master-curriculum'
 import { db } from '@/lib/db'
-import { chapters, concepts, subjects, programs } from '@/lib/db/schema'
-import { eq, and, ilike } from 'drizzle-orm'
+import { subjects, programs } from '@/lib/db/schema'
+import { and, eq, isNull, or } from 'drizzle-orm'
+import { importChaptersAndConcepts } from '@/lib/curriculum/bulkImport'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // POST — dual-write bulk import:
-//   1. Upserts into chapters + concepts (backward compatible, existing flow)
+//   1. Upserts into chapters + concepts (backward compatible, existing flow;
+//      existing chapters/concepts are left as they are)
 //   2. Upserts into master_curriculum (new denormalized table)
 //
 // Body: { subjectId: string, rows: ParsedRow[] }
@@ -17,8 +22,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const schoolId = (session.user as any).schoolId as string | null
-    if (!schoolId) return NextResponse.json({ error: 'No school associated with this account' }, { status: 400 })
+    const schoolId = requireSchool(session)
 
     const body = await req.json()
     const { subjectId, rows } = body as {
@@ -39,106 +43,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'subjectId and rows are required' }, { status: 400 })
     }
 
-    // ── Resolve subject name for master_curriculum ──────────────────────────
+    // ── Resolve subject name for master_curriculum (this school's or shared) ─
     const [subjectRow] = await db
       .select({ name: subjects.name })
       .from(subjects)
-      .where(eq(subjects.id, subjectId))
+      .where(and(eq(subjects.id, subjectId), or(eq(subjects.schoolId, schoolId), isNull(subjects.schoolId))))
 
     if (!subjectRow) return NextResponse.json({ error: 'Subject not found' }, { status: 404 })
     const subjectName = subjectRow.name
 
-    // ── Resolve all unique program names to IDs (for chapter FK) ───────────
-    const programNames = [...new Set(rows.map(r => (r.program ?? '').trim().toLowerCase()).filter(Boolean))]
-    const programMap = new Map<string, string>() // name.lower → id
-    if (programNames.length > 0) {
-      const programRows = await db.select({ id: programs.id, name: programs.name })
-        .from(programs)
-        .where(schoolId ? and(eq(programs.schoolId, schoolId)) : undefined as any)
-      for (const p of programRows) {
-        programMap.set(p.name.toLowerCase(), p.id)
-      }
-    }
+    // ── Resolve program names to IDs (for chapter FK), this school only ────
+    const programRows = await db.select({ id: programs.id, name: programs.name })
+      .from(programs)
+      .where(eq(programs.schoolId, schoolId))
+    const programMap = new Map(programRows.map(p => [p.name.trim().toLowerCase(), p.id]))
 
-    // ── Step 1: Upsert into chapters + concepts (existing flow) ─────────────
-    const chapterResultsMap = new Map<string, { succeeded: number; failed: number }>()
-    const chapterIds        = new Map<string, string>() // chapterName.lower → chapterId
-
-    for (const row of rows) {
-      if (!row.chapterName) continue
-      const nameKey = row.chapterName.trim().toLowerCase()
-
-      // Find or create chapter
-      const existing = await db.select({ id: chapters.id })
-        .from(chapters)
-        .where(and(
-          eq(chapters.subjectId, subjectId),
-          ilike(chapters.name, row.chapterName.trim()),
-          schoolId ? eq(chapters.schoolId, schoolId) : undefined as any,
-        ))
-        .limit(1)
-
-      if (existing.length > 0) {
-        chapterIds.set(nameKey, existing[0].id)
-      } else {
-        try {
-          const programId = row.program ? (programMap.get(row.program.trim().toLowerCase()) ?? null) : null
-          const [newChapter] = await db.insert(chapters).values({
-            subjectId,
-            name:          row.chapterName.trim(),
-            code:          row.chapterCode?.trim() ?? '',
-            board:         row.board || null,
-            classLevel:    row.classLevel || null,
-            programId,
-            expectedHours: row.expectedHours ? Number(row.expectedHours) : null,
-            schoolId,
-          }).returning({ id: chapters.id })
-          chapterIds.set(nameKey, newChapter.id)
-        } catch {
-          // Chapter already exists (race condition) — fetch it
-          const [ch] = await db.select({ id: chapters.id })
-            .from(chapters)
-            .where(and(
-              eq(chapters.subjectId, subjectId),
-              ilike(chapters.name, row.chapterName.trim()),
-              schoolId ? eq(chapters.schoolId, schoolId) : undefined as any,
-            ))
-            .limit(1)
-          if (ch) chapterIds.set(nameKey, ch.id)
-        }
-      }
-    }
-
-    // Upsert concepts
-    let conceptsSucceeded = 0
-    let conceptsFailed    = 0
-    const conceptErrors: { row: string; level: string; message: string }[] = []
-
-    for (const row of rows) {
-      if (!row.chapterName || !row.conceptName) continue
-      const chapterId = chapterIds.get(row.chapterName.trim().toLowerCase())
-      if (!chapterId) { conceptsFailed++; continue }
-
-      try {
-        const [existing] = await db.select({ id: concepts.id })
-          .from(concepts)
-          .where(and(eq(concepts.chapterId, chapterId), ilike(concepts.name, row.conceptName.trim())))
-          .limit(1)
-
-        if (!existing) {
-          await db.insert(concepts).values({
-            chapterId,
-            name:    row.conceptName.trim(),
-            code:    row.conceptCode?.trim() ?? '',
-            schoolId,
-          })
-        }
-        conceptsSucceeded++
-      } catch (err: any) {
-        conceptsFailed++
-        conceptErrors.push({ row: row.conceptName, level: 'concept', message: err.message })
-      }
-    }
+    // ── Step 1: chapters + concepts (prefetch + chunked writes) ─────────────
+    const result = await importChaptersAndConcepts({
+      subjectId, schoolId, rows, programIdByName: programMap, updateExisting: false, strictProgram: false,
+    })
 
     // ── Step 2: Dual-write into master_curriculum ───────────────────────────
     const mcRows: MasterCurriculumImportRow[] = rows
@@ -157,17 +80,13 @@ export async function POST(req: NextRequest) {
 
     const mcResult = await upsertMasterCurriculumRows(mcRows, schoolId)
 
-    const chaptersSucceeded = chapterIds.size
-    const chaptersFailed    = 0
-
     return NextResponse.json({
-      chapters: { succeeded: chaptersSucceeded, failed: chaptersFailed, total: chaptersSucceeded + chaptersFailed },
-      concepts: { succeeded: conceptsSucceeded, failed: conceptsFailed, total: conceptsSucceeded + conceptsFailed },
+      chapters: result.chapters,
+      concepts: result.concepts,
       masterCurriculum: { inserted: mcResult.inserted, errors: mcResult.errors },
-      errors: conceptErrors,
+      errors: result.errors.filter(e => e.level === 'concept'),
     })
-  } catch (error: any) {
-    console.error('master-curriculum bulk-import POST error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'POST /api/curriculum/master-curriculum/bulk-import')
   }
 }

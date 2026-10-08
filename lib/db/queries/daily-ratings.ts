@@ -1,4 +1,4 @@
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, sql } from 'drizzle-orm'
 import { db } from '../index'
 import { dailyStudentRatings, students, type DailyStudentRating } from '../schema'
 
@@ -19,53 +19,44 @@ export async function saveDailyStudentRatings(
   schoolId?: string | null,
   batchId?: string | null
 ) {
-  const results = []
+  if (ratings.length === 0) return []
+  // One multi-row upsert on (student_id, date) instead of 2 queries per
+  // student. The same student twice: last one wins (as before).
+  const byStudent = new Map<string, typeof dailyStudentRatings.$inferInsert>()
   for (const r of ratings) {
-    const existing = await db
-      .select()
-      .from(dailyStudentRatings)
-      .where(and(eq(dailyStudentRatings.studentId, r.studentId), eq(dailyStudentRatings.date, date)))
-      .limit(1)
-
-    if (existing.length > 0) {
-      const [updated] = await db
-        .update(dailyStudentRatings)
-        .set({
-          attitude: r.attitude,
-          behaviour: r.behaviour,
-          focus: r.focus,
-          interaction: r.interaction,
-          notes: r.notes ?? null,
-          batch,
-          facultyId: facultyId ?? existing[0].facultyId,
-          schoolId: schoolId ?? existing[0].schoolId,
-          batchId: batchId ?? existing[0].batchId,
-          updatedAt: new Date(),
-        })
-        .where(eq(dailyStudentRatings.id, existing[0].id))
-        .returning()
-      results.push(updated)
-    } else {
-      const [inserted] = await db
-        .insert(dailyStudentRatings)
-        .values({
-          studentId: r.studentId,
-          date,
-          batch,
-          attitude: r.attitude,
-          behaviour: r.behaviour,
-          focus: r.focus,
-          interaction: r.interaction,
-          notes: r.notes ?? null,
-          facultyId: facultyId ?? null,
-          schoolId: schoolId ?? null,
-          batchId: batchId ?? null,
-        })
-        .returning()
-      results.push(inserted)
-    }
+    byStudent.set(r.studentId, {
+      studentId: r.studentId,
+      date,
+      batch,
+      attitude: r.attitude,
+      behaviour: r.behaviour,
+      focus: r.focus,
+      interaction: r.interaction,
+      notes: r.notes ?? null,
+      facultyId: facultyId ?? null,
+      schoolId: schoolId ?? null,
+      batchId: batchId ?? null,
+    })
   }
-  return results
+  return db
+    .insert(dailyStudentRatings)
+    .values([...byStudent.values()])
+    .onConflictDoUpdate({
+      target: [dailyStudentRatings.studentId, dailyStudentRatings.date],
+      set: {
+        attitude: sql.raw('excluded.attitude'),
+        behaviour: sql.raw('excluded.behaviour'),
+        focus: sql.raw('excluded.focus'),
+        interaction: sql.raw('excluded.interaction'),
+        notes: sql.raw('excluded.notes'),
+        batch: sql.raw('excluded.batch'),
+        facultyId: sql.raw('coalesce(excluded.faculty_id, "daily_student_ratings".faculty_id)'),
+        schoolId: sql.raw('coalesce(excluded.school_id, "daily_student_ratings".school_id)'),
+        batchId: sql.raw('coalesce(excluded.batch_id, "daily_student_ratings".batch_id)'),
+        updatedAt: sql`now()`,
+      },
+    })
+    .returning()
 }
 
 export async function getDailyRatingsForBatchAndDate(batch: string, date: string, schoolId?: string | null) {

@@ -11,6 +11,7 @@ import {
   type StudentConceptProgress,
   type NewStudentConceptProgress,
 } from '../schema'
+import { chunk, mapWithConcurrency } from '@/lib/concurrency'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -146,72 +147,82 @@ export async function upsertMasterCurriculumRows(
   rows: MasterCurriculumImportRow[],
   schoolId: string,
 ): Promise<{ inserted: number; updated: number; errors: { row: string; message: string }[] }> {
-  let inserted = 0
-  let updated  = 0
   const errors: { row: string; message: string }[] = []
 
+  const toValues = (row: MasterCurriculumImportRow): NewMasterCurriculum => ({
+    board:             row.board.trim(),
+    program:           row.program.trim(),
+    classLevel:        row.classLevel.trim(),
+    subject:           row.subject.trim(),
+    chapterName:       row.chapterName.trim(),
+    chapterCode:       (row.chapterCode ?? '').trim(),
+    chapterOrderIndex: row.chapterOrderIndex ?? 0,
+    expectedHours:     Number.isFinite(row.expectedHours) ? row.expectedHours : 0,
+    conceptName:       row.conceptName.trim(),
+    conceptCode:       (row.conceptCode ?? '').trim(),
+    conceptOrderIndex: row.conceptOrderIndex ?? 0,
+    importanceWeight:  row.importanceWeight ?? 'Medium',
+    schoolId,
+    isActive:          true,
+  })
+
+  // Rows with a concept code upsert on curriculum_concept_unique; the same key
+  // twice in one file collapses to the last row (a multi-row ON CONFLICT
+  // statement may not touch the same row twice). Rows without a code have no
+  // unique key and are plain inserts.
+  const keyed = new Map<string, NewMasterCurriculum>()
+  const plain: NewMasterCurriculum[] = []
   for (const row of rows) {
-    try {
-      const conceptCode = (row.conceptCode ?? '').trim()
-      const values: NewMasterCurriculum = {
-        board:             row.board.trim(),
-        program:           row.program.trim(),
-        classLevel:        row.classLevel.trim(),
-        subject:           row.subject.trim(),
-        chapterName:       row.chapterName.trim(),
-        chapterCode:       (row.chapterCode ?? '').trim(),
-        chapterOrderIndex: row.chapterOrderIndex ?? 0,
-        expectedHours:     row.expectedHours ?? 0,
-        conceptName:       row.conceptName.trim(),
-        conceptCode,
-        conceptOrderIndex: row.conceptOrderIndex ?? 0,
-        importanceWeight:  row.importanceWeight ?? 'Medium',
-        schoolId,
-        isActive:          true,
-      }
-
-      if (conceptCode) {
-        // Upsert via conflict on composite unique index
-        const result = await db
-          .insert(masterCurriculum)
-          .values(values)
-          .onConflictDoUpdate({
-            target: [
-              masterCurriculum.schoolId,
-              masterCurriculum.board,
-              masterCurriculum.program,
-              masterCurriculum.classLevel,
-              masterCurriculum.subject,
-              masterCurriculum.conceptCode,
-            ],
-            targetWhere: sql`concept_code <> ''`,
-            set: {
-              chapterName:       values.chapterName,
-              chapterCode:       values.chapterCode,
-              chapterOrderIndex: values.chapterOrderIndex,
-              expectedHours:     values.expectedHours,
-              conceptName:       values.conceptName,
-              conceptOrderIndex: values.conceptOrderIndex,
-              importanceWeight:  values.importanceWeight,
-              isActive:          true,
-              updatedAt:         new Date(),
-            },
-          })
-          .returning({ id: masterCurriculum.id })
-
-        // Drizzle's onConflictDoUpdate always returns the row; check if truly new
-        if (result.length > 0) inserted++ // simplified — both insert+update count here
-      } else {
-        // No conceptCode — plain insert (no unique constraint to conflict on)
-        await db.insert(masterCurriculum).values(values)
-        inserted++
-      }
-    } catch (err: any) {
-      errors.push({ row: `${row.board}/${row.subject}/${row.chapterName}/${row.conceptName}`, message: err.message })
-    }
+    const v = toValues(row)
+    if (v.conceptCode) keyed.set([v.board, v.program, v.classLevel, v.subject, v.conceptCode].join('\u0000'), v)
+    else plain.push(v)
   }
 
-  return { inserted, updated, errors }
+  const write = async (part: NewMasterCurriculum[], upsert: boolean) => {
+    const q = db.insert(masterCurriculum).values(part)
+    const rowsOut = upsert
+      ? await q.onConflictDoUpdate({
+          target: [
+            masterCurriculum.schoolId,
+            masterCurriculum.board,
+            masterCurriculum.program,
+            masterCurriculum.classLevel,
+            masterCurriculum.subject,
+            masterCurriculum.conceptCode,
+          ],
+          targetWhere: sql`concept_code <> ''`,
+          set: {
+            chapterName:       sql.raw('excluded.chapter_name'),
+            chapterCode:       sql.raw('excluded.chapter_code'),
+            chapterOrderIndex: sql.raw('excluded.chapter_order_index'),
+            expectedHours:     sql.raw('excluded.expected_hours'),
+            conceptName:       sql.raw('excluded.concept_name'),
+            conceptOrderIndex: sql.raw('excluded.concept_order_index'),
+            importanceWeight:  sql.raw('excluded.importance_weight'),
+            isActive:          true,
+            updatedAt:         sql`now()`,
+          },
+        }).returning({ id: masterCurriculum.id })
+      : await q.returning({ id: masterCurriculum.id })
+    return rowsOut.length
+  }
+
+  // Chunks of 100, 3 at a time (previously one round trip per row).
+  const jobs = [
+    ...chunk([...keyed.values()], 100).map(part => ({ part, upsert: true })),
+    ...chunk(plain, 100).map(part => ({ part, upsert: false })),
+  ]
+  const results = await mapWithConcurrency(jobs, 3, job => write(job.part, job.upsert))
+  let inserted = 0 // as before, inserts and updates are both counted here
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled') { inserted += r.value; return }
+    console.error('[master_curriculum import] chunk failed', r.reason)
+    for (const v of jobs[i].part) {
+      errors.push({ row: `${v.board}/${v.subject}/${v.chapterName}/${v.conceptName}`, message: 'Could not be saved' })
+    }
+  })
+
+  return { inserted, updated: 0, errors }
 }
 
 // ── Back-fill from chapters + concepts ───────────────────────────────────────
