@@ -6,6 +6,8 @@ import { errorResponse } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
 
+// The school always comes from the session; query params are ignored.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(_req: NextRequest) {
   try {
     const session = await auth()

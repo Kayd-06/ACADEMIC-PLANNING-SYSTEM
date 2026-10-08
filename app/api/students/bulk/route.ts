@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
     // Write in chunks of 100, 3 at a time. Each chunk's student rows are
     // written by at most two multi-row upserts inside one transaction.
     const chunks = chunk(planned, CHUNK_SIZE)
-    const results = await mapWithConcurrency(chunks, CONCURRENCY, (part) => writeChunk(part, schoolId))
+    const results = await mapWithConcurrency(chunks, CONCURRENCY, writeChunk)
 
     let succeeded = 0
     results.forEach((result, i) => {
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
     })
 
     errors.sort((a, b) => a.index - b.index)
-    const publicErrors: FieldError[] = errors.map(({ index: _i, ...e }) => e)
+    const publicErrors: FieldError[] = errors.map((e) => ({ row: e.row, field: e.field, value: e.value, message: e.message }))
     if (publicErrors.length > 0) console.error('Bulk import failures:', publicErrors.length)
 
     return NextResponse.json({ succeeded, failed: publicErrors.length, total: valid.length, errors: publicErrors }, { status: 201 })
@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function writeChunk(part: PlannedRow[], schoolId: string) {
+async function writeChunk(part: PlannedRow[]) {
   const byId = part.filter(r => !r.keyed)
   const keyed = part.filter(r => r.keyed)
   const returningCols = { id: studentsTable.id, rollNo: studentsTable.rollNo, class: studentsTable.class, section: studentsTable.section }

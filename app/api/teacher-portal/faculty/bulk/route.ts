@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
     })
 
     const parts = chunk(planned, CHUNK_SIZE)
-    const results = await mapWithConcurrency(parts, CONCURRENCY, (part) => writeChunk(part, schoolId))
+    const results = await mapWithConcurrency(parts, CONCURRENCY, writeChunk)
     let succeeded = 0
     let failed = errors.filter(e => e.field !== 'batches').length
     results.forEach((result, ci) => {
@@ -214,7 +214,7 @@ export async function POST(req: NextRequest) {
     })
 
     errors.sort((a, b) => a.index - b.index)
-    const publicErrors: FieldError[] = errors.map(({ index: _i, ...e }) => e)
+    const publicErrors: FieldError[] = errors.map((e) => ({ row: e.row, field: e.field, value: e.value, message: e.message }))
     if (failed > 0) console.error('Faculty bulk import failures:', failed)
 
     return NextResponse.json({ succeeded, failed, total: rows.length, errors: publicErrors }, { status: 201 })
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
 }
 
 /** Upsert one chunk of teachers + their batch assignments. Returns the number of file rows saved. */
-async function writeChunk(part: PlannedFaculty[], schoolId: string): Promise<number> {
+async function writeChunk(part: PlannedFaculty[]): Promise<number> {
   const byId = part.filter(p => !p.keyed)
   const keyed = part.filter(p => p.keyed)
   const statements: any[] = []
