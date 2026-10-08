@@ -69,7 +69,9 @@ export async function runPromotionDetectionForSchool(
   const excludedTerminalCount = await getActiveClass12Count(schoolId)
   const previewCounts = buildPreviewCounts(eligible)
 
-  await db.insert(classPromotionRuns).values({
+  // The (school, academicYear) unique index makes this idempotent even when
+  // the cron and a "Check now" click race: only one insert returns a row.
+  const inserted = await db.insert(classPromotionRuns).values({
     schoolId,
     academicYear,
     boundaryDate,
@@ -77,18 +79,26 @@ export async function runPromotionDetectionForSchool(
     previewCounts,
     excludedNewAdmissionCount,
     excludedTerminalCount,
-  })
+  }).onConflictDoNothing({ target: [classPromotionRuns.schoolId, classPromotionRuns.academicYear] })
+    .returning({ id: classPromotionRuns.id })
+  if (inserted.length === 0) return { created: false, academicYear }
 
-  const managementUserIds = await getManagementUserIds(schoolId)
-  for (const userId of managementUserIds) {
-    await db.insert(notifications).values({
-      userId,
-      category: 'General',
-      title: 'Class promotion ready for review',
-      message: `${academicYear} class promotion is ready to review for your school.`,
-      link: '/management/academic-planning?tab=Promotion',
-      schoolId,
-    })
+  // One multi-row insert instead of one INSERT per user; a notification
+  // failure must not make the (already committed) run look failed.
+  try {
+    const managementUserIds = await getManagementUserIds(schoolId)
+    if (managementUserIds.length > 0) {
+      await db.insert(notifications).values(managementUserIds.map((userId) => ({
+        userId,
+        category: 'General',
+        title: 'Class promotion ready for review',
+        message: `${academicYear} class promotion is ready to review for your school.`,
+        link: '/management/academic-planning?tab=Promotion',
+        schoolId,
+      })))
+    }
+  } catch (error) {
+    console.error('[class-promotion] failed to notify management', error)
   }
 
   return { created: true, academicYear }

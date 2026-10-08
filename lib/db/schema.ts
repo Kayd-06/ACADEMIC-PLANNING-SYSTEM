@@ -134,12 +134,12 @@ export const students = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    rollClassSectionSchoolUnique: uniqueIndex('students_roll_no_class_section_school_unique')
-      .on(table.rollNo, table.class, table.section, table.schoolId)
-      .where(sql`${table.rollNo} <> '' AND ${table.class} <> '' AND ${table.section} <> '' AND ${table.schoolId} IS NOT NULL`),
-    rollClassSectionNullSchoolUnique: uniqueIndex('students_roll_no_class_section_null_school_unique')
-      .on(table.rollNo, table.class, table.section)
-      .where(sql`${table.rollNo} <> '' AND ${table.class} <> '' AND ${table.section} <> '' AND ${table.schoolId} IS NULL`),
+    // Migration 0051. Section is part of the key even when empty — the old
+    // indexes skipped section = '' and so allowed duplicate roll numbers.
+    // The bulk import upserts on this key (ON CONFLICT ... WHERE <predicate>).
+    schoolRollClassSectionUnique: uniqueIndex('students_school_roll_class_section_unique')
+      .on(table.schoolId, table.rollNo, table.class, table.section)
+      .where(sql`${table.rollNo} <> '' AND ${table.class} <> '' AND ${table.schoolId} IS NOT NULL`),
   })
 )
 
@@ -252,7 +252,11 @@ export const attendanceSessions = pgTable('attendance_sessions', {
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table) => ({
+  // Migration 0051: one sheet per class occurrence; POST /api/attendance upserts on it.
+  slotUnique: uniqueIndex('attendance_sessions_slot_unique')
+    .on(table.schoolId, table.date, table.batch, table.subject, table.classTime),
+}))
 
 export type AttendanceSession = typeof attendanceSessions.$inferSelect
 export type NewAttendanceSession = typeof attendanceSessions.$inferInsert
@@ -456,7 +460,10 @@ export const batchSyllabus = pgTable('batch_syllabus', {
   status: varchar('status', { length: 20 }).notNull().default('Not Started'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table) => ({
+  // Migration 0051: one syllabus row per batch + chapter.
+  batchChapterUnique: uniqueIndex('batch_syllabus_batch_chapter_unique').on(table.batchId, table.chapterId),
+}))
 
 export type BatchSyllabus = typeof batchSyllabus.$inferSelect
 export type NewBatchSyllabus = typeof batchSyllabus.$inferInsert

@@ -4,63 +4,76 @@ import { db } from '@/lib/db'
 import { attendanceSessions, attendanceEntries, classSchedules, specialClasses, students } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse } from '@/lib/api/http'
+import { runAfterResponse } from '@/lib/sideEffects'
 
 export const dynamic = 'force-dynamic'
 
 const STATUSES = ['Present', 'Absent', 'Late', 'Excused']
+const DEFAULT_CLASS_TIME = '09:00 AM - 10:00 AM'
 
 // A class's roster is every active student whose own `batch` field matches
 // — batches and classes (grade levels) are independent fields, so matching
 // on class here would silently return nobody for schools that name batches
 // like "Batch 1" rather than a grade level.
-async function findBatchRoster(batch: string, schoolId: string | null) {
-  const conditions = [eq(students.batch, batch), eq(students.isActive, true)]
-  if (schoolId) conditions.push(eq(students.schoolId, schoolId))
-  return db.select().from(students).where(and(...conditions)).orderBy(students.rollNo, students.name)
+async function findBatchRoster(batch: string, schoolId: string) {
+  return db.select().from(students)
+    .where(and(eq(students.batch, batch), eq(students.isActive, true), eq(students.schoolId, schoolId)))
+    .orderBy(students.rollNo, students.name)
 }
 
+// One attendance sheet per (school, date, batch, subject, classTime). The
+// unique index attendance_sessions_slot_unique (migration 0051) enforces it,
+// so two teachers saving at the same moment can no longer create duplicates.
 // classTime disambiguates multiple sessions of the same subject/batch on the
-// same day (e.g. a regular period plus a same-subject revision session) —
-// without it, marking one silently overwrote the other's attendance sheet.
-function sessionCondition(date: string, batch: string, subject: string, classTime: string, schoolId: string | null) {
-  const conditions = [
+// same day (e.g. a regular period plus a same-subject revision session).
+function sessionCondition(date: string, batch: string, subject: string, classTime: string, schoolId: string) {
+  return and(
+    eq(attendanceSessions.schoolId, schoolId),
     eq(attendanceSessions.date, date),
     eq(attendanceSessions.batch, batch),
     eq(attendanceSessions.subject, subject),
     eq(attendanceSessions.classTime, classTime),
-  ]
-  if (schoolId) conditions.push(eq(attendanceSessions.schoolId, schoolId))
-  return and(...conditions)
+  )
 }
 
-// Best-effort link to the recurring schedule slot or special class for this occurrence
-async function findLinkedClass(date: string, batch: string, subject: string, schoolId: string | null) {
+// Best-effort link to the recurring schedule slot or special class for this
+// occurrence. When the client tells us the class time we prefer the slot that
+// actually runs at that time instead of whichever row happens to come first.
+async function findLinkedClass(date: string, batch: string, subject: string, schoolId: string, classTime = '') {
   const dayOfWeek = new Date(date).getDay()
 
-  const scheduleConditions = [
+  const schedules = await db.select().from(classSchedules).where(and(
     eq(classSchedules.batch, batch),
     eq(classSchedules.subject, subject),
     eq(classSchedules.dayOfWeek, dayOfWeek),
     eq(classSchedules.isActive, true),
-  ]
-  if (schoolId) scheduleConditions.push(eq(classSchedules.schoolId, schoolId))
-  const [schedule] = await db.select().from(classSchedules).where(and(...scheduleConditions)).limit(1)
+    eq(classSchedules.schoolId, schoolId),
+  )).limit(20)
+  const schedule = (classTime && schedules.find(s => `${s.startTime} - ${s.endTime}` === classTime)) || schedules[0]
   if (schedule) return { scheduleId: schedule.id, specialClassId: null, classTime: `${schedule.startTime} - ${schedule.endTime}` }
 
-  const specialConditions = [eq(specialClasses.date, date), eq(specialClasses.batch, batch)]
-  if (schoolId) specialConditions.push(eq(specialClasses.schoolId, schoolId))
-  const [special] = await db.select().from(specialClasses).where(and(...specialConditions)).limit(1)
+  const specials = await db.select().from(specialClasses).where(and(
+    eq(specialClasses.date, date),
+    eq(specialClasses.batch, batch),
+    eq(specialClasses.schoolId, schoolId),
+  )).limit(20)
+  const special =
+    (classTime && specials.find(s => `${s.startTime} - ${s.endTime}` === classTime)) ||
+    specials.find(s => s.subject === subject) ||
+    specials[0]
   if (special) return { scheduleId: null, specialClassId: special.id, classTime: `${special.startTime} - ${special.endTime}` }
 
   return { scheduleId: null, specialClassId: null, classTime: '' }
 }
 
-// GET — load marked attendance sheet OR a fresh template for the batch roster
+// GET — load marked attendance sheet OR a fresh template for the batch roster.
+// Read-only: never writes.
 export async function GET(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const schoolId = (session.user as any).schoolId as string | null
 
     const { searchParams } = new URL(req.url)
     const date = searchParams.get('date')
@@ -71,9 +84,9 @@ export async function GET(req: NextRequest) {
     if (!date || !batch || !subject) {
       return NextResponse.json({ error: 'Missing query parameters: date, batch, subject' }, { status: 400 })
     }
+    const schoolId = requireSchool(session)
 
-    const linked = await findLinkedClass(date, batch, subject, schoolId)
-    if (!classTime) classTime = linked.classTime
+    if (!classTime) classTime = (await findLinkedClass(date, batch, subject, schoolId)).classTime
 
     // Existing marked sheet?
     const [existing] = await db.select().from(attendanceSessions)
@@ -117,13 +130,33 @@ export async function GET(req: NextRequest) {
       date,
       batch,
       subject,
-      classTime: classTime || '09:00 AM - 10:00 AM',
+      classTime: classTime || DEFAULT_CLASS_TIME,
       records: defaultRecords,
       isNew: true,
     })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'GET /api/attendance')
   }
+}
+
+interface IncomingRecord {
+  studentId?: string | null
+  studentName?: string
+  rollNo?: string
+  status?: string
+  notes?: string
+}
+
+// The same student twice in one sheet would just be a duplicate row — keep
+// the last occurrence (what the teacher saw last in the UI).
+function dedupeRecords(records: IncomingRecord[]): IncomingRecord[] {
+  const byStudent = new Map<string, IncomingRecord>()
+  const anonymous: IncomingRecord[] = []
+  for (const r of records) {
+    if (r.studentId) byStudent.set(r.studentId, r)
+    else anonymous.push(r)
+  }
+  return [...byStudent.values(), ...anonymous]
 }
 
 // POST — save or update attendance sheet
@@ -135,7 +168,6 @@ export async function POST(req: NextRequest) {
     if (role !== 'teacher' && role !== 'management') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const schoolId = (session.user as any).schoolId as string | null
 
     const body = await req.json()
     const { date, batch, subject, classTime, records } = body
@@ -144,78 +176,91 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required body parameters.' }, { status: 400 })
     }
     for (const r of records) {
+      if (!r || typeof r.studentName !== 'string' || !r.studentName.trim()) {
+        return NextResponse.json({ error: 'Every record needs a studentName.' }, { status: 400 })
+      }
       if (r.status && !STATUSES.includes(r.status)) {
         return NextResponse.json({ error: `Invalid status "${r.status}" — must be one of: ${STATUSES.join(', ')}` }, { status: 400 })
       }
     }
+    const schoolId = requireSchool(session)
 
-    const linked = await findLinkedClass(date, batch, subject, schoolId)
-    const resolvedClassTime = classTime || linked.classTime || '09:00 AM - 10:00 AM'
+    const linked = await findLinkedClass(date, batch, subject, schoolId, classTime || '')
+    const resolvedClassTime = classTime || linked.classTime || DEFAULT_CLASS_TIME
+    const now = new Date()
+    const markedByName = session.user.name ?? ''
+    const markedByEmail = session.user.email ?? ''
 
-    // Upsert the session
-    const [existing] = await db.select().from(attendanceSessions)
-      .where(sessionCondition(date, batch, subject, resolvedClassTime, schoolId))
-
-    let sessionId: string
-    if (existing) {
-      sessionId = existing.id
-      await db.update(attendanceSessions).set({
-        classTime: resolvedClassTime,
-        markedByName: session.user.name ?? '',
-        markedByEmail: session.user.email ?? '',
+    // 1) Upsert the session row on its unique key — race-free, no
+    //    read-then-insert window that could create duplicate sheets.
+    const [sheet] = await db.insert(attendanceSessions).values({
+      date, batch, subject,
+      classTime: resolvedClassTime,
+      markedByName,
+      markedByEmail,
+      scheduleId: linked.scheduleId,
+      specialClassId: linked.specialClassId,
+      schoolId,
+    }).onConflictDoUpdate({
+      target: [
+        attendanceSessions.schoolId,
+        attendanceSessions.date,
+        attendanceSessions.batch,
+        attendanceSessions.subject,
+        attendanceSessions.classTime,
+      ],
+      set: {
+        markedByName,
+        markedByEmail,
         scheduleId: linked.scheduleId,
         specialClassId: linked.specialClassId,
-        updatedAt: new Date(),
-      }).where(eq(attendanceSessions.id, sessionId))
-      // Replace entries wholesale — simplest correct upsert
-      await db.delete(attendanceEntries).where(eq(attendanceEntries.sessionId, sessionId))
+        updatedAt: now,
+      },
+    }).returning({ id: attendanceSessions.id })
+    const sessionId = sheet.id
+
+    // 2) Replace the entries atomically: db.batch runs inside one Postgres
+    //    transaction, so a failure can never leave the sheet half-deleted.
+    const rows = dedupeRecords(records).map(r => ({
+      sessionId,
+      studentId: r.studentId || null,
+      studentName: String(r.studentName).trim(),
+      rollNo: r.rollNo || '',
+      status: r.status || 'Absent',
+      notes: r.notes || '',
+    }))
+    const deleteOld = db.delete(attendanceEntries).where(eq(attendanceEntries.sessionId, sessionId))
+    let entries: Array<typeof attendanceEntries.$inferSelect> = []
+    if (rows.length > 0) {
+      const [, inserted] = await db.batch([deleteOld, db.insert(attendanceEntries).values(rows).returning()])
+      entries = inserted
     } else {
-      const [created] = await db.insert(attendanceSessions).values({
-        date, batch, subject,
-        classTime: resolvedClassTime,
-        markedByName: session.user.name ?? '',
-        markedByEmail: session.user.email ?? '',
-        scheduleId: linked.scheduleId,
-        specialClassId: linked.specialClassId,
-        schoolId,
-      }).returning()
-      sessionId = created.id
+      await db.batch([deleteOld])
     }
 
-    if (records.length > 0) {
-      await db.insert(attendanceEntries).values(records.map((r: any) => ({
-        sessionId,
-        studentId: r.studentId || null,
-        studentName: r.studentName,
-        rollNo: r.rollNo || '',
-        status: r.status || 'Absent',
-        notes: r.notes || '',
-      })))
-    }
-
-    const entries = await db.select().from(attendanceEntries).where(eq(attendanceEntries.sessionId, sessionId))
-
-    // Notify teachers and admins
-    await notifyRoleInSchool(
+    // 3) Notifications happen after the response — they can't slow down or
+    //    fail the save.
+    const markerName = session.user.name ?? 'Faculty'
+    runAfterResponse('attendance-notify', () => notifyRoleInSchool(
       ['teacher', 'management'],
       schoolId,
       {
         category: 'Attendance',
         title: `Attendance Marked: ${subject} - ${batch}`,
-        message: `Attendance for Subject: ${subject} (Batch: ${batch}) was marked by ${session.user.name ?? 'Faculty'} on ${date} for class time ${resolvedClassTime}.`,
+        message: `Attendance for Subject: ${subject} (Batch: ${batch}) was marked by ${markerName} on ${date} for class time ${resolvedClassTime}.`,
       },
-      (role) => role === 'teacher' ? '/teacher/attendance' : '/management/attendance'
-    )
+      (r) => r === 'teacher' ? '/teacher/attendance' : '/management/attendance'
+    ))
 
     return NextResponse.json({
       _id: sessionId, date, batch, subject,
       classTime: resolvedClassTime,
-      markedByName: session.user.name ?? '',
+      markedByName,
       records: entries.map(e => ({
         studentId: e.studentId, studentName: e.studentName, rollNo: e.rollNo, status: e.status, notes: e.notes,
       })),
     })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'POST /api/attendance')
   }
 }
