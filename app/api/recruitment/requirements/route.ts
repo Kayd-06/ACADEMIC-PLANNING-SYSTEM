@@ -1,28 +1,40 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { recruitmentRequirements } from '@/lib/db/schema'
-import { desc, eq } from 'drizzle-orm'
-import { logAuditAction } from '@/lib/audit'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { errorResponse, pickAllowed } from '@/lib/api/http'
+import { runAfterResponse } from '@/lib/sideEffects'
+import { auditAfterResponse, requireRecruitmentAccess } from '@/lib/recruitment/access'
+import { resolveRequestedSchool } from '@/lib/tenantAccess'
 
 export const dynamic = 'force-dynamic'
 
+// Only these columns can be changed through PATCH (no id/schoolId/timestamps).
+const EDITABLE = [
+  'jobTitle', 'subjectProgram', 'department', 'experienceRequired', 'qualificationRequired',
+  'vacancies', 'status', 'postingDate', 'closingDate',
+] as const
+
+function toApi(r: typeof recruitmentRequirements.$inferSelect) {
+  return { ...r, _id: r.id, title: r.jobTitle }
+}
+
 export async function GET() {
   try {
-    const rows = await db.select().from(recruitmentRequirements).orderBy(desc(recruitmentRequirements.createdAt))
-    const formatted = rows.map(r => ({
-      ...r,
-      _id: r.id,
-      title: r.jobTitle
-    }))
-    return NextResponse.json(formatted)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Failed to fetch requirements' }, { status: 500 })
+    const { schoolIds } = await requireRecruitmentAccess()
+    const rows = await db.select().from(recruitmentRequirements)
+      .where(inArray(recruitmentRequirements.schoolId, schoolIds))
+      .orderBy(desc(recruitmentRequirements.createdAt))
+    return NextResponse.json(rows.map(toApi))
+  } catch (error) {
+    return errorResponse(error, 'GET /api/recruitment/requirements', { fallbackMessage: 'Failed to fetch requirements' })
   }
 }
 
 export async function POST(req: Request) {
   try {
+    const { session } = await requireRecruitmentAccess()
     const body = await req.json()
     const {
       jobTitle = '',
@@ -35,8 +47,9 @@ export async function POST(req: Request) {
       status = 'Open',
       postingDate = '',
       closingDate = '',
-      schoolId = null
     } = body
+    // Body schoolId may only pick another school this admin manages.
+    const schoolId = await resolveRequestedSchool(session, body.schoolId)
 
     const finalTitle = jobTitle || title || 'Untitled Role'
 
@@ -50,109 +63,97 @@ export async function POST(req: Request) {
       status,
       postingDate: postingDate || new Date().toISOString().split('T')[0],
       closingDate: closingDate || '',
-      schoolId: schoolId || null
+      schoolId,
     }).returning()
 
-    await logAuditAction({
+    auditAfterResponse(session, req, {
       userActionType: 'CREATE_REQUIREMENT',
       tableName: 'recruitment_requirements',
       recordId: newReq.id,
       newValues: newReq,
-      req
+      schoolId,
     })
+    runAfterResponse('requirement-created', () => notifyRoleInSchool(['teacher', 'management'], schoolId, {
+      category: 'General',
+      title: `New Job Requirement: ${newReq.jobTitle}`,
+      message: `Vacancies: ${newReq.vacancies} in ${newReq.department} department.`,
+      link: '/management/recruitment',
+    }))
 
-    // Notify teachers and admins
-    await notifyRoleInSchool(
-      ['teacher', 'management'],
-      newReq.schoolId,
-      {
-        category: 'General',
-        title: `New Job Requirement: ${newReq.jobTitle}`,
-        message: `Vacancies: ${newReq.vacancies} in ${newReq.department} department.`,
-        link: '/management/recruitment',
-      }
-    )
-
-    return NextResponse.json({ ...newReq, _id: newReq.id, title: newReq.jobTitle }, { status: 201 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Failed to create requirement' }, { status: 500 })
+    return NextResponse.json(toApi(newReq), { status: 201 })
+  } catch (error) {
+    return errorResponse(error, 'POST /api/recruitment/requirements', { fallbackMessage: 'Failed to create requirement' })
   }
 }
 
 export async function PATCH(req: Request) {
   try {
+    const { session, schoolIds } = await requireRecruitmentAccess()
     const body = await req.json()
-    const { id, _id, ...updates } = body
-    const targetId = id || _id
+    const targetId = body.id || body._id
     if (!targetId) return NextResponse.json({ error: 'ID is required' }, { status: 400 })
 
-    const [oldReq] = await db.select().from(recruitmentRequirements).where(eq(recruitmentRequirements.id, targetId))
+    const inScope = and(eq(recruitmentRequirements.id, targetId), inArray(recruitmentRequirements.schoolId, schoolIds))
+    const [oldReq] = await db.select().from(recruitmentRequirements).where(inScope)
     if (!oldReq) return NextResponse.json({ error: 'Requirement not found' }, { status: 404 })
+
+    const updates: Record<string, unknown> = pickAllowed(body, EDITABLE)
+    if (updates.vacancies !== undefined) updates.vacancies = Number(updates.vacancies) || 1
 
     const [updatedReq] = await db.update(recruitmentRequirements).set({
       ...updates,
-      jobTitle: updates.jobTitle || updates.title || oldReq.jobTitle,
-      updatedAt: new Date()
-    }).where(eq(recruitmentRequirements.id, targetId)).returning()
+      jobTitle: (updates.jobTitle as string) || body.title || oldReq.jobTitle,
+      updatedAt: new Date(),
+    }).where(inScope).returning()
 
-    await logAuditAction({
+    auditAfterResponse(session, req, {
       userActionType: 'UPDATE_REQUIREMENT',
       tableName: 'recruitment_requirements',
       recordId: updatedReq.id,
       oldValues: oldReq,
       newValues: updatedReq,
-      req
+      schoolId: updatedReq.schoolId,
     })
+    runAfterResponse('requirement-updated', () => notifyRoleInSchool(['teacher', 'management'], updatedReq.schoolId, {
+      category: 'General',
+      title: `Job Requirement Updated: ${updatedReq.jobTitle}`,
+      message: `Status: ${updatedReq.status}, Vacancies: ${updatedReq.vacancies}.`,
+      link: '/management/recruitment',
+    }))
 
-    // Notify teachers and admins
-    await notifyRoleInSchool(
-      ['teacher', 'management'],
-      updatedReq.schoolId,
-      {
-        category: 'General',
-        title: `Job Requirement Updated: ${updatedReq.jobTitle}`,
-        message: `Status: ${updatedReq.status}, Vacancies: ${updatedReq.vacancies}.`,
-        link: '/management/recruitment',
-      }
-    )
-
-    return NextResponse.json({ ...updatedReq, _id: updatedReq.id, title: updatedReq.jobTitle })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Failed to update requirement' }, { status: 500 })
+    return NextResponse.json(toApi(updatedReq))
+  } catch (error) {
+    return errorResponse(error, 'PATCH /api/recruitment/requirements', { fallbackMessage: 'Failed to update requirement' })
   }
 }
 
 export async function DELETE(req: Request) {
   try {
-    const url = new URL(req.url)
-    const id = url.searchParams.get('id')
+    const { session, schoolIds } = await requireRecruitmentAccess()
+    const id = new URL(req.url).searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 })
 
-    const [oldReq] = await db.select().from(recruitmentRequirements).where(eq(recruitmentRequirements.id, id))
+    const [oldReq] = await db.delete(recruitmentRequirements)
+      .where(and(eq(recruitmentRequirements.id, id), inArray(recruitmentRequirements.schoolId, schoolIds)))
+      .returning()
     if (oldReq) {
-      await db.delete(recruitmentRequirements).where(eq(recruitmentRequirements.id, id))
-      await logAuditAction({
+      auditAfterResponse(session, req, {
         userActionType: 'DELETE_REQUIREMENT',
         tableName: 'recruitment_requirements',
         recordId: id,
         oldValues: oldReq,
-        req
+        schoolId: oldReq.schoolId,
       })
-      // Notify teachers and admins
-      await notifyRoleInSchool(
-        ['teacher', 'management'],
-        oldReq.schoolId,
-        {
-          category: 'General',
-          title: `Job Requirement Closed: ${oldReq.jobTitle}`,
-          message: `The job opening for ${oldReq.jobTitle} has been closed.`,
-          link: '/management/recruitment',
-        }
-      )
+      runAfterResponse('requirement-deleted', () => notifyRoleInSchool(['teacher', 'management'], oldReq.schoolId, {
+        category: 'General',
+        title: `Job Requirement Closed: ${oldReq.jobTitle}`,
+        message: `The job opening for ${oldReq.jobTitle} has been closed.`,
+        link: '/management/recruitment',
+      }))
     }
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Failed to delete requirement' }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'DELETE /api/recruitment/requirements', { fallbackMessage: 'Failed to delete requirement' })
   }
 }

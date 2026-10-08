@@ -23,8 +23,14 @@ describe('GET /api/fees/stats', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns computed metrics when session is present', async () => {
+  it('refuses (403) when the account has no active school instead of aggregating every school', async () => {
     ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: null } })
+    const res = await GET(req('http://localhost/api/fees/stats?schoolId=00000000-0000-0000-0000-000000000001'))
+    expect(res.status).toBe(403)
+  })
+
+  it('returns computed metrics when session is present', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: '00000000-0000-0000-0000-0000000000f5' } })
 
     const res = await GET(req('http://localhost/api/fees/stats'))
     const body = await res.json()
