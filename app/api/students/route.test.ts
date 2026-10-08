@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { students, parentsGuardians, batches } from '@/lib/db/schema'
+import { students, parentsGuardians, batches, schools } from '@/lib/db/schema'
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
@@ -19,9 +19,30 @@ function req(url: string, init?: RequestInit) {
 // and let real rows accumulate across runs.
 const createdIds: string[] = []
 
+// Students are always read/written within the session's school, so DB-backed
+// tests run against their own throwaway school (created lazily so the
+// validation-only tests need no database).
+let SCHOOL: string
+let schoolCreated = false
+async function staff(role: 'management' | 'teacher') {
+  await db.insert(schools).values({ id: SCHOOL as any })
+  schoolCreated = true
+  return { user: { role, schoolId: SCHOOL } }
+}
+
+beforeEach(() => {
+  SCHOOL = crypto.randomUUID()
+  schoolCreated = false
+})
+
 afterEach(async () => {
   for (const id of createdIds) await db.delete(students).where(eq(students.id, id))
   createdIds.length = 0
+  if (schoolCreated) {
+    await db.delete(students).where(eq(students.schoolId, SCHOOL as any))
+    await db.delete(batches).where(eq(batches.schoolId, SCHOOL as any))
+    await db.delete(schools).where(eq(schools.id, SCHOOL as any))
+  }
   jest.clearAllMocks()
 })
 
@@ -33,10 +54,10 @@ describe('GET /api/students', () => {
   })
 
   it('returns active students shaped with _id', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [active] = await db.insert(students).values({ name: 'Active Kid', class: '11 - A', section: 'A' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
+    const [active] = await db.insert(students).values({ schoolId: SCHOOL as any, name: 'Active Kid', class: '11 - A', section: 'A' }).returning()
     createdIds.push(active.id)
-    const [inactive] = await db.insert(students).values({ name: 'Inactive Kid', isActive: false }).returning()
+    const [inactive] = await db.insert(students).values({ schoolId: SCHOOL as any, name: 'Inactive Kid', isActive: false }).returning()
     createdIds.push(inactive.id)
 
     const res = await GET(req('http://localhost/api/students'))
@@ -52,10 +73,10 @@ describe('GET /api/students', () => {
   })
 
   it('filters by class and section query params', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [match] = await db.insert(students).values({ name: 'Match', class: '10 - B', section: 'B' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
+    const [match] = await db.insert(students).values({ schoolId: SCHOOL as any, name: 'Match', class: '10 - B', section: 'B' }).returning()
     createdIds.push(match.id)
-    const [noMatch] = await db.insert(students).values({ name: 'No Match', class: '11 - A', section: 'A' }).returning()
+    const [noMatch] = await db.insert(students).values({ schoolId: SCHOOL as any, name: 'No Match', class: '11 - A', section: 'A' }).returning()
     createdIds.push(noMatch.id)
 
     const res = await GET(req('http://localhost/api/students?class=10 - B&section=B'))
@@ -80,7 +101,7 @@ describe('POST /api/students', () => {
   })
 
   it('creates a student and returns it shaped with _id', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'teacher' } })
+    ;(auth as jest.Mock).mockResolvedValue(await staff('teacher'))
     // Unique-per-run roll number — a fixed value risks colliding with
     // leftover rows from unrelated test runs sharing this class/section.
     const res = await POST(
@@ -97,7 +118,7 @@ describe('POST /api/students', () => {
   })
 
   it('returns 409 on a duplicate rollNo+class+section', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
     const payload = { name: 'Dup', rollNo: `DUP-${Date.now()}`, class: '11 - A', section: 'A' }
     const first = await POST(req('http://localhost/api/students', { method: 'POST', body: JSON.stringify(payload) }))
     const firstBody = await first.json()
@@ -108,7 +129,7 @@ describe('POST /api/students', () => {
   })
 
   it('accepts and persists program and batch on create', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
     const res = await POST(
       req('http://localhost/api/students', {
         method: 'POST',
@@ -123,8 +144,8 @@ describe('POST /api/students', () => {
   })
 
   it('persists batchId when provided', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [batch] = await db.insert(batches).values({ name: 'Route Batch' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
+    const [batch] = await db.insert(batches).values({ schoolId: SCHOOL as any, name: 'Route Batch' }).returning()
     const res = await POST(
       req('http://localhost/api/students', {
         method: 'POST',
@@ -167,8 +188,8 @@ describe('PATCH /api/students', () => {
   })
 
   it('updates a student by id', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [created] = await db.insert(students).values({ name: 'Before' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
+    const [created] = await db.insert(students).values({ schoolId: SCHOOL as any, name: 'Before' }).returning()
     createdIds.push(created.id)
 
     const res = await PATCH(
@@ -181,8 +202,8 @@ describe('PATCH /api/students', () => {
   })
 
   it('updates program and batch', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [created] = await db.insert(students).values({ name: 'Before' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
+    const [created] = await db.insert(students).values({ schoolId: SCHOOL as any, name: 'Before' }).returning()
     createdIds.push(created.id)
 
     const res = await PATCH(
@@ -198,9 +219,9 @@ describe('PATCH /api/students', () => {
   })
 
   it('normalizes empty-string batchId to null on update', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [batch] = await db.insert(batches).values({ name: 'Unassign Batch' }).returning()
-    const [created] = await db.insert(students).values({ name: 'Before', batchId: batch.id }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
+    const [batch] = await db.insert(batches).values({ schoolId: SCHOOL as any, name: 'Unassign Batch' }).returning()
+    const [created] = await db.insert(students).values({ schoolId: SCHOOL as any, name: 'Before', batchId: batch.id }).returning()
     createdIds.push(created.id)
 
     const patchRes = await PATCH(
@@ -216,7 +237,7 @@ describe('PATCH /api/students', () => {
   })
 
   it('returns 404 for an unknown id', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
     const res = await PATCH(
       req('http://localhost/api/students?id=00000000-0000-0000-0000-000000000000', {
         method: 'PATCH',
@@ -227,8 +248,8 @@ describe('PATCH /api/students', () => {
   })
 
   it('rejects updating phone to a value longer than 10 characters', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [created] = await db.insert(students).values({ name: 'Before' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
+    const [created] = await db.insert(students).values({ schoolId: SCHOOL as any, name: 'Before' }).returning()
     createdIds.push(created.id)
 
     const res = await PATCH(
@@ -242,8 +263,8 @@ describe('PATCH /api/students', () => {
 
 describe('DELETE /api/students', () => {
   it('permanently deletes the student, even without a permanent param', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [created] = await db.insert(students).values({ name: 'To Remove' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
+    const [created] = await db.insert(students).values({ schoolId: SCHOOL as any, name: 'To Remove' }).returning()
     createdIds.push(created.id)
 
     const res = await DELETE(req(`http://localhost/api/students?id=${created.id}`, { method: 'DELETE' }))
@@ -254,8 +275,8 @@ describe('DELETE /api/students', () => {
   })
 
   it('cascades the delete to the student\'s guardians', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [created] = await db.insert(students).values({ name: 'To Remove' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(await staff('management'))
+    const [created] = await db.insert(students).values({ schoolId: SCHOOL as any, name: 'To Remove' }).returning()
     createdIds.push(created.id)
     await db.insert(parentsGuardians).values({ studentId: created.id, name: 'ABC', isPrimary: true })
 
