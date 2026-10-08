@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
 import { STAFF_FLOW_TYPES, isStaffFlow, computeFeedbackStats, filterByView } from '@/lib/feedback/stats'
 import { splitTeacherFeedback } from '@/lib/feedback/scope'
+import { runAfterResponse } from '@/lib/sideEffects'
 
 export const dynamic = 'force-dynamic'
 
@@ -140,19 +141,19 @@ export async function POST(req: NextRequest) {
     const titleText = batch && batch !== 'All Faculty'
       ? `New personalised feedback from management for ${batch}`
       : 'New feedback from management'
-    await notifyRoleInSchool(['teacher'], schoolId, {
+    runAfterResponse('feedback:notify', () => notifyRoleInSchool(['teacher'], schoolId, {
       category: 'General',
       title: titleText,
       message: created.content.slice(0, 200),
       link: '/teacher/feedback',
-    })
+    }))
   } else {
-    await notifyRoleInSchool(['management'], schoolId, {
+    runAfterResponse('feedback:notify', () => notifyRoleInSchool(['management'], schoolId, {
       category: 'General',
       title: `New feedback from ${created.senderName || 'a teacher'}`,
       message: created.content.slice(0, 200),
       link: '/management/feedback',
-    })
+    }))
   }
 
   return NextResponse.json(created, { status: 201 })

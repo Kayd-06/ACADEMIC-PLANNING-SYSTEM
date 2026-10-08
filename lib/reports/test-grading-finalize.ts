@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db, tests, testGrades, type Test } from '@/lib/db'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { runAfterResponse } from '@/lib/sideEffects'
 
 // Recomputes the test's averageScore from its testGrades cache, flips it to
 // Graded, and notifies teacher/management. Both the manual per-question
@@ -20,7 +21,7 @@ export async function finalizeGradedTest(test: Test): Promise<{ updatedTest: Tes
     .where(eq(tests.id, test.id))
     .returning()
 
-  await notifyRoleInSchool(
+  runAfterResponse('reports/test-grading-finalize:notify', () => notifyRoleInSchool(
     ['teacher', 'management'],
     test.schoolId,
     {
@@ -29,7 +30,7 @@ export async function finalizeGradedTest(test: Test): Promise<{ updatedTest: Tes
       message: `Results for Subject: ${test.subject} (Batch: ${test.batch}) have been declared.${averageScore !== null ? ` Class Average: ${averageScore}%.` : ''}`,
     },
     (role) => role === 'teacher' ? '/teacher/tests' : '/management/tests-bank'
-  )
+  ))
 
   return { updatedTest, averageScore }
 }

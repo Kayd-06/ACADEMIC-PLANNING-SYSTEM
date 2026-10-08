@@ -9,6 +9,8 @@ import { notifyRoleInSchool } from '@/lib/notify'
 export const dynamic = 'force-dynamic'
 
 import { loadAuthorizedTest } from '@/lib/db/queries/tests-auth'
+import { runAfterResponse } from '@/lib/sideEffects'
+import { errorResponse } from '@/lib/api/http'
 
 // Dense ranking over present, graded students only — an absent or ungraded
 // student gets no rank at all rather than being sorted to the bottom.
@@ -87,7 +89,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({ test, studentResults })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return errorResponse(error, '/app/api/tests/[id]/grades')
   }
 }
 
@@ -162,7 +164,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .where(eq(tests.id, test.id))
       .returning()
 
-    await notifyRoleInSchool(
+    runAfterResponse('tests/[id]/grades:notify', () => notifyRoleInSchool(
       ['teacher', 'management'],
       test.schoolId,
       {
@@ -171,10 +173,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         message: `Results for Subject: ${test.subject} (Batch: ${test.batch}) have been declared.${averageScore !== null ? ` Class Average: ${averageScore}%.` : ''}`,
       },
       (role) => role === 'teacher' ? '/teacher/tests' : '/management/tests-bank'
-    )
+    ))
 
     return NextResponse.json({ success: true, test: updatedTest })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return errorResponse(error, '/app/api/tests/[id]/grades')
   }
 }
