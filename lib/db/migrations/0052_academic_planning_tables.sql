@@ -3,7 +3,11 @@
 -- (models/AcademicPlanning.ts). Every row belongs to one school and to the
 -- role board it is shown on ('management' | 'teacher').
 --
--- Only creates new, empty tables (no data is moved or seeded). Safe to re-run.
+-- Also adds nullable per-batch override columns to batch_syllabus (teacher
+-- edits of a shared chapter's notes/title/hours no longer change it for every
+-- batch); see the end of this file.
+--
+-- Only creates new, empty tables/columns (no data is moved or seeded). Safe to re-run.
 -- Any milestones/logs/metrics worth keeping must be copied from MongoDB by
 -- hand — see the PR description.
 
@@ -56,3 +60,9 @@ CREATE TABLE IF NOT EXISTS "academic_metrics" (
 );
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "academic_metrics_school_role_idx" ON "academic_metrics" ("school_id", "role");
+--> statement-breakpoint
+ALTER TABLE "batch_syllabus" ADD COLUMN IF NOT EXISTS "notes" text;
+--> statement-breakpoint
+ALTER TABLE "batch_syllabus" ADD COLUMN IF NOT EXISTS "title_override" varchar(255);
+--> statement-breakpoint
+ALTER TABLE "batch_syllabus" ADD COLUMN IF NOT EXISTS "expected_hours_override" integer;

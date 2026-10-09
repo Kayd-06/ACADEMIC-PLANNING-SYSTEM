@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { batches, batchSyllabus, chapters, subjects, schools, programs } from '@/lib/db/schema'
-import { eq, and, or, isNull, ilike, asc, inArray, max } from 'drizzle-orm'
+import { eq, and, or, isNull, ilike, asc, inArray, max, sql } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getAdminSchools } from '@/lib/db/queries/adminSchools'
 import { requireSchool } from '@/lib/tenant'
@@ -100,6 +100,12 @@ async function nextOrderIndex(schoolId: string, subjectId: string) {
   return (row?.value ?? 0) + 1
 }
 
+// This batch's view of a chapter: its batch_syllabus overrides win over the
+// shared chapter's values (migration 0052).
+const effectiveTitle = sql<string>`coalesce(${batchSyllabus.titleOverride}, ${chapters.name})`
+const effectiveHours = sql<number | null>`coalesce(${batchSyllabus.expectedHoursOverride}, ${chapters.expectedHours})`
+const effectiveNotes = sql<string | null>`coalesce(${batchSyllabus.notes}, ${chapters.description})`
+
 // GET — read-only. Missing batch/subject => empty list (it used to CREATE
 // the batch, the subject and syllabus rows on every page view, racing with
 // concurrent views and producing duplicates).
@@ -128,13 +134,13 @@ export async function GET(req: Request) {
       const dbResult = await db
         .select({
           syllabusId: batchSyllabus.id,
-          title: chapters.name,
+          title: effectiveTitle,
           subjectName: subjects.name,
-          estHours: chapters.expectedHours,
+          estHours: effectiveHours,
           targetStartDate: batchSyllabus.targetStartDate,
           targetEndDate: batchSyllabus.targetEndDate,
           status: batchSyllabus.status,
-          notes: chapters.description,
+          notes: effectiveNotes,
           order: chapters.orderIndex,
         })
         .from(batchSyllabus)
@@ -166,12 +172,12 @@ export async function GET(req: Request) {
       .select({
         syllabusId: batchSyllabus.id,
         chapterId: chapters.id,
-        title: chapters.name,
-        estHours: chapters.expectedHours,
+        title: effectiveTitle,
+        estHours: effectiveHours,
         targetStartDate: batchSyllabus.targetStartDate,
         targetEndDate: batchSyllabus.targetEndDate,
         status: batchSyllabus.status,
-        notes: chapters.description,
+        notes: effectiveNotes,
         order: chapters.orderIndex,
       })
       .from(chapters)
@@ -253,10 +259,32 @@ export async function PATCH(req: Request) {
       sbUpdates.targetEndDate = dates ? end : null
     }
 
+    if (notes !== undefined && notes !== null && (typeof notes !== 'string' || notes.length > 10000)) {
+      return NextResponse.json({ error: 'Notes are invalid or too long' }, { status: 400 })
+    }
+    if (title !== undefined && (typeof title !== 'string' || !title.trim() || title.trim().length > 255)) {
+      return NextResponse.json({ error: 'Title must be 1–255 characters' }, { status: 400 })
+    }
+    const hours = estHours !== undefined ? (parseInt(estHours) || 10) : undefined
+
+    // A chapter created for this batch is edited in place. A shared chapter
+    // (Curriculum Manager / batch_id NULL, used by every batch) is never
+    // changed from one batch: the edit is stored on this batch's syllabus row.
+    const [chapterRow] = await db.select({ batchId: chapters.batchId }).from(chapters)
+      .where(and(eq(chapters.id, sb.chapterId), eq(chapters.schoolId, schoolId)))
+    if (!chapterRow) return NextResponse.json({ error: 'Syllabus record not found' }, { status: 404 })
+    const batchOwned = chapterRow.batchId === sb.batchId
+
     const chapUpdates: Partial<typeof chapters.$inferInsert> = {}
-    if (notes !== undefined) chapUpdates.description = notes
-    if (title !== undefined) chapUpdates.name = title
-    if (estHours !== undefined) chapUpdates.expectedHours = parseInt(estHours) || 10
+    if (batchOwned) {
+      if (notes !== undefined) chapUpdates.description = notes ?? ''
+      if (title !== undefined) chapUpdates.name = title.trim()
+      if (hours !== undefined) chapUpdates.expectedHours = hours
+    } else {
+      if (notes !== undefined) sbUpdates.notes = notes ?? ''
+      if (title !== undefined) sbUpdates.titleOverride = title.trim()
+      if (hours !== undefined) sbUpdates.expectedHoursOverride = hours
+    }
 
     // Both updates commit together or not at all.
     const statements = []
@@ -502,7 +530,17 @@ export async function DELETE(req: Request) {
     const sb = await loadAuthorizedSyllabusRow(id, schoolId, false)
     if (!sb) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
 
-    await db.delete(chapters).where(and(eq(chapters.id, sb.chapterId), eq(chapters.schoolId, schoolId)))
+    // Only a chapter created for this batch can be deleted here. Deleting a
+    // shared curriculum chapter would remove it (and its progress) from every
+    // batch of the school.
+    const [chapterRow] = await db.select({ batchId: chapters.batchId }).from(chapters)
+      .where(and(eq(chapters.id, sb.chapterId), eq(chapters.schoolId, schoolId)))
+    if (!chapterRow) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
+    if (chapterRow.batchId !== sb.batchId) {
+      return NextResponse.json({ error: 'This chapter is part of the shared curriculum. Remove it in the Curriculum Manager.' }, { status: 409 })
+    }
+
+    await db.delete(chapters).where(and(eq(chapters.id, sb.chapterId), eq(chapters.schoolId, schoolId), eq(chapters.batchId, sb.batchId)))
     return NextResponse.json({ success: true })
   } catch (error) {
     return errorResponse(error, 'DELETE /api/teacher-portal/academic-planning/chapters')

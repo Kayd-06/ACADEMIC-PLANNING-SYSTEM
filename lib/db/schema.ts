@@ -463,6 +463,11 @@ export const batchSyllabus = pgTable('batch_syllabus', {
   targetEndDate: varchar('target_end_date', { length: 10 }),
   actualEndDate: varchar('actual_end_date', { length: 10 }),
   status: varchar('status', { length: 20 }).notNull().default('Not Started'),
+  // Migration 0052: a teacher's per-batch edits of a SHARED chapter. NULL =
+  // use the chapter's own value. Batch-owned chapters are edited directly.
+  notes: text('notes'),
+  titleOverride: varchar('title_override', { length: 255 }),
+  expectedHoursOverride: integer('expected_hours_override'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
