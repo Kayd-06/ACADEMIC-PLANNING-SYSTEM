@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { attendanceSessions, attendanceEntries, classSchedules, specialClasses, students } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
 import { requireSchool } from '@/lib/tenant'
 import { errorResponse } from '@/lib/api/http'
 import { runAfterResponse } from '@/lib/sideEffects'
+import { unknownStudentIds, validateAttendanceRecords } from '@/lib/attendance/records'
 
 export const dynamic = 'force-dynamic'
 
-const STATUSES = ['Present', 'Absent', 'Late', 'Excused']
 const DEFAULT_CLASS_TIME = '09:00 AM - 10:00 AM'
 
 // A class's roster is every active student whose own `batch` field matches
@@ -139,26 +139,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-interface IncomingRecord {
-  studentId?: string | null
-  studentName?: string
-  rollNo?: string
-  status?: string
-  notes?: string
-}
-
-// The same student twice in one sheet would just be a duplicate row — keep
-// the last occurrence (what the teacher saw last in the UI).
-function dedupeRecords(records: IncomingRecord[]): IncomingRecord[] {
-  const byStudent = new Map<string, IncomingRecord>()
-  const anonymous: IncomingRecord[] = []
-  for (const r of records) {
-    if (r.studentId) byStudent.set(r.studentId, r)
-    else anonymous.push(r)
-  }
-  return [...byStudent.values(), ...anonymous]
-}
-
 // POST — save or update attendance sheet
 export async function POST(req: NextRequest) {
   try {
@@ -175,15 +155,22 @@ export async function POST(req: NextRequest) {
     if (!date || !batch || !subject || !records || !Array.isArray(records)) {
       return NextResponse.json({ error: 'Missing required body parameters.' }, { status: 400 })
     }
-    for (const r of records) {
-      if (!r || typeof r.studentName !== 'string' || !r.studentName.trim()) {
-        return NextResponse.json({ error: 'Every record needs a studentName.' }, { status: 400 })
-      }
-      if (r.status && !STATUSES.includes(r.status)) {
-        return NextResponse.json({ error: `Invalid status "${r.status}" — must be one of: ${STATUSES.join(', ')}` }, { status: 400 })
+    const validated = validateAttendanceRecords(records)
+    if (!validated.ok) return NextResponse.json({ error: validated.error }, { status: 400 })
+    const schoolId = requireSchool(session)
+
+    // Every student id on the sheet must be a student of the caller's school.
+    if (validated.studentIds.length > 0) {
+      const found = await db.select({ id: students.id }).from(students)
+        .where(and(inArray(students.id, validated.studentIds), eq(students.schoolId, schoolId)))
+      const unknown = unknownStudentIds(validated.studentIds, found.map((f) => f.id))
+      if (unknown.length > 0) {
+        return NextResponse.json({
+          error: `${unknown.length} student(s) on this sheet are not students of your school. Refresh the roster and try again.`,
+          unknownStudentIds: unknown,
+        }, { status: 400 })
       }
     }
-    const schoolId = requireSchool(session)
 
     const linked = await findLinkedClass(date, batch, subject, schoolId, classTime || '')
     const resolvedClassTime = classTime || linked.classTime || DEFAULT_CLASS_TIME
@@ -220,22 +207,20 @@ export async function POST(req: NextRequest) {
     const sessionId = sheet.id
 
     // 2) Replace the entries atomically: db.batch runs inside one Postgres
-    //    transaction, so a failure can never leave the sheet half-deleted.
-    const rows = dedupeRecords(records).map(r => ({
-      sessionId,
-      studentId: r.studentId || null,
-      studentName: String(r.studentName).trim(),
-      rollNo: r.rollNo || '',
-      status: r.status || 'Absent',
-      notes: r.notes || '',
-    }))
+    //    transaction. The first statement locks the sheet row, so two saves of
+    //    the same sheet run one after the other — the second one's DELETE then
+    //    sees (and removes) the first one's entries instead of both inserting
+    //    a full set (duplicate students). attendance_entries_session_student_unique
+    //    (migration 0051) is the backstop.
+    const rows = validated.records.map(r => ({ sessionId, ...r }))
+    const lockSheet = db.update(attendanceSessions).set({ updatedAt: now }).where(eq(attendanceSessions.id, sessionId))
     const deleteOld = db.delete(attendanceEntries).where(eq(attendanceEntries.sessionId, sessionId))
     let entries: Array<typeof attendanceEntries.$inferSelect> = []
     if (rows.length > 0) {
-      const [, inserted] = await db.batch([deleteOld, db.insert(attendanceEntries).values(rows).returning()])
+      const [, , inserted] = await db.batch([lockSheet, deleteOld, db.insert(attendanceEntries).values(rows).returning()])
       entries = inserted
     } else {
-      await db.batch([deleteOld])
+      await db.batch([lockSheet, deleteOld])
     }
 
     // 3) Notifications happen after the response — they can't slow down or

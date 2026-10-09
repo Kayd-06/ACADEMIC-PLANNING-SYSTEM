@@ -1,5 +1,7 @@
 -- 0051: unique keys that make the app's upserts race-free.
 --
+--   * attendance_entries_session_student_unique   one entry per student per
+--     sheet (concurrent saves could list a student twice).
 --   * attendance_sessions_slot_unique   one attendance sheet per
 --     (school, date, batch, subject, class_time). Two teachers saving the same
 --     sheet at the same moment used to create two sheets.
@@ -57,6 +59,40 @@ BEGIN
   -- (the app no longer writes those).
   CREATE UNIQUE INDEX IF NOT EXISTS "attendance_sessions_slot_unique"
     ON "attendance_sessions" USING btree ("school_id", "date", "batch", "subject", "class_time");
+END $$;
+--> statement-breakpoint
+
+-- One entry per student per attendance sheet. Two concurrent saves of the same
+-- sheet could each delete-then-insert and leave the student listed twice.
+-- Keeps the most recently updated entry; the others are copied into
+-- "_dedupe_0051_attendance_entries" (same backup table as above) and removed.
+-- Entries without a student_id (free-text names) are not constrained.
+DO $$
+BEGIN
+  CREATE TABLE IF NOT EXISTS "_dedupe_0051_attendance_entries" AS
+    SELECT e.*, now() AS backed_up_at FROM "attendance_entries" e WHERE false;
+
+  WITH ranked AS (
+    SELECT id, row_number() OVER (
+      PARTITION BY session_id, student_id
+      ORDER BY updated_at DESC, created_at DESC, id DESC
+    ) AS rn
+    FROM "attendance_entries"
+    WHERE student_id IS NOT NULL
+  )
+  INSERT INTO "_dedupe_0051_attendance_entries"
+  SELECT e.*, now() FROM "attendance_entries" e
+  JOIN ranked r ON r.id = e.id
+  WHERE r.rn > 1
+    AND NOT EXISTS (SELECT 1 FROM "_dedupe_0051_attendance_entries" b WHERE b.id = e.id);
+
+  DELETE FROM "attendance_entries" e
+  USING "_dedupe_0051_attendance_entries" b
+  WHERE b.id = e.id;
+
+  CREATE UNIQUE INDEX IF NOT EXISTS "attendance_entries_session_student_unique"
+    ON "attendance_entries" USING btree ("session_id", "student_id")
+    WHERE "student_id" IS NOT NULL;
 END $$;
 --> statement-breakpoint
 

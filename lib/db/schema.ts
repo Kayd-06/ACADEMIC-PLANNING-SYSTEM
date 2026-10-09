@@ -272,7 +272,12 @@ export const attendanceEntries = pgTable('attendance_entries', {
   notes: varchar('notes', { length: 500 }).notNull().default(''),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table) => ({
+  // Migration 0051: a student appears at most once per sheet.
+  sessionStudentUnique: uniqueIndex('attendance_entries_session_student_unique')
+    .on(table.sessionId, table.studentId)
+    .where(sql`${table.studentId} IS NOT NULL`),
+}))
 
 export type AttendanceEntry = typeof attendanceEntries.$inferSelect
 export type NewAttendanceEntry = typeof attendanceEntries.$inferInsert

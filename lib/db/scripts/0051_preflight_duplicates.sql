@@ -11,6 +11,15 @@ GROUP BY 1, 2, 3, 4, 5
 HAVING count(*) > 1
 ORDER BY sheets DESC;
 
+-- 1b) Students listed more than once on the same sheet (all but the newest
+--     entry are copied to _dedupe_0051_attendance_entries, then removed).
+SELECT session_id, student_id, count(*) AS entries
+FROM attendance_entries
+WHERE student_id IS NOT NULL
+GROUP BY 1, 2
+HAVING count(*) > 1
+ORDER BY entries DESC;
+
 -- 2) Students sharing (school, roll_no, class, section). All but the most
 --    recently updated get roll_no suffixed with "-DUP-xxxxxxxx" (logged in
 --    _dedupe_0051_students_renamed); none are deleted.
