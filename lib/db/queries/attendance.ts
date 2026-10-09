@@ -4,6 +4,7 @@ import {
   classSchedules, specialClasses, attendanceSessions, attendanceEntries,
   assignments, assignmentSubmissions,
 } from '../schema'
+import { schoolScope } from '@/lib/tenant'
 
 export interface AttendanceStats {
   totalClasses: number
@@ -49,11 +50,11 @@ export async function computeStudentAttendance(
   if (!studentId || !batch) return { totalClasses: 0, presentCount: 0, percentage: 0 }
 
   const schedCond = [eq(classSchedules.batch, batch), eq(classSchedules.isActive, true)]
-  if (schoolId) schedCond.push(eq(classSchedules.schoolId, schoolId))
+  schedCond.push(schoolScope(classSchedules.schoolId, schoolId))
   const schedules = await db.select().from(classSchedules).where(and(...schedCond))
 
   const specCond = [eq(specialClasses.batch, batch), lte(specialClasses.date, uptoDateIso)]
-  if (schoolId) specCond.push(eq(specialClasses.schoolId, schoolId))
+  specCond.push(schoolScope(specialClasses.schoolId, schoolId))
   const specials = await db.select().from(specialClasses).where(and(...specCond))
 
   type Occurrence = { date: string; scheduleId: string | null; specialClassId: string | null }
@@ -73,7 +74,7 @@ export async function computeStudentAttendance(
   if (occurrences.length === 0) return { totalClasses: 0, presentCount: 0, percentage: 0 }
 
   const sessionCond = [eq(attendanceSessions.batch, batch)]
-  if (schoolId) sessionCond.push(eq(attendanceSessions.schoolId, schoolId))
+  sessionCond.push(schoolScope(attendanceSessions.schoolId, schoolId))
   const sessions = await db.select().from(attendanceSessions).where(and(...sessionCond))
 
   const sessionByScheduleDate = new Map(

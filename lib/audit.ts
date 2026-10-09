@@ -11,6 +11,10 @@ interface AuditParams {
   req?: Request
   authorName?: string
   authorRole?: string
+  /** Explicit school for the log row (preferred over guessing from values). */
+  schoolId?: string | null
+  ipAddress?: string
+  userAgent?: string
 }
 
 export async function logAuditAction({
@@ -21,7 +25,10 @@ export async function logAuditAction({
   newValues = null,
   req,
   authorName,
-  authorRole
+  authorRole,
+  schoolId,
+  ipAddress: ipOverride,
+  userAgent: uaOverride,
 }: AuditParams) {
   try {
     let name = authorName
@@ -35,15 +42,15 @@ export async function logAuditAction({
       }
     }
 
-    const ipAddress = req
+    const ipAddress = ipOverride ?? (req
       ? req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
         req.headers.get('x-real-ip') ||
         '127.0.0.1'
-      : '127.0.0.1'
+      : '127.0.0.1')
 
-    const userAgent = req
+    const userAgent = uaOverride ?? (req
       ? req.headers.get('user-agent') || 'Unknown'
-      : 'Unknown'
+      : 'Unknown')
 
     const oldValStr = typeof oldValues === 'object' && oldValues !== null
       ? JSON.stringify(oldValues)
@@ -63,7 +70,7 @@ export async function logAuditAction({
       userAgent,
       authorName: name || 'Admin',
       authorRole: role || 'Management',
-      schoolId: (newValues?.schoolId) || (oldValues?.schoolId) || null
+      schoolId: schoolId ?? ((newValues?.schoolId) || (oldValues?.schoolId) || null)
     })
   } catch (error) {
     console.error('Failed to log audit action:', error)

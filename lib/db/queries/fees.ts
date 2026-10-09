@@ -8,6 +8,9 @@ import {
   type FeePayment,
   type NewFeePayment
 } from '../schema'
+import { schoolScope } from '@/lib/tenant'
+
+// All fee queries are school-scoped; a missing schoolId matches no rows.
 
 export interface ListFeeStructuresFilters {
   schoolId?: string | null
@@ -20,9 +23,7 @@ export async function listFeeStructures(filters: ListFeeStructuresFilters = {}):
   if (filters.isActive !== undefined) {
     conditions.push(eq(feeStructures.isActive, filters.isActive))
   }
-  if (filters.schoolId) {
-    conditions.push(eq(feeStructures.schoolId, filters.schoolId))
-  }
+  conditions.push(schoolScope(feeStructures.schoolId, filters.schoolId))
   if (filters.search && filters.search.trim() !== '') {
     const s = `%${filters.search.trim()}%`
     conditions.push(
@@ -46,8 +47,8 @@ export async function listFeeStructures(filters: ListFeeStructuresFilters = {}):
     .orderBy(desc(feeStructures.createdAt))
 }
 
-export async function getFeeStructureById(id: string): Promise<FeeStructure | null> {
-  const rows = await db.select().from(feeStructures).where(eq(feeStructures.id, id))
+export async function getFeeStructureById(id: string, schoolId: string | null | undefined): Promise<FeeStructure | null> {
+  const rows = await db.select().from(feeStructures).where(and(eq(feeStructures.id, id), schoolScope(feeStructures.schoolId, schoolId)))
   return rows[0] ?? null
 }
 
@@ -56,18 +57,18 @@ export async function createFeeStructure(data: NewFeeStructure): Promise<FeeStru
   return rows[0]
 }
 
-export async function updateFeeStructure(id: string, data: Partial<NewFeeStructure>): Promise<FeeStructure | null> {
+export async function updateFeeStructure(id: string, data: Partial<NewFeeStructure>, schoolId: string | null | undefined): Promise<FeeStructure | null> {
   const rows = await db
     .update(feeStructures)
     .set({ ...data, updatedAt: new Date() })
-    .where(eq(feeStructures.id, id))
+    .where(and(eq(feeStructures.id, id), schoolScope(feeStructures.schoolId, schoolId)))
     .returning()
   return rows[0] ?? null
 }
 
-export async function deleteFeeStructure(id: string): Promise<boolean> {
-  const result = await db.delete(feeStructures).where(eq(feeStructures.id, id)).returning()
-  return result.length > 0
+export async function deleteFeeStructure(id: string, schoolId: string | null | undefined): Promise<FeeStructure | null> {
+  const result = await db.delete(feeStructures).where(and(eq(feeStructures.id, id), schoolScope(feeStructures.schoolId, schoolId))).returning()
+  return result[0] ?? null
 }
 
 export interface ListFeePaymentsFilters {
@@ -80,9 +81,7 @@ export interface ListFeePaymentsFilters {
 
 export async function listFeePayments(filters: ListFeePaymentsFilters = {}): Promise<FeePayment[]> {
   const conditions: any[] = []
-  if (filters.schoolId) {
-    conditions.push(eq(feePayments.schoolId, filters.schoolId))
-  }
+  conditions.push(schoolScope(feePayments.schoolId, filters.schoolId))
   if (filters.status && filters.status !== 'All') {
     conditions.push(eq(feePayments.status, filters.status))
   }
@@ -115,8 +114,8 @@ export async function listFeePayments(filters: ListFeePaymentsFilters = {}): Pro
     .orderBy(desc(feePayments.createdAt))
 }
 
-export async function getFeePaymentById(id: string): Promise<FeePayment | null> {
-  const rows = await db.select().from(feePayments).where(eq(feePayments.id, id))
+export async function getFeePaymentById(id: string, schoolId: string | null | undefined): Promise<FeePayment | null> {
+  const rows = await db.select().from(feePayments).where(and(eq(feePayments.id, id), schoolScope(feePayments.schoolId, schoolId)))
   return rows[0] ?? null
 }
 
@@ -125,29 +124,22 @@ export async function createFeePayment(data: NewFeePayment): Promise<FeePayment>
   return rows[0]
 }
 
-export async function updateFeePayment(id: string, data: Partial<NewFeePayment>): Promise<FeePayment | null> {
+export async function updateFeePayment(id: string, data: Partial<NewFeePayment>, schoolId: string | null | undefined): Promise<FeePayment | null> {
   const rows = await db
     .update(feePayments)
     .set({ ...data, updatedAt: new Date() })
-    .where(eq(feePayments.id, id))
+    .where(and(eq(feePayments.id, id), schoolScope(feePayments.schoolId, schoolId)))
     .returning()
   return rows[0] ?? null
 }
 
-export async function deleteFeePayment(id: string): Promise<boolean> {
-  const result = await db.delete(feePayments).where(eq(feePayments.id, id)).returning()
+export async function deleteFeePayment(id: string, schoolId: string | null | undefined): Promise<boolean> {
+  const result = await db.delete(feePayments).where(and(eq(feePayments.id, id), schoolScope(feePayments.schoolId, schoolId))).returning({ id: feePayments.id })
   return result.length > 0
 }
 
-export async function computeFeeStats(schoolId?: string | null) {
-  const conditions: any[] = []
-  if (schoolId) {
-    conditions.push(eq(feePayments.schoolId, schoolId))
-  }
-
-  const allPayments = conditions.length > 0 
-    ? await db.select().from(feePayments).where(and(...conditions))
-    : await db.select().from(feePayments)
+export async function computeFeeStats(schoolId: string | null | undefined) {
+  const allPayments = await db.select().from(feePayments).where(schoolScope(feePayments.schoolId, schoolId))
 
   // Calculate dynamic stats exactly from rows
   const now = new Date()

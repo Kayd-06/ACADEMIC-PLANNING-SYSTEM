@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
-import { auth, getSchoolId } from '@/lib/auth'
+import { auth } from '@/lib/auth'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse } from '@/lib/api/http'
 import { db } from '@/lib/db'
 import { teacherBatches, teacherPrograms } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -12,7 +14,7 @@ export async function GET(req: Request) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const schoolId = getSchoolId(session)
+    const schoolId = requireSchool(session)
 
     const role = (session.user as any).role as string | undefined
 
@@ -73,7 +75,7 @@ export async function GET(req: Request) {
     })
 
     return NextResponse.json(roster)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'GET /api/students/roster')
   }
 }

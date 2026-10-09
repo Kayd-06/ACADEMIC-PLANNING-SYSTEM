@@ -24,7 +24,35 @@ async function cleanupByEmployeeId(employeeId: string) {
   }
 }
 
+// Imports are scoped to the session's school, so DB-backed tests use their own
+// throwaway school (created lazily so validation-only tests need no database).
+let SCHOOL: string
+let schoolCreated = false
+const mgmt = () => ({ user: { role: 'management', schoolId: SCHOOL } })
+async function createSchool() {
+  await db.insert(schools).values({ id: SCHOOL as any })
+  schoolCreated = true
+}
+beforeEach(() => {
+  SCHOOL = crypto.randomUUID()
+  schoolCreated = false
+})
+afterEach(async () => {
+  if (!schoolCreated) return
+  const rows = await db.select({ id: faculty.id }).from(faculty).where(eq(faculty.schoolId, SCHOOL as any))
+  for (const r of rows) await db.delete(teacherBatches).where(eq(teacherBatches.teacherId, r.id))
+  await db.delete(faculty).where(eq(faculty.schoolId, SCHOOL as any))
+  await db.delete(batches).where(eq(batches.schoolId, SCHOOL as any))
+  await db.delete(schools).where(eq(schools.id, SCHOOL as any))
+})
+
 describe('POST /api/teacher-portal/faculty/bulk', () => {
+  it('refuses to import without an active school', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    const res = await POST(req({ faculty: [{ name: 'X', subject: 'Physics', specialization: 'Mechanics' }] }))
+    expect(res.status).toBe(403)
+  })
+
   it('rejects when the role is not management', async () => {
     ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'teacher' } })
     const res = await POST(req({ faculty: [{ name: 'X', subject: 'Physics', specialization: 'Mechanics' }] }))
@@ -38,7 +66,8 @@ describe('POST /api/teacher-portal/faculty/bulk', () => {
   })
 
   it('skips a row missing a required field and reports which field is missing', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const res = await POST(req({ faculty: [{ name: '', subject: 'Physics', specialization: 'Mechanics' }] }))
     const body = await res.json()
     expect(body.succeeded).toBe(0)
@@ -47,8 +76,9 @@ describe('POST /api/teacher-portal/faculty/bulk', () => {
   })
 
   it('saves the row and reports only the unknown batch name when one of two batch names is invalid', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [batch] = await db.insert(batches).values({ name: 'JEE Batch A' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
+    const [batch] = await db.insert(batches).values({ name: 'JEE Batch A', schoolId: SCHOOL as any }).returning()
     const employeeId = `EMP-${Date.now()}-1`
     try {
       const res = await POST(req({
@@ -72,7 +102,8 @@ describe('POST /api/teacher-portal/faculty/bulk', () => {
   })
 
   it('updates the existing faculty row instead of duplicating it when re-imported by Employee ID', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const employeeId = `EMP-${Date.now()}-2`
     try {
       await POST(req({ faculty: [{ name: 'First Name', subject: 'Physics', specialization: 'Mechanics', employeeId }] }))
@@ -87,8 +118,9 @@ describe('POST /api/teacher-portal/faculty/bulk', () => {
   })
 
   it('does not duplicate a batch assignment already on the teacher when re-imported', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [batch] = await db.insert(batches).values({ name: 'Repeat Batch' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
+    const [batch] = await db.insert(batches).values({ name: 'Repeat Batch', schoolId: SCHOOL as any }).returning()
     const employeeId = `EMP-${Date.now()}-3`
     try {
       const row = { name: 'Repeat Import', subject: 'Physics', specialization: 'Mechanics', employeeId, batches: 'Repeat Batch' }
@@ -105,7 +137,8 @@ describe('POST /api/teacher-portal/faculty/bulk', () => {
   })
 
   it('matches and updates by Email when no Employee ID is given', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const email = `email-match-${Date.now()}@example.com`
     try {
       await POST(req({ faculty: [{ name: 'Email First', subject: 'Physics', specialization: 'Mechanics', email }] }))
@@ -124,7 +157,8 @@ describe('POST /api/teacher-portal/faculty/bulk', () => {
   })
 
   it('applies the second of two same-file rows sharing an Employee ID as an update, not a failed insert', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
     const employeeId = `EMP-${Date.now()}-4`
     try {
       const res = await POST(req({
@@ -146,9 +180,10 @@ describe('POST /api/teacher-portal/faculty/bulk', () => {
   })
 
   it('keeps faculty.batches equal to the real total assignment count, including assignments from a prior import', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management' } })
-    const [batchA] = await db.insert(batches).values({ name: 'Count Batch A' }).returning()
-    const [batchB] = await db.insert(batches).values({ name: 'Count Batch B' }).returning()
+    ;(auth as jest.Mock).mockResolvedValue(mgmt())
+    await createSchool()
+    const [batchA] = await db.insert(batches).values({ name: 'Count Batch A', schoolId: SCHOOL as any }).returning()
+    const [batchB] = await db.insert(batches).values({ name: 'Count Batch B', schoolId: SCHOOL as any }).returning()
     const employeeId = `EMP-${Date.now()}-5`
     try {
       await POST(req({ faculty: [{ name: 'Count Test', subject: 'Physics', specialization: 'Mechanics', employeeId, batches: 'Count Batch A' }] }))

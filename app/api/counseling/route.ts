@@ -4,6 +4,8 @@ import { counselingSessions, users, notifications, type CounselingSession } from
 import { eq, and, or, ilike, desc, asc, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { runAfterResponse } from '@/lib/sideEffects'
+import { errorResponse } from '@/lib/api/http'
 
 function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): Date {
   const time = timeStr ? timeStr.trim() : '00:00'
@@ -179,7 +181,7 @@ export async function GET(req: NextRequest) {
     })
   } catch (error) {
     const err = error as Error
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err, '/app/api/counseling')
   }
 }
 
@@ -246,18 +248,18 @@ export async function POST(req: NextRequest) {
 
     // Notify specifically the assigned counselor
     if (finalCounselorId && finalCounselorId !== authSession.user.id) {
-      await notifyCounselor(
+      runAfterResponse('counseling:notify', () => notifyCounselor(
         finalCounselorId,
         finalCounselorRole,
         `Counseling Scheduled: ${sessionRecord.studentName}`,
         `You have been scheduled as the counselor for ${sessionRecord.studentName} on ${sessionRecord.date} at ${sessionRecord.time}.`,
         schoolId,
         notifyTime
-      )
+      ))
     }
 
     // Also notify management so admins stay informed
-    await notifyRoleInSchool(
+    runAfterResponse('counseling:notify', () => notifyRoleInSchool(
       ['management'],
       schoolId,
       {
@@ -267,12 +269,12 @@ export async function POST(req: NextRequest) {
         createdAt: notifyTime,
       },
       () => '/management/counseling'
-    )
+    ))
 
     return NextResponse.json(toApiShape(sessionRecord), { status: 201 })
   } catch (error) {
     const err = error as Error
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err, '/app/api/counseling')
   }
 }
 
@@ -324,17 +326,17 @@ export async function PATCH(req: NextRequest) {
 
     // Notify specifically the assigned counselor if updated by another person
     if (updated.counselorId && updated.counselorId !== authSession.user.id) {
-      await notifyCounselor(
+      runAfterResponse('counseling:notify', () => notifyCounselor(
         updated.counselorId,
         updated.counselorRole,
         `Counseling Updated: ${updated.studentName}`,
         `Counseling session status updated to ${updated.status}. Scheduled on ${updated.date} at ${updated.time}.`,
         schoolId,
         notifyTime
-      )
+      ))
     }
 
-    await notifyRoleInSchool(
+    runAfterResponse('counseling:notify', () => notifyRoleInSchool(
       ['management'],
       schoolId,
       {
@@ -344,12 +346,12 @@ export async function PATCH(req: NextRequest) {
         createdAt: notifyTime,
       },
       () => '/management/counseling'
-    )
+    ))
 
     return NextResponse.json(toApiShape(updated))
   } catch (error) {
     const err = error as Error
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err, '/app/api/counseling')
   }
 }
 
@@ -374,16 +376,16 @@ export async function DELETE(req: NextRequest) {
     if (!deleted) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })
 
     if (deleted.counselorId && deleted.counselorId !== authSession.user.id) {
-      await notifyCounselor(
+      runAfterResponse('counseling:notify', () => notifyCounselor(
         deleted.counselorId,
         deleted.counselorRole,
         `Counseling Cancelled: ${deleted.studentName}`,
         `The counseling session scheduled for ${deleted.studentName} on ${deleted.date} at ${deleted.time} has been cancelled.`,
         schoolId
-      )
+      ))
     }
 
-    await notifyRoleInSchool(
+    runAfterResponse('counseling:notify', () => notifyRoleInSchool(
       ['management'],
       schoolId,
       {
@@ -392,12 +394,12 @@ export async function DELETE(req: NextRequest) {
         message: `The counseling session scheduled for ${deleted.studentName} on ${deleted.date} at ${deleted.time} has been cancelled.`,
       },
       () => '/management/counseling'
-    )
+    ))
 
     return NextResponse.json({ success: true })
   } catch (error) {
     const err = error as Error
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err, '/app/api/counseling')
   }
 }
 

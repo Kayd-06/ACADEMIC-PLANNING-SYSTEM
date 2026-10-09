@@ -9,8 +9,12 @@ import { savePtmReport } from '@/lib/db/queries/ptm-reports'
 import { finalizeGradedTest } from '@/lib/reports/test-grading-finalize'
 import { gradeAnswer, resolveMcqCorrectLetter } from '@/lib/reports/answer-grading'
 import { validateImportRows } from '@/lib/reports/test-results-import'
+import { mapWithConcurrency } from '@/lib/concurrency'
+import { errorResponse } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
+// Up to 1000 rows x every question; the writes are batched but give it room.
+export const maxDuration = 60
 
 // Same batchId-preferred / batch-fallback roster lookup as the manual
 // per-question grading route — keeps both grading paths seeing the same
@@ -132,8 +136,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (ratingsToSave.length > 0) {
       await saveDailyStudentRatings(test.batch, date, ratingsToSave, userId, test.schoolId, test.batchId)
     }
-    for (const { input } of ptmToSave) {
-      await savePtmReport(input)
+    if (ptmToSave.length > 0) {
+      const ptmResults = await mapWithConcurrency(ptmToSave, 5, ({ input }) => savePtmReport(input))
+      const ptmFailure = ptmResults.find((r) => r.status === 'rejected')
+      if (ptmFailure && ptmFailure.status === 'rejected') throw ptmFailure.reason
     }
 
     const resultTest = responseInputs.length > 0
@@ -150,7 +156,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         unresolvableQuestions: unresolvableQuestions.map((q) => ({ questionId: q.id, topic: q.topic })),
       },
     })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'POST /api/tests/[id]/import-results')
   }
 }

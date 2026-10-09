@@ -4,6 +4,8 @@ import { announcements } from '@/lib/db/schema'
 import { desc, eq, or, isNull, and } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { runAfterResponse } from '@/lib/sideEffects'
+import { errorResponse } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,7 +60,7 @@ export async function GET() {
 
     return NextResponse.json(visible.map(toApiShape))
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Failed to fetch announcements' }, { status: 500 })
+    return errorResponse(error, '/app/api/announcements')
   }
 }
 
@@ -108,16 +110,16 @@ export async function POST(req: Request) {
     // Per-user inbox fan-out: teachers get notified unless the announcement targets parents only
     const teachersTargeted = !(newRow.scope === 'Role' && newRow.targetRoles === 'Parent')
     if (teachersTargeted) {
-      await notifyRoleInSchool(['teacher'], schoolId, {
+      runAfterResponse('announcements:notify', () => notifyRoleInSchool(['teacher'], schoolId, {
         category: 'Announcement',
         title: newRow.type === 'Urgent' ? `🔴 Urgent: ${newRow.title}` : `New announcement: ${newRow.title}`,
         message: newRow.content.slice(0, 200),
         link: '/teacher',
-      })
+      }))
     }
 
     return NextResponse.json(toApiShape(newRow), { status: 201 })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Failed to create announcement' }, { status: 500 })
+    return errorResponse(error, '/app/api/announcements')
   }
 }

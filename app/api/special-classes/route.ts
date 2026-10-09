@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth, getSchoolId } from '@/lib/auth'
+import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { specialClasses, batches, type NewSpecialClass } from '@/lib/db/schema'
-import { eq, and, asc, gte, inArray, isNull, or } from 'drizzle-orm'
+import { eq, and, asc, gte, inArray } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { requireSchool } from '@/lib/tenant'
+import { accessibleSchoolIds, resolveRequestedSchool } from '@/lib/tenantAccess'
+import { errorResponse } from '@/lib/api/http'
+import { runAfterResponse } from '@/lib/sideEffects'
 
 function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): Date {
   const time = timeStr ? timeStr.trim() : '00:00'
@@ -48,7 +52,7 @@ export async function GET(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = getSchoolId(session)
+    requireSchool(session)
 
     const { searchParams } = new URL(req.url)
     const mine = searchParams.get('mine') === 'true'
@@ -58,19 +62,18 @@ export async function GET(req: NextRequest) {
     const batchFilter = searchParams.get('batch')
     const programIdFilter = searchParams.get('programId')
 
-    const conditions = []
-    if (role === 'management') {
-      if (paramSchoolId !== 'ALL') {
-        const targetSchoolId = paramSchoolId ?? schoolId
-        conditions.push(
-          targetSchoolId && targetSchoolId !== 'null'
-            ? eq(specialClasses.schoolId, targetSchoolId)
-            : isNull(specialClasses.schoolId)
-        )
-      }
+    // Same visibility rules as /api/schedule: ?schoolId=ALL = schools I
+    // administer; ?schoolId=<id> must be one of them; teachers = active
+    // school only; NULL-school rows are no longer shown to every tenant.
+    let visibleSchoolIds: string[]
+    if (role === 'management' && paramSchoolId === 'ALL') {
+      visibleSchoolIds = await accessibleSchoolIds(session)
+    } else if (role === 'management' && paramSchoolId) {
+      visibleSchoolIds = [await resolveRequestedSchool(session, paramSchoolId)]
     } else {
-      conditions.push(schoolId ? or(eq(specialClasses.schoolId, schoolId), isNull(specialClasses.schoolId)) : isNull(specialClasses.schoolId))
+      visibleSchoolIds = [requireSchool(session)]
     }
+    const conditions = [inArray(specialClasses.schoolId, visibleSchoolIds)]
     if (mine && session.user.email) {
       conditions.push(eq(specialClasses.teacherEmail, session.user.email.toLowerCase().trim()))
     }
@@ -81,18 +84,17 @@ export async function GET(req: NextRequest) {
       conditions.push(eq(specialClasses.batch, batchFilter))
     } else if (programIdFilter) {
       const linked = await db.select({ name: batches.name }).from(batches)
-        .where(eq(batches.programId, programIdFilter))
+        .where(and(eq(batches.programId, programIdFilter), inArray(batches.schoolId, visibleSchoolIds)))
       const batchNames = linked.map(b => b.name)
       conditions.push(batchNames.length ? inArray(specialClasses.batch, batchNames) : eq(specialClasses.batch, '\0no-match'))
     }
 
-    const rows = conditions.length
-      ? await db.select().from(specialClasses).where(and(...conditions)).orderBy(asc(specialClasses.date), asc(specialClasses.startTime))
-      : await db.select().from(specialClasses).orderBy(asc(specialClasses.date), asc(specialClasses.startTime))
+    const rows = await db.select().from(specialClasses).where(and(...conditions))
+      .orderBy(asc(specialClasses.date), asc(specialClasses.startTime))
 
     return NextResponse.json(rows.map(r => ({ _id: r.id, ...r })))
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'GET /api/special-classes')
   }
 }
 
@@ -105,7 +107,6 @@ export async function POST(req: NextRequest) {
     if (role !== 'management' && role !== 'teacher') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const schoolId = getSchoolId(session)
 
     const body = await req.json()
     const data = pickFields(body)
@@ -126,12 +127,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Type must be one of: ${TYPES.join(', ')}` }, { status: 400 })
     }
 
-    let targetSchoolId = (role === 'management' && body.schoolId !== undefined)
-      ? body.schoolId
-      : schoolId
-    if (targetSchoolId === 'ALL' || targetSchoolId === 'null' || !targetSchoolId) {
-      targetSchoolId = null
-    }
+    const targetSchoolId = role === 'management'
+      ? await resolveRequestedSchool(session, body.schoolId)
+      : requireSchool(session)
 
     const [created] = await db.insert(specialClasses).values({
       ...(data as NewSpecialClass),
@@ -140,21 +138,21 @@ export async function POST(req: NextRequest) {
 
     // Notify teachers and admins 24 hours prior
     const notifyTime = getScheduleNotificationTime(created.date, created.startTime)
-    await notifyRoleInSchool(
+    runAfterResponse('special-class-created', () => notifyRoleInSchool(
       ['teacher', 'management'],
-      schoolId,
+      targetSchoolId,
       {
         category: 'General',
         title: `Upcoming Special Class: ${created.title}`,
         message: `A special class (${created.type}) for Subject: ${created.subject} (Batch: ${created.batch}) has been scheduled for ${created.date} at ${created.startTime} - ${created.endTime} in Room ${created.room || 'N/A'}.`,
         createdAt: notifyTime,
       },
-      (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
-    )
+      (r) => r === 'teacher' ? '/teacher/schedule' : '/management/calendar'
+    ))
 
     return NextResponse.json({ _id: created.id, ...created }, { status: 201 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'POST /api/special-classes')
   }
 }
 
@@ -164,24 +162,22 @@ export async function PATCH(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = getSchoolId(session)
 
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-
-    const conditions = [eq(specialClasses.id, id)]
-    if (role === 'teacher') {
-      if (schoolId) conditions.push(eq(specialClasses.schoolId, schoolId))
-      conditions.push(eq(specialClasses.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
-    } else if (role !== 'management') {
+    if (role !== 'teacher' && role !== 'management') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const conditions = [eq(specialClasses.id, id), inArray(specialClasses.schoolId, await accessibleSchoolIds(session))]
+    if (role === 'teacher') {
+      conditions.push(eq(specialClasses.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
     }
 
     const body = await req.json()
     const data: Record<string, any> = pickFields(body)
     if (role === 'management' && 'schoolId' in body) {
-      const s = body.schoolId
-      data.schoolId = (s && s !== 'ALL' && s !== 'null') ? s : null
+      data.schoolId = await resolveRequestedSchool(session, body.schoolId)
     }
     if (data.teacherEmail) data.teacherEmail = data.teacherEmail.toLowerCase().trim()
     if (Object.keys(data).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
@@ -197,21 +193,21 @@ export async function PATCH(req: NextRequest) {
 
     // Notify teachers and admins of update 24 hours prior
     const notifyTime = getScheduleNotificationTime(updated.date, updated.startTime)
-    await notifyRoleInSchool(
+    runAfterResponse('special-class-updated', () => notifyRoleInSchool(
       ['teacher', 'management'],
-      schoolId,
+      updated.schoolId,
       {
         category: 'General',
         title: `Updated Special Class: ${updated.title}`,
         message: `The special class "${updated.title}" details have been updated. Scheduled for ${updated.date} at ${updated.startTime} - ${updated.endTime} in Room ${updated.room || 'N/A'}.`,
         createdAt: notifyTime,
       },
-      (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
-    )
+      (r) => r === 'teacher' ? '/teacher/schedule' : '/management/calendar'
+    ))
 
     return NextResponse.json({ _id: updated.id, ...updated })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'PATCH /api/special-classes')
   }
 }
 
@@ -221,34 +217,33 @@ export async function DELETE(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = getSchoolId(session)
 
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-
-    const conditions = [eq(specialClasses.id, id)]
-    if (role === 'teacher') {
-      if (schoolId) conditions.push(eq(specialClasses.schoolId, schoolId))
-      conditions.push(eq(specialClasses.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
-    } else if (role !== 'management') {
+    if (role !== 'teacher' && role !== 'management') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const conditions = [eq(specialClasses.id, id), inArray(specialClasses.schoolId, await accessibleSchoolIds(session))]
+    if (role === 'teacher') {
+      conditions.push(eq(specialClasses.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
     }
 
     const [deleted] = await db.delete(specialClasses).where(and(...conditions)).returning()
     if (deleted) {
-      await notifyRoleInSchool(
+      runAfterResponse('special-class-deleted', () => notifyRoleInSchool(
         ['teacher', 'management'],
-        schoolId,
+        deleted.schoolId,
         {
           category: 'General',
           title: `Cancelled Special Class: ${deleted.title}`,
           message: `The special class "${deleted.title}" scheduled for ${deleted.date} at ${deleted.startTime} has been cancelled.`,
         },
-        (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
-      )
+        (r) => r === 'teacher' ? '/teacher/schedule' : '/management/calendar'
+      ))
     }
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'DELETE /api/special-classes')
   }
 }

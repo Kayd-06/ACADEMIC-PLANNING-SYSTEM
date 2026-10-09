@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth, getSchoolId } from '@/lib/auth'
+import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { classSchedules, batches, type NewClassSchedule } from '@/lib/db/schema'
-import { eq, and, asc, inArray, isNull, or } from 'drizzle-orm'
+import { eq, and, asc, inArray } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { requireSchool } from '@/lib/tenant'
+import { accessibleSchoolIds, resolveRequestedSchool } from '@/lib/tenantAccess'
+import { errorResponse } from '@/lib/api/http'
+import { runAfterResponse } from '@/lib/sideEffects'
 
 function getFirstOccurrence(effectiveFromStr: string | null, targetDayOfWeek: number): Date {
   const start = effectiveFromStr ? new Date(effectiveFromStr + 'T00:00:00') : new Date()
@@ -56,7 +60,7 @@ export async function GET(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = getSchoolId(session)
+    requireSchool(session)
 
     const { searchParams } = new URL(req.url)
     const mine = searchParams.get('mine') === 'true'
@@ -65,22 +69,21 @@ export async function GET(req: NextRequest) {
     const batchFilter = searchParams.get('batch')
     const programIdFilter = searchParams.get('programId')
 
-    const conditions = []
-    if (role === 'management') {
-      if (paramSchoolId !== 'ALL') {
-        const targetSchoolId = paramSchoolId ?? schoolId
-        // A missing/malformed schoolId must never fall through to "no
-        // filter" (that would leak every school's slots) — it means "no
-        // school", so only school-less (visible-to-all) slots match.
-        conditions.push(
-          targetSchoolId && targetSchoolId !== 'null'
-            ? eq(classSchedules.schoolId, targetSchoolId)
-            : isNull(classSchedules.schoolId)
-        )
-      }
+    // Schools visible to this request. ?schoolId=ALL means "every school I
+    // administer" (never "every school on the platform"); ?schoolId=<id> must
+    // be one of them. Teachers only see their active school. Rows with a
+    // NULL school ("visible to all schools") are no longer returned — they
+    // leaked across tenants.
+    let visibleSchoolIds: string[]
+    if (role === 'management' && paramSchoolId === 'ALL') {
+      visibleSchoolIds = await accessibleSchoolIds(session)
+    } else if (role === 'management' && paramSchoolId) {
+      visibleSchoolIds = [await resolveRequestedSchool(session, paramSchoolId)]
     } else {
-      conditions.push(schoolId ? or(eq(classSchedules.schoolId, schoolId), isNull(classSchedules.schoolId)) : isNull(classSchedules.schoolId))
+      visibleSchoolIds = [requireSchool(session)]
     }
+
+    const conditions = [inArray(classSchedules.schoolId, visibleSchoolIds)]
     if (mine && session.user.email) {
       conditions.push(eq(classSchedules.teacherEmail, session.user.email.toLowerCase().trim()))
     }
@@ -90,18 +93,17 @@ export async function GET(req: NextRequest) {
       conditions.push(eq(classSchedules.batch, batchFilter))
     } else if (programIdFilter) {
       const linked = await db.select({ name: batches.name }).from(batches)
-        .where(eq(batches.programId, programIdFilter))
+        .where(and(eq(batches.programId, programIdFilter), inArray(batches.schoolId, visibleSchoolIds)))
       const batchNames = linked.map(b => b.name)
       conditions.push(batchNames.length ? inArray(classSchedules.batch, batchNames) : eq(classSchedules.batch, '\0no-match'))
     }
 
-    const rows = conditions.length
-      ? await db.select().from(classSchedules).where(and(...conditions)).orderBy(asc(classSchedules.dayOfWeek), asc(classSchedules.startTime))
-      : await db.select().from(classSchedules).orderBy(asc(classSchedules.dayOfWeek), asc(classSchedules.startTime))
+    const rows = await db.select().from(classSchedules).where(and(...conditions))
+      .orderBy(asc(classSchedules.dayOfWeek), asc(classSchedules.startTime))
 
     return NextResponse.json(rows.map(r => ({ _id: r.id, ...r })))
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'GET /api/schedule')
   }
 }
 
@@ -114,7 +116,6 @@ export async function POST(req: NextRequest) {
     if (role !== 'management' && role !== 'teacher') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const schoolId = getSchoolId(session)
 
     const body = await req.json()
     const data = pickFields(body)
@@ -136,12 +137,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'dayOfWeek must be 0 (Sunday) through 6 (Saturday)' }, { status: 400 })
     }
 
-    let targetSchoolId = (role === 'management' && body.schoolId !== undefined)
-      ? body.schoolId
-      : schoolId
-    if (targetSchoolId === 'ALL' || targetSchoolId === 'null' || !targetSchoolId) {
-      targetSchoolId = null
-    }
+    // Management may target another school they administer; everyone else
+    // (and an empty / "All Schools" choice) writes to the active school.
+    const targetSchoolId = role === 'management'
+      ? await resolveRequestedSchool(session, body.schoolId)
+      : requireSchool(session)
 
     const [created] = await db.insert(classSchedules).values({
       ...(data as NewClassSchedule),
@@ -152,21 +152,21 @@ export async function POST(req: NextRequest) {
     const firstOccur = getFirstOccurrence(created.effectiveFrom, created.dayOfWeek)
     const notifyTime = getScheduleNotificationTime(firstOccur, created.startTime)
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    await notifyRoleInSchool(
+    runAfterResponse('schedule-created', () => notifyRoleInSchool(
       ['teacher', 'management'],
-      schoolId,
+      targetSchoolId,
       {
         category: 'General',
         title: `New Class Schedule: ${created.subject}`,
         message: `A recurring class for Subject: ${created.subject} (Batch: ${created.batch}) has been scheduled on ${days[created.dayOfWeek]}s at ${created.startTime} - ${created.endTime} (Teacher: ${created.teacherName}).`,
         createdAt: notifyTime,
       },
-      (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
-    )
+      (r) => r === 'teacher' ? '/teacher/schedule' : '/management/calendar'
+    ))
 
     return NextResponse.json({ _id: created.id, ...created }, { status: 201 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'POST /api/schedule')
   }
 }
 
@@ -176,24 +176,23 @@ export async function PATCH(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = getSchoolId(session)
 
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-
-    const conditions = [eq(classSchedules.id, id)]
-    if (role === 'teacher') {
-      if (schoolId) conditions.push(eq(classSchedules.schoolId, schoolId))
-      conditions.push(eq(classSchedules.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
-    } else if (role !== 'management') {
+    if (role !== 'teacher' && role !== 'management') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // The slot must live in a school this user can access.
+    const conditions = [eq(classSchedules.id, id), inArray(classSchedules.schoolId, await accessibleSchoolIds(session))]
+    if (role === 'teacher') {
+      conditions.push(eq(classSchedules.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
     }
 
     const body = await req.json()
     const data: Record<string, any> = pickFields(body)
     if (role === 'management' && 'schoolId' in body) {
-      const s = body.schoolId
-      data.schoolId = (s && s !== 'ALL' && s !== 'null') ? s : null
+      data.schoolId = await resolveRequestedSchool(session, body.schoolId)
     }
     if (data.teacherEmail) data.teacherEmail = data.teacherEmail.toLowerCase().trim()
     if (Object.keys(data).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
@@ -208,21 +207,21 @@ export async function PATCH(req: NextRequest) {
     const firstOccur = getFirstOccurrence(updated.effectiveFrom, updated.dayOfWeek)
     const notifyTime = getScheduleNotificationTime(firstOccur, updated.startTime)
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    await notifyRoleInSchool(
+    runAfterResponse('schedule-updated', () => notifyRoleInSchool(
       ['teacher', 'management'],
-      schoolId,
+      updated.schoolId,
       {
         category: 'General',
         title: `Updated Class Schedule: ${updated.subject}`,
         message: `Timetable slot updated: Recurring class for Subject: ${updated.subject} (Batch: ${updated.batch}) is scheduled on ${days[updated.dayOfWeek]}s at ${updated.startTime} - ${updated.endTime}.`,
         createdAt: notifyTime,
       },
-      (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
-    )
+      (r) => r === 'teacher' ? '/teacher/schedule' : '/management/calendar'
+    ))
 
     return NextResponse.json({ _id: updated.id, ...updated })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'PATCH /api/schedule')
   }
 }
 
@@ -232,34 +231,33 @@ export async function DELETE(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const role = (session.user as any).role
-    const schoolId = getSchoolId(session)
 
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-
-    const conditions = [eq(classSchedules.id, id)]
-    if (role === 'teacher') {
-      if (schoolId) conditions.push(eq(classSchedules.schoolId, schoolId))
-      conditions.push(eq(classSchedules.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
-    } else if (role !== 'management') {
+    if (role !== 'teacher' && role !== 'management') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const conditions = [eq(classSchedules.id, id), inArray(classSchedules.schoolId, await accessibleSchoolIds(session))]
+    if (role === 'teacher') {
+      conditions.push(eq(classSchedules.teacherEmail, (session.user.email ?? '').toLowerCase().trim()))
     }
 
     const [deleted] = await db.delete(classSchedules).where(and(...conditions)).returning()
     if (deleted) {
-      await notifyRoleInSchool(
+      runAfterResponse('schedule-deleted', () => notifyRoleInSchool(
         ['teacher', 'management'],
-        schoolId,
+        deleted.schoolId,
         {
           category: 'General',
           title: `Cancelled Class Schedule: ${deleted.subject}`,
           message: `The recurring class schedule for Subject: ${deleted.subject} (Batch: ${deleted.batch}) has been cancelled.`,
         },
-        (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
-      )
+        (r) => r === 'teacher' ? '/teacher/schedule' : '/management/calendar'
+      ))
     }
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'DELETE /api/schedule')
   }
 }

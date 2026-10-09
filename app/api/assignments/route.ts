@@ -4,6 +4,8 @@ import { assignments } from '@/lib/db/schema'
 import { eq, and, count } from 'drizzle-orm'
 import { auth, getSchoolId } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { runAfterResponse } from '@/lib/sideEffects'
+import { errorResponse } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,7 +93,7 @@ export async function POST(req: NextRequest) {
     }).returning()
 
     // Notify teachers and admins of the new assignment
-    await notifyRoleInSchool(
+    runAfterResponse('assignments:notify', () => notifyRoleInSchool(
       ['teacher', 'management'],
       schoolId,
       {
@@ -100,12 +102,12 @@ export async function POST(req: NextRequest) {
         message: `A new assignment has been posted for Subject: ${created.subject} (Batch: ${created.batch}) due on ${created.dueDate} ${created.dueTime}.`,
       },
       (role) => role === 'teacher' ? '/teacher/assignments' : '/management/academic-planning'
-    )
+    ))
 
     return NextResponse.json(created, { status: 201 })
   } catch (error: any) {
     console.error('ERROR IN ASSIGNMENTS POST:', error)
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+    return errorResponse(error, '/app/api/assignments')
   }
 }export async function PUT(req: NextRequest) {
   try {
@@ -140,7 +142,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(updated)
   } catch (error: any) {
     console.error('ERROR IN ASSIGNMENTS PUT:', error)
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+    return errorResponse(error, '/app/api/assignments')
   }
 }
 
@@ -162,6 +164,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('ERROR IN ASSIGNMENTS DELETE:', error)
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+    return errorResponse(error, '/app/api/assignments')
   }
 }

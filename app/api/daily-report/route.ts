@@ -6,6 +6,7 @@ import { findTeacherFaculty } from '@/lib/db/queries/faculty'
 import { eq, and, desc, isNull, asc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
+import { runAfterResponse } from '@/lib/sideEffects'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
   }).returning()
 
   // Notify teachers and admins
-  await notifyRoleInSchool(
+  runAfterResponse('daily-report:notify', () => notifyRoleInSchool(
     ['teacher', 'management'],
     schoolId,
     {
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
       message: `Daily report for Subject: ${report.subject} (Batch: ${report.batch}) submitted.${report.isLate ? ' (Late Submission)' : ''}`,
     },
     (role) => role === 'teacher' ? '/teacher/daily-report' : '/management/daily-reports'
-  )
+  ))
 
   return NextResponse.json(report, { status: 201 })
 }
@@ -138,7 +139,7 @@ export async function PATCH(req: NextRequest) {
   if (!updated) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
 
   // Notify teachers and admins
-  await notifyRoleInSchool(
+  runAfterResponse('daily-report:notify', () => notifyRoleInSchool(
     ['teacher', 'management'],
     schoolId,
     {
@@ -147,7 +148,7 @@ export async function PATCH(req: NextRequest) {
       message: `Daily report for Subject: ${updated.subject} (Batch: ${updated.batch}) has been updated.`,
     },
     (role) => role === 'teacher' ? '/teacher/daily-report' : '/management/daily-reports'
-  )
+  ))
 
   return NextResponse.json(updated)
 }
@@ -170,7 +171,7 @@ export async function DELETE(req: NextRequest) {
   const [deleted] = await db.delete(dailyReports).where(and(...conditions)).returning()
   if (deleted) {
     // Notify teachers and admins
-    await notifyRoleInSchool(
+    runAfterResponse('daily-report:notify', () => notifyRoleInSchool(
       ['teacher', 'management'],
       schoolId,
       {
@@ -179,7 +180,7 @@ export async function DELETE(req: NextRequest) {
         message: `Daily report for Subject: ${deleted.subject} (Batch: ${deleted.batch}) submitted by ${deleted.teacherName} has been deleted.`,
       },
       (role) => role === 'teacher' ? '/teacher/daily-report' : '/management/daily-reports'
-    )
+    ))
   }
   return NextResponse.json({ success: true })
 }

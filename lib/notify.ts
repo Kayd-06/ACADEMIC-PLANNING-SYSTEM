@@ -30,25 +30,26 @@ export async function notifyUsers(userIds: string[], payload: NotifyPayload): Pr
 }
 
 // Fan out to every user of the given role(s) in a school.
-// roles: 'teacher' | 'management'; schoolId null = legacy users without school
+// A missing school id used to mean "notify every user of that role in every
+// school" — now it is a no-op (logged), so one school's events never reach
+// another school's staff.
 export async function notifyRoleInSchool(
   roles: Array<'teacher' | 'management'>,
   schoolId: string | null,
   payload: NotifyPayload,
   getLink?: (role: 'teacher' | 'management') => string
 ): Promise<void> {
-  const conditions = [inArray(users.role, roles)]
-  if (schoolId) {
-    conditions.push(
-      or(
-        eq(users.schoolId, schoolId as string),
-        eq(users.activeSchoolId, schoolId as string)
-      ) as any
-    )
+  if (!schoolId) {
+    console.warn(`[notify] skipped "${payload.title}": no schoolId (would have notified every school)`)
+    return
   }
+  const conditions = [
+    inArray(users.role, roles),
+    or(eq(users.schoolId, schoolId), eq(users.activeSchoolId, schoolId)),
+  ]
   const rows = await db.select({ id: users.id, role: users.role })
     .from(users)
-    .where(and(...conditions.filter((c): c is any => !!c)))
+    .where(and(...conditions))
   if (rows.length === 0) return
 
   await db.insert(notifications).values(

@@ -2,33 +2,51 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { meetings, meetingAgendaItems } from '@/lib/db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest) {
+// Agenda items are scoped through their parent meeting (older agenda rows may
+// have a null school_id of their own).
+function agendaItemInSchool(agendaItemId: string, schoolId: string) {
+  return and(
+    eq(meetingAgendaItems.id, agendaItemId),
+    inArray(
+      meetingAgendaItems.meetingId,
+      db.select({ id: meetings.id }).from(meetings).where(eq(meetings.schoolId, schoolId)),
+    ),
+  )
+}
+
+export async function GET() {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    
-    const schoolId = (session.user as any).schoolId as string | null
+    const schoolId = requireSchool(session)
 
-    let query = db.select().from(meetings).orderBy(desc(meetings.createdAt))
-    if (schoolId) {
-      query = db.select().from(meetings).where(eq(meetings.schoolId, schoolId)).orderBy(desc(meetings.createdAt)) as any
+    const meetingsList = await db.select().from(meetings)
+      .where(eq(meetings.schoolId, schoolId))
+      .orderBy(desc(meetings.createdAt))
+
+    // One query for every meeting's agenda instead of one query per meeting.
+    const ids = meetingsList.map(m => m.id)
+    const items = ids.length
+      ? await db.select().from(meetingAgendaItems)
+          .where(inArray(meetingAgendaItems.meetingId, ids))
+          .orderBy(asc(meetingAgendaItems.createdAt))
+      : []
+    const byMeeting = new Map<string, typeof items>()
+    for (const item of items) {
+      const list = byMeeting.get(item.meetingId) ?? []
+      list.push(item)
+      byMeeting.set(item.meetingId, list)
     }
 
-    const meetingsList = await query
-    
-    // Fetch agenda items for all meetings
-    const allMeetingsWithAgenda = await Promise.all(meetingsList.map(async (m) => {
-      const items = await db.select().from(meetingAgendaItems).where(eq(meetingAgendaItems.meetingId, m.id)).orderBy(meetingAgendaItems.createdAt)
-      return { ...m, agendaItems: items }
-    }))
-
-    return NextResponse.json(allMeetingsWithAgenda)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(meetingsList.map(m => ({ ...m, agendaItems: byMeeting.get(m.id) ?? [] })))
+  } catch (error) {
+    return errorResponse(error, 'GET /api/meetings')
   }
 }
 
@@ -36,7 +54,6 @@ export async function POST(req: NextRequest) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const schoolId = (session.user as any).schoolId as string | null
 
     const body = await req.json()
     const { title, date, time, type, venue, attendees, minutesPreparedBy, nextMeetingDate, agendaItems } = body
@@ -44,8 +61,11 @@ export async function POST(req: NextRequest) {
     if (!title || !date || !time) {
       return NextResponse.json({ error: 'Title, date, and time are required' }, { status: 400 })
     }
+    const schoolId = requireSchool(session)
 
-    const [newMeeting] = await db.insert(meetings).values({
+    const meetingId = crypto.randomUUID()
+    const insertMeeting = db.insert(meetings).values({
+      id: meetingId,
       title,
       date,
       time,
@@ -54,33 +74,41 @@ export async function POST(req: NextRequest) {
       attendees: attendees || '',
       minutesPreparedBy: minutesPreparedBy || '',
       nextMeetingDate: nextMeetingDate || '',
-      schoolId
+      schoolId,
     }).returning()
 
-    if (agendaItems && Array.isArray(agendaItems) && agendaItems.length > 0) {
-      const itemsToInsert = agendaItems.map((item: any) => ({
-        meetingId: newMeeting.id,
-        itemTitle: item.itemTitle,
-        description: item.description || '',
-        discussion: item.discussion || '',
-        action: item.action || '',
-        responsibility: item.responsibility || '',
-        targetDate: item.targetDate || '',
-        communicatedTo: item.communicatedTo || '',
-        communicatedBy: item.communicatedBy || '',
-        status: item.status || 'Not Started',
-        priority: item.priority || 'Medium',
-        schoolId
-      }))
-      await db.insert(meetingAgendaItems).values(itemsToInsert)
+    const itemsToInsert = Array.isArray(agendaItems)
+      ? agendaItems.map((item: any) => ({
+          meetingId,
+          itemTitle: item.itemTitle,
+          description: item.description || '',
+          discussion: item.discussion || '',
+          action: item.action || '',
+          responsibility: item.responsibility || '',
+          targetDate: item.targetDate || '',
+          communicatedTo: item.communicatedTo || '',
+          communicatedBy: item.communicatedBy || '',
+          status: item.status || 'Not Started',
+          priority: item.priority || 'Medium',
+          schoolId,
+        }))
+      : []
+
+    // Meeting + agenda are written in one transaction: no meeting without its agenda.
+    let newMeeting: typeof meetings.$inferSelect
+    let createdAgendaItems: Array<typeof meetingAgendaItems.$inferSelect> = []
+    if (itemsToInsert.length > 0) {
+      const [m, items] = await db.batch([insertMeeting, db.insert(meetingAgendaItems).values(itemsToInsert).returning()])
+      newMeeting = m[0]
+      createdAgendaItems = items
+    } else {
+      const [m] = await db.batch([insertMeeting])
+      newMeeting = m[0]
     }
 
-    // Return the created meeting with its agenda items
-    const createdAgendaItems = await db.select().from(meetingAgendaItems).where(eq(meetingAgendaItems.meetingId, newMeeting.id)).orderBy(meetingAgendaItems.createdAt)
-
     return NextResponse.json({ ...newMeeting, agendaItems: createdAgendaItems }, { status: 201 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'POST /api/meetings')
   }
 }
 
@@ -104,8 +132,9 @@ export async function PATCH(req: NextRequest) {
           return NextResponse.json({ error: `${field} is required` }, { status: 400 })
         }
       }
+      const schoolId = requireSchool(session)
 
-      const updates: any = { updatedAt: new Date() }
+      const updates: Partial<typeof meetingAgendaItems.$inferInsert> = { updatedAt: new Date() }
       if (status !== undefined) updates.status = status
       if (itemTitle !== undefined) updates.itemTitle = itemTitle
       if (description !== undefined) updates.description = description
@@ -117,19 +146,27 @@ export async function PATCH(req: NextRequest) {
       if (communicatedBy !== undefined) updates.communicatedBy = communicatedBy
       if (priority !== undefined) updates.priority = priority
 
-      const [updated] = await db.update(meetingAgendaItems).set(updates).where(eq(meetingAgendaItems.id, agendaItemId)).returning()
+      const [updated] = await db.update(meetingAgendaItems).set(updates)
+        .where(agendaItemInSchool(agendaItemId, schoolId))
+        .returning()
+      if (!updated) return NextResponse.json({ error: 'Agenda item not found' }, { status: 404 })
       return NextResponse.json(updated)
     }
 
     if (meetingId) {
+      const schoolId = requireSchool(session)
       const { title, date, time, type, venue, attendees, minutesPreparedBy, nextMeetingDate } = body
-      const [updated] = await db.update(meetings).set({ title, date, time, type, venue, attendees, minutesPreparedBy, nextMeetingDate, updatedAt: new Date() }).where(eq(meetings.id, meetingId)).returning()
+      const [updated] = await db.update(meetings)
+        .set({ title, date, time, type, venue, attendees, minutesPreparedBy, nextMeetingDate, updatedAt: new Date() })
+        .where(and(eq(meetings.id, meetingId), eq(meetings.schoolId, schoolId)))
+        .returning()
+      if (!updated) return NextResponse.json({ error: 'Meeting not found' }, { status: 404 })
       return NextResponse.json(updated)
     }
 
     return NextResponse.json({ error: 'ID is required' }, { status: 400 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'PATCH /api/meetings')
   }
 }
 
@@ -143,17 +180,25 @@ export async function DELETE(req: NextRequest) {
     const agendaItemId = searchParams.get('agendaItemId')
 
     if (agendaItemId) {
-      await db.delete(meetingAgendaItems).where(eq(meetingAgendaItems.id, agendaItemId))
+      const schoolId = requireSchool(session)
+      const deleted = await db.delete(meetingAgendaItems)
+        .where(agendaItemInSchool(agendaItemId, schoolId))
+        .returning({ id: meetingAgendaItems.id })
+      if (deleted.length === 0) return NextResponse.json({ error: 'Agenda item not found' }, { status: 404 })
       return NextResponse.json({ success: true })
     }
 
     if (id) {
-      await db.delete(meetings).where(eq(meetings.id, id))
+      const schoolId = requireSchool(session)
+      const deleted = await db.delete(meetings)
+        .where(and(eq(meetings.id, id), eq(meetings.schoolId, schoolId)))
+        .returning({ id: meetings.id })
+      if (deleted.length === 0) return NextResponse.json({ error: 'Meeting not found' }, { status: 404 })
       return NextResponse.json({ success: true })
     }
-    
+
     return NextResponse.json({ error: 'ID is required' }, { status: 400 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'DELETE /api/meetings')
   }
 }

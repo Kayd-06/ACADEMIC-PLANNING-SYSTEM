@@ -25,12 +25,14 @@ afterEach(async () => {
 
 describe('PATCH /api/batches — Unassigned coordinator / no class level', () => {
   it('saves successfully when class level is unset and coordinator is Unassigned', async () => {
+    const [school] = await db.insert(schools).values({ name: 'Batch PATCH School' }).returning()
+    createdIds.schools.push(school.id)
     const [batch] = await db.insert(batches).values({
-      name: 'Batch A', capacity: 60, classLevel: '11', schoolId: null,
+      name: 'Batch A', capacity: 60, classLevel: '11', schoolId: school.id,
     }).returning()
     createdIds.batches.push(batch.id)
 
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: null } })
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: school.id } })
 
     const body = {
       name: 'Batch A', classLevel: '', capacity: '60',
@@ -49,7 +51,9 @@ describe('PATCH /api/batches — Unassigned coordinator / no class level', () =>
 
 describe('POST /api/batches — same Unassigned / no class level combination', () => {
   it('creates successfully when class level is unset and coordinator is Unassigned', async () => {
-    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: null } })
+    const [school] = await db.insert(schools).values({ name: 'Batch POST School' }).returning()
+    createdIds.schools.push(school.id)
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: school.id } })
 
     const body = {
       name: 'New Batch No Class Level', classLevel: '', capacity: '60',
@@ -126,6 +130,14 @@ describe('unique batch name validation', () => {
     const body = { name: 'Steady', classLevel: '10', capacity: '60', startDate: '2026-01-01', endDate: '', programId: '', teacherId: '' }
     const res = await PATCH(jsonReq(`http://localhost/api/batches?id=${batch.id}`, 'PATCH', body))
     expect(res.status).toBe(200)
+  })
+})
+
+describe('requires an active school', () => {
+  it('POST is refused (403) for an account without a school instead of creating a school-less batch', async () => {
+    ;(auth as jest.Mock).mockResolvedValue({ user: { role: 'management', schoolId: null } })
+    const res = await POST(jsonReq('http://localhost/api/batches', 'POST', { name: 'X', startDate: '2024-01-01' }))
+    expect(res.status).toBe(403)
   })
 })
 

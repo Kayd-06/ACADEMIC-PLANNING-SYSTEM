@@ -1,4 +1,4 @@
-// One-time cleanup: remove seeded/demo rows from Neon + legacy MongoDB collections.
+// One-time cleanup: remove seeded/demo rows from Neon.
 // Real user-entered data is untouched — deletes match only the exact strings the
 // old seeding functions inserted.
 import { neon } from '@neondatabase/serverless'
@@ -87,32 +87,7 @@ await run('counseling_sessions (seeded)', `DELETE FROM counseling_sessions WHERE
 await run('calendar_events (seeded)', `DELETE FROM calendar_events WHERE description = ANY($1) RETURNING id`, [CALENDAR_DESCRIPTIONS])
 await run('students (seeded demo roster)', `DELETE FROM students WHERE class = ANY($1) OR name = 'Kunal Singhi' RETURNING id`, [SEEDED_CLASSES])
 
-// ── Legacy MongoDB collections (migrated features / seeded demo data) ──
-// Full-collection wipe — only runs when explicitly requested with --mongo
-if (process.argv.includes('--mongo') && process.env.MONGODB_URI) {
-  try {
-    const { default: mongoose } = await import('mongoose')
-    await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 8000 })
-    const dropIf = async (name) => {
-      const collections = await mongoose.connection.db.listCollections({ name }).toArray()
-      if (collections.length) {
-        const { deletedCount } = await mongoose.connection.db.collection(name).deleteMany({})
-        console.log(`mongo ${name}: ${deletedCount} deleted`)
-      } else {
-        console.log(`mongo ${name}: not present`)
-      }
-    }
-    console.log('── Clearing legacy MongoDB collections ──')
-    await dropIf('feedbacks')
-    await dropIf('attendances')
-    await dropIf('teacherschedules')
-    await dropIf('calendarevents')
-    await mongoose.disconnect()
-  } catch (e) {
-    console.log('MongoDB cleanup skipped:', e.message)
-  }
-} else {
-  console.log('Mongo cleanup skipped (pass --mongo to wipe legacy feedbacks/attendances/teacherschedules/calendarevents collections)')
-}
+// MongoDB was removed from the app (see migration notes in the PR); any
+// leftover Mongo collections must be exported/dropped by hand in Atlas.
 
 console.log('Done.')

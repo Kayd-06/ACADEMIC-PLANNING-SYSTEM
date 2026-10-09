@@ -23,11 +23,20 @@ const rawSql: any = neon(process.env.DATABASE_URL)
 // to replace that `.query` property itself to actually run.
 const rawQuery = rawSql.query.bind(rawSql)
 
-rawSql.query = async (query: any, params?: any[], ...args: any[]) => {
+// IMPORTANT: this wrapper must stay synchronous and return neon's lazy
+// NeonQueryPromise untouched. `db.batch([...])` (our only way to run several
+// statements atomically on neon-http) builds every statement through this
+// `.query` and then hands the un-awaited query objects to
+// `rawSql.transaction()`. An `async` wrapper would resolve — i.e. EXECUTE —
+// each statement on its own, outside the transaction, and hand transaction()
+// plain Promises it rejects.
+rawSql.query = (query: any, params?: any[], ...args: any[]) => {
   const queryStr = typeof query === 'string' ? query : query?.sql || String(query || '')
   if (shouldBlockDelete(queryStr, params)) {
     console.warn(`[DB Guard] Blocked unscoped delete on core table: ${queryStr} (params: ${JSON.stringify(params)})`)
-    return { rows: [], rowCount: 0 }
+    // A plain promise (not a NeonQueryPromise) also makes a db.batch() that
+    // contains a blocked delete fail as a whole instead of half-applying.
+    return Promise.resolve({ rows: [], rowCount: 0, fields: [] })
   }
   return rawQuery(query, params, ...args)
 }

@@ -9,6 +9,8 @@ import {
   getFeePaymentById
 } from '@/lib/db/queries/fees'
 import { getStudentById } from '@/lib/db/queries/students'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,14 +25,16 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status') || ''
     const studentId = searchParams.get('studentId') || ''
     const feeStructureId = searchParams.get('feeStructureId') || searchParams.get('feeTypeId') || ''
-    const schoolId = searchParams.get('schoolId') || (session.user as any)?.schoolId || null
+    // School always comes from the session — a ?schoolId= query param used to
+    // let any signed-in user read another school's payments.
+    const schoolId = requireSchool(session)
 
     const records = await listFeePayments({
       search,
       status: status && status !== 'All' ? status : undefined,
       studentId: studentId || undefined,
       feeStructureId: feeStructureId || undefined,
-      schoolId: schoolId || undefined
+      schoolId,
     })
 
     // Map id to _id for frontend compatibility
@@ -41,9 +45,8 @@ export async function GET(req: NextRequest) {
     }))
 
     return NextResponse.json(mapped)
-  } catch (error: any) {
-    console.error('GET /api/fees/payments error:', error)
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'GET /api/fees/payments')
   }
 }
 
@@ -73,20 +76,22 @@ export async function POST(req: NextRequest) {
       paidDate,
       status,
       notes = '',
-      schoolId
     } = body
 
     const resolvedFeeStructureId = feeStructureId || feeTypeId
     if (!studentId || !resolvedFeeStructureId) {
       return NextResponse.json({ error: 'Student ID and Fee Structure ID are required.' }, { status: 400 })
     }
+    // Body schoolId is ignored: the payment, student and fee structure must
+    // all belong to the caller's active school.
+    const schoolId = requireSchool(session)
 
-    const student = await getStudentById(studentId)
+    const student = await getStudentById(studentId, schoolId)
     if (!student) {
       return NextResponse.json({ error: 'Student record not found.' }, { status: 404 })
     }
 
-    const feeStructure = await getFeeStructureById(resolvedFeeStructureId)
+    const feeStructure = await getFeeStructureById(resolvedFeeStructureId, schoolId)
     if (!feeStructure) {
       return NextResponse.json({ error: 'Fee Structure record not found.' }, { status: 404 })
     }
@@ -116,8 +121,6 @@ export async function POST(req: NextRequest) {
     const resolvedDueDate = dueDate || nowStr
     const resolvedPaidDate = paidDate !== undefined ? paidDate : (resolvedAmountPaid > 0 ? nowStr : '')
 
-    const targetSchoolId = schoolId || student.schoolId || (session.user as any)?.schoolId || null
-
     const created = await createFeePayment({
       studentId: student.id,
       studentName: student.name,
@@ -127,7 +130,7 @@ export async function POST(req: NextRequest) {
       feeStructureId: feeStructure.id,
       feeName: feeStructure.name,
       feeType: feeStructure.feeType || 'Monthly Tuition',
-      schoolId: targetSchoolId,
+      schoolId,
       amountDue: Math.round(resolvedAmountDue),
       amountPaid: Math.round(resolvedAmountPaid),
       discount: Math.round(resolvedDiscount),
@@ -144,9 +147,8 @@ export async function POST(req: NextRequest) {
     })
 
     return NextResponse.json({ ...created, _id: created.id, feeTypeId: created.feeStructureId }, { status: 201 })
-  } catch (error: any) {
-    console.error('POST /api/fees/payments error:', error)
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'POST /api/fees/payments')
   }
 }
 
@@ -164,7 +166,8 @@ export async function PUT(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Payment Record ID is required' }, { status: 400 })
 
     const body = await req.json()
-    const existing = await getFeePaymentById(id)
+    const schoolId = requireSchool(session)
+    const existing = await getFeePaymentById(id, schoolId)
     if (!existing) return NextResponse.json({ error: 'Payment record not found' }, { status: 404 })
 
     const updatePayload: any = {}
@@ -195,13 +198,12 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    const updated = await updateFeePayment(id, updatePayload)
+    const updated = await updateFeePayment(id, updatePayload, schoolId)
     if (!updated) return NextResponse.json({ error: 'Failed to update payment record' }, { status: 500 })
 
     return NextResponse.json({ ...updated, _id: updated.id, feeTypeId: updated.feeStructureId })
-  } catch (error: any) {
-    console.error('PUT /api/fees/payments error:', error)
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'PUT /api/fees/payments')
   }
 }
 
@@ -218,12 +220,12 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Payment Record ID is required' }, { status: 400 })
 
-    const success = await deleteFeePayment(id)
+    const schoolId = requireSchool(session)
+    const success = await deleteFeePayment(id, schoolId)
     if (!success) return NextResponse.json({ error: 'Payment record not found or already deleted' }, { status: 404 })
 
     return NextResponse.json({ message: 'Payment record deleted successfully' })
-  } catch (error: any) {
-    console.error('DELETE /api/fees/payments error:', error)
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'DELETE /api/fees/payments')
   }
 }

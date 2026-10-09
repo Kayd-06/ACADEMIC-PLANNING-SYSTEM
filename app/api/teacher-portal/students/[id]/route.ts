@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
-import { auth, getSchoolId } from '@/lib/auth'
+import { auth } from '@/lib/auth'
+import { requireSchool } from '@/lib/tenant'
+import { errorResponse } from '@/lib/api/http'
 import { getStudentById } from '@/lib/db/queries/students'
 import { db } from '@/lib/db'
 import { counselingSessions, studentReports, studentReportEntries, parentsGuardians, studentBatchEnrollments } from '@/lib/db/schema'
@@ -15,10 +17,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const schoolId = getSchoolId(session)
+    const schoolId = requireSchool(session)
 
     const { id } = await params
-    const student = await getStudentById(id)
+    const student = await getStudentById(id, schoolId)
 
     if (!student) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
@@ -94,7 +96,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       attendance: attendanceStats.percentage,
       attendanceDays: `${attendanceStats.presentCount}/${attendanceStats.totalClasses}`,
     })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return errorResponse(error, 'GET /api/teacher-portal/students/[id]')
   }
 }

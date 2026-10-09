@@ -134,12 +134,12 @@ export const students = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    rollClassSectionSchoolUnique: uniqueIndex('students_roll_no_class_section_school_unique')
-      .on(table.rollNo, table.class, table.section, table.schoolId)
-      .where(sql`${table.rollNo} <> '' AND ${table.class} <> '' AND ${table.section} <> '' AND ${table.schoolId} IS NOT NULL`),
-    rollClassSectionNullSchoolUnique: uniqueIndex('students_roll_no_class_section_null_school_unique')
-      .on(table.rollNo, table.class, table.section)
-      .where(sql`${table.rollNo} <> '' AND ${table.class} <> '' AND ${table.section} <> '' AND ${table.schoolId} IS NULL`),
+    // Migration 0051. Section is part of the key even when empty — the old
+    // indexes skipped section = '' and so allowed duplicate roll numbers.
+    // The bulk import upserts on this key (ON CONFLICT ... WHERE <predicate>).
+    schoolRollClassSectionUnique: uniqueIndex('students_school_roll_class_section_unique')
+      .on(table.schoolId, table.rollNo, table.class, table.section)
+      .where(sql`${table.rollNo} <> '' AND ${table.class} <> '' AND ${table.schoolId} IS NOT NULL`),
   })
 )
 
@@ -252,7 +252,11 @@ export const attendanceSessions = pgTable('attendance_sessions', {
   schoolId: uuid('school_id').references(() => schools.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table) => ({
+  // Migration 0051: one sheet per class occurrence; POST /api/attendance upserts on it.
+  slotUnique: uniqueIndex('attendance_sessions_slot_unique')
+    .on(table.schoolId, table.date, table.batch, table.subject, table.classTime),
+}))
 
 export type AttendanceSession = typeof attendanceSessions.$inferSelect
 export type NewAttendanceSession = typeof attendanceSessions.$inferInsert
@@ -268,7 +272,12 @@ export const attendanceEntries = pgTable('attendance_entries', {
   notes: varchar('notes', { length: 500 }).notNull().default(''),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table) => ({
+  // Migration 0051: a student appears at most once per sheet.
+  sessionStudentUnique: uniqueIndex('attendance_entries_session_student_unique')
+    .on(table.sessionId, table.studentId)
+    .where(sql`${table.studentId} IS NOT NULL`),
+}))
 
 export type AttendanceEntry = typeof attendanceEntries.$inferSelect
 export type NewAttendanceEntry = typeof attendanceEntries.$inferInsert
@@ -454,9 +463,17 @@ export const batchSyllabus = pgTable('batch_syllabus', {
   targetEndDate: varchar('target_end_date', { length: 10 }),
   actualEndDate: varchar('actual_end_date', { length: 10 }),
   status: varchar('status', { length: 20 }).notNull().default('Not Started'),
+  // Migration 0052: a teacher's per-batch edits of a SHARED chapter. NULL =
+  // use the chapter's own value. Batch-owned chapters are edited directly.
+  notes: text('notes'),
+  titleOverride: varchar('title_override', { length: 255 }),
+  expectedHoursOverride: integer('expected_hours_override'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table) => ({
+  // Migration 0051: one syllabus row per batch + chapter.
+  batchChapterUnique: uniqueIndex('batch_syllabus_batch_chapter_unique').on(table.batchId, table.chapterId),
+}))
 
 export type BatchSyllabus = typeof batchSyllabus.$inferSelect
 export type NewBatchSyllabus = typeof batchSyllabus.$inferInsert
@@ -1378,3 +1395,79 @@ export const reportSubjectAnalytics = pgTable('report_subject_analytics', {
 
 export type ReportSubjectAnalytics    = typeof reportSubjectAnalytics.$inferSelect
 export type NewReportSubjectAnalytics = typeof reportSubjectAnalytics.$inferInsert
+
+// ── Academic Planning board (migration 0052; formerly MongoDB) ───────────────
+// Milestones, planning logs and header/quality metrics shown on the
+// management and teacher Academic Planning boards. `role` = which board.
+
+export const academicMilestones = pgTable('academic_milestones', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  schoolId: uuid('school_id').notNull().references(() => schools.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  type: varchar('type', { length: 100 }).notNull(),
+  date: varchar('date', { length: 10 }).notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  status: varchar('status', { length: 50 }).notNull().default('Scheduled'),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schoolRoleDateIdx: index('academic_milestones_school_role_date_idx').on(table.schoolId, table.role, table.date),
+}))
+
+export const academicPlanningLogs = pgTable('academic_planning_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  schoolId: uuid('school_id').notNull().references(() => schools.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  focus: text('focus').notNull(),
+  type: varchar('type', { length: 50 }).notNull(),
+  measure: text('measure').notNull(),
+  measureLabel: varchar('measure_label', { length: 255 }).notNull(),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schoolRoleCreatedIdx: index('academic_planning_logs_school_role_created_idx').on(table.schoolId, table.role, table.createdAt),
+}))
+
+export const academicMetrics = pgTable('academic_metrics', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  schoolId: uuid('school_id').notNull().references(() => schools.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull(),
+  label: varchar('label', { length: 255 }).notNull(),
+  value: varchar('value', { length: 50 }).notNull(),
+  trend: varchar('trend', { length: 50 }).notNull(),
+  category: varchar('category', { length: 50 }).notNull(), // 'header_stat' | 'quality_stat'
+  chartData: jsonb('chart_data').$type<number[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schoolRoleIdx: index('academic_metrics_school_role_idx').on(table.schoolId, table.role),
+}))
+
+// Migration 0052: a teacher's personal "today's schedule" items (duties,
+// visits, doubt sessions...) — the Postgres home of the old Mongo
+// TeacherSchedule collection. Deliberately NOT special_classes: these are
+// notes on a teacher's own day, nothing (attendance, reports) links to them,
+// and editing/deleting one can never touch a real scheduled class.
+export const teacherScheduleItems = pgTable('teacher_schedule_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  schoolId: uuid('school_id').notNull().references(() => schools.id, { onDelete: 'cascade' }),
+  ownerEmail: varchar('owner_email', { length: 255 }).notNull(),
+  ownerName: varchar('owner_name', { length: 255 }).notNull().default(''),
+  date: varchar('date', { length: 10 }).notNull(),
+  time: varchar('time', { length: 20 }).notNull(),
+  activity: varchar('activity', { length: 255 }).notNull(),
+  batch: varchar('batch', { length: 255 }).notNull().default(''),
+  location: varchar('location', { length: 100 }).notNull().default(''),
+  // NULL = derived from the date (Upcoming / Completed)
+  status: varchar('status', { length: 20 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schoolOwnerDateIdx: index('teacher_schedule_items_school_owner_date_idx').on(table.schoolId, table.ownerEmail, table.date),
+}))
+
+export type TeacherScheduleItem = typeof teacherScheduleItems.$inferSelect

@@ -5,6 +5,8 @@ import { calendarEvents } from '@/lib/db/schema'
 import { eq, and, asc, gte } from 'drizzle-orm'
 import { notifyRoleInSchool } from '@/lib/notify'
 import crypto from 'crypto'
+import { runAfterResponse } from '@/lib/sideEffects'
+import { errorResponse } from '@/lib/api/http'
 
 function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): Date {
   const time = timeStr ? timeStr.trim() : '00:00'
@@ -51,7 +53,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(rows.map(toApiShape))
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return errorResponse(error, '/app/api/calendar')
   }
 }
 
@@ -128,7 +130,7 @@ export async function POST(req: NextRequest) {
 
     // Notify teachers and admins 24 hours prior
     const notifyTime = getScheduleNotificationTime(date)
-    await notifyRoleInSchool(
+    runAfterResponse('calendar:notify', () => notifyRoleInSchool(
       ['teacher', 'management'],
       schoolId,
       {
@@ -138,11 +140,11 @@ export async function POST(req: NextRequest) {
         createdAt: notifyTime,
       },
       (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
-    )
+    ))
 
     return NextResponse.json(toApiShape(event), { status: 201 })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return errorResponse(error, '/app/api/calendar')
   }
 }
 
@@ -204,7 +206,7 @@ export async function PUT(req: NextRequest) {
 
     // Notify teachers and admins of update 24 hours prior
     const notifyTime = getScheduleNotificationTime(date)
-    await notifyRoleInSchool(
+    runAfterResponse('calendar:notify', () => notifyRoleInSchool(
       ['teacher', 'management'],
       schoolId,
       {
@@ -214,11 +216,11 @@ export async function PUT(req: NextRequest) {
         createdAt: notifyTime,
       },
       (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
-    )
+    ))
 
     return NextResponse.json(toApiShape(event))
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return errorResponse(error, '/app/api/calendar')
   }
 }
 
@@ -258,7 +260,7 @@ export async function DELETE(req: NextRequest) {
       deleted = deletedEvents[0]
     }
     if (deleted) {
-      await notifyRoleInSchool(
+      runAfterResponse('calendar:notify', () => notifyRoleInSchool(
         ['teacher', 'management'],
         schoolId,
         {
@@ -267,10 +269,10 @@ export async function DELETE(req: NextRequest) {
           message: `The event scheduled for ${deleted.date} has been cancelled.`,
         },
         (role) => role === 'teacher' ? '/teacher/schedule' : '/management/calendar'
-      )
+      ))
     }
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return errorResponse(error, '/app/api/calendar')
   }
 }

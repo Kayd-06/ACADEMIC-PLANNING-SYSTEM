@@ -4,6 +4,8 @@ import { eq, and, asc, or, inArray } from 'drizzle-orm'
 import { auth, getSchoolId } from '@/lib/auth'
 import { notifyRoleInSchool } from '@/lib/notify'
 import { findTeacherFaculty } from '@/lib/db/queries/faculty'
+import { runAfterResponse } from '@/lib/sideEffects'
+import { errorResponse } from '@/lib/api/http'
 
 function getScheduleNotificationTime(dateStr: string, timeStr?: string | null): Date {
   const time = timeStr ? timeStr.trim() : '00:00'
@@ -122,7 +124,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(rows)
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return errorResponse(error, '/app/api/tests/schedule')
   }
 }
 
@@ -164,7 +166,7 @@ export async function POST(req: NextRequest) {
     }).returning()
 
     const notifyTime = getScheduleNotificationTime(created.date, created.time)
-    await notifyRoleInSchool(
+    runAfterResponse('tests/schedule:notify', () => notifyRoleInSchool(
       ['teacher', 'management'],
       schoolId,
       {
@@ -174,11 +176,11 @@ export async function POST(req: NextRequest) {
         createdAt: notifyTime,
       },
       (role) => role === 'teacher' ? '/teacher/tests' : '/management/tests-bank'
-    )
+    ))
 
     return NextResponse.json(created, { status: 201 })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return errorResponse(error, '/app/api/tests/schedule')
   }
 }
 
@@ -224,7 +226,7 @@ export async function PUT(req: NextRequest) {
     if (!updated) return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
 
     const notifyTime = getScheduleNotificationTime(updated.date, updated.time)
-    await notifyRoleInSchool(
+    runAfterResponse('tests/schedule:notify', () => notifyRoleInSchool(
       ['teacher', 'management'],
       schoolId,
       {
@@ -234,11 +236,11 @@ export async function PUT(req: NextRequest) {
         createdAt: notifyTime,
       },
       (role) => role === 'teacher' ? '/teacher/tests' : '/management/tests-bank'
-    )
+    ))
 
     return NextResponse.json(updated)
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return errorResponse(error, '/app/api/tests/schedule')
   }
 }
 
@@ -266,7 +268,7 @@ export async function DELETE(req: NextRequest) {
     const [deleted] = await db.delete(tests).where(and(...conditions)).returning()
     if (!deleted) return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
 
-    await notifyRoleInSchool(
+    runAfterResponse('tests/schedule:notify', () => notifyRoleInSchool(
       ['teacher', 'management'],
       schoolId,
       {
@@ -275,10 +277,10 @@ export async function DELETE(req: NextRequest) {
         message: `The scheduled test for Subject: ${deleted.subject} (Batch: ${deleted.batch}) on ${deleted.date} has been cancelled.`,
       },
       (role) => role === 'teacher' ? '/teacher/tests' : '/management/tests-bank'
-    )
+    ))
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return errorResponse(error, '/app/api/tests/schedule')
   }
 }
