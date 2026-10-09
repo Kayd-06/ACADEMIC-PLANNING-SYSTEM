@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { requireSchool } from '@/lib/tenant'
-import { errorResponse } from '@/lib/api/http'
+import { errorResponse, isUniqueViolation } from '@/lib/api/http'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { parentsGuardians, programs, batches, students as studentsTable } from '@/lib/db/schema'
@@ -9,6 +9,10 @@ import { deleteAllStudents } from '@/lib/db/queries/students'
 import type { NewStudent } from '@/lib/db/schema'
 import { chunk, mapWithConcurrency } from '@/lib/concurrency'
 import { buildStudentMatcher } from '@/lib/students/bulkMatch'
+import {
+  STUDENT_OPTIONAL_FIELDS, findRollKeyConflicts, findTooLongField, mergeStudentRow,
+  type StudentOptionalField, type StoredStudent,
+} from '@/lib/students/bulkRow'
 
 export const dynamic = 'force-dynamic'
 // A few thousand rows used to fire thousands of parallel queries and time
@@ -31,19 +35,15 @@ interface FieldError {
   message: string
 }
 
+const str = (v: unknown): string => (v === null || v === undefined ? '' : String(v).trim())
+
 function resolveField(rowValue: string, defaultValue?: string): string {
   return defaultValue?.trim() ? defaultValue.trim() : rowValue
 }
 
-// Optional student fields the "Add Student" form and CSV template support.
-// Absent/empty values never overwrite what is already stored.
-const STUDENT_ROW_FIELDS = [
-  'admissionNumber', 'aadharNumber',
-  'email', 'phone', 'addressLine1', 'city', 'state', 'pincode',
-  'dob', 'gender', 'bloodGroup', 'profileImgUrl',
-  'previousSchool', 'previousPercentage', 'admissionDate', 'notes',
-] as const
-const OPTIONAL_COLUMNS: Record<(typeof STUDENT_ROW_FIELDS)[number] | 'batchId', string> = {
+// Optional student fields the "Add Student" form and CSV template support
+// (STUDENT_OPTIONAL_FIELDS). Absent/empty values never overwrite stored ones.
+const OPTIONAL_COLUMNS: Record<StudentOptionalField | 'batchId', string> = {
   admissionNumber: 'admission_number', aadharNumber: 'aadhar_number', email: 'email', phone: 'phone',
   addressLine1: 'address_line1', city: 'city', state: 'state', pincode: 'pincode', dob: 'dob',
   gender: 'gender', bloodGroup: 'blood_group', profileImgUrl: 'profile_img_url',
@@ -51,8 +51,9 @@ const OPTIONAL_COLUMNS: Record<(typeof STUDENT_ROW_FIELDS)[number] | 'batchId', 
   admissionDate: 'admission_date', notes: 'notes', batchId: 'batch_id',
 }
 
-// ON CONFLICT ... DO UPDATE SET: always-overwritten columns + COALESCE for optional ones.
-function upsertSet() {
+// Existing students: the planned row already holds the merged value (stored
+// values + non-empty cells), so the update writes it as-is.
+function mergedSet() {
   const set: Record<string, any> = {
     name: sql.raw('excluded.name'),
     rollNo: sql.raw('excluded.roll_no'),
@@ -63,6 +64,21 @@ function upsertSet() {
     parentContact: sql.raw('excluded.parent_contact'),
     status: sql.raw('excluded.status'),
     isActive: sql.raw('excluded.is_active'),
+    updatedAt: sql`now()`,
+  }
+  for (const [field, column] of Object.entries(OPTIONAL_COLUMNS)) set[field] = sql.raw(`excluded.${column}`)
+  return set
+}
+
+// New rows that collide with a student inserted concurrently (after our
+// prefetch): empty cells keep the stored value and status/active are kept.
+function keyedConflictSet() {
+  const keep = (column: string) => sql.raw(`coalesce(nullif(excluded.${column}, ''), "students".${column})`)
+  const set: Record<string, any> = {
+    name: sql.raw('excluded.name'),
+    program: keep('program'),
+    batch: keep('batch'),
+    parentContact: keep('parent_contact'),
     updatedAt: sql`now()`,
   }
   for (const [field, column] of Object.entries(OPTIONAL_COLUMNS)) {
@@ -114,14 +130,13 @@ export async function POST(req: NextRequest) {
     const [schoolPrograms, schoolBatches, existing] = await Promise.all([
       db.select().from(programs).where(eq(programs.schoolId, schoolId)),
       db.select().from(batches).where(eq(batches.schoolId, schoolId)),
-      db.select({
-        id: studentsTable.id, rollNo: studentsTable.rollNo, class: studentsTable.class,
-        section: studentsTable.section, admissionNumber: studentsTable.admissionNumber, name: studentsTable.name,
-      }).from(studentsTable).where(eq(studentsTable.schoolId, schoolId)),
+      // Full rows: updates merge the file's non-empty cells into these.
+      db.select().from(studentsTable).where(eq(studentsTable.schoolId, schoolId)),
     ])
     const programByName = new Map(schoolPrograms.map((p) => [p.name.trim().toLowerCase(), p]))
     const batchByName = new Map(schoolBatches.map((b) => [b.name.trim().toLowerCase(), b]))
     const match = buildStudentMatcher(existing)
+    const existingById = new Map(existing.map((e) => [e.id, e]))
 
     const errors: Array<FieldError & { index: number }> = []
     const plannedByKey = new Map<string, PlannedRow>()
@@ -129,14 +144,12 @@ export async function POST(req: NextRequest) {
 
     valid.forEach((s: any, index: number) => {
       const name = s.name.trim()
-      const rollNo = s.rollNo?.toString().trim() || ''
+      const rollNo = str(s.rollNo)
       const label = rollNo ? `${name} (Roll ${rollNo})` : name
-      const cls = s.class?.toString().trim() || ''
-      const rawSection = resolveField(s.section?.toString().trim() || '', defaults?.section)
-      const program = resolveField(s.program?.trim() || '', defaults?.program)
-      const batch = resolveField(s.batch?.trim() || '', defaults?.batch)
-      const parentContact = s.parentContact?.toString().trim() || ''
-      const status = s.status?.trim() || 'active'
+      const cls = str(s.class)
+      const rawSection = resolveField(str(s.section), defaults?.section)
+      const program = resolveField(str(s.program), defaults?.program)
+      const batch = resolveField(str(s.batch), defaults?.batch)
 
       // Program/Batch must match a real, school-scoped record — CSV values and
       // modal defaults are free text with no other guarantee of correctness.
@@ -155,19 +168,33 @@ export async function POST(req: NextRequest) {
         return
       }
 
-      const admissionNumber = typeof s.admissionNumber === 'string' ? s.admissionNumber.trim() : ''
+      const admissionNumber = str(s.admissionNumber)
       const m = match({ name, rollNo, class: cls, section: rawSection, sectionProvided: rawSection !== '', admissionNumber })
+      const stored = m.existingId ? existingById.get(m.existingId) : undefined
 
+      const optional: Partial<Record<StudentOptionalField, string>> = {}
+      for (const f of STUDENT_OPTIONAL_FIELDS) optional[f] = str(s[f])
+      const merged = mergeStudentRow((stored as unknown as StoredStudent) ?? null, {
+        name, rollNo, class: cls,
+        // the matcher falls back to the stored section when the row has none
+        section: m.section,
+        program, batch, batchId: matchedBatch?.id ?? null,
+        parentContact: str(s.parentContact),
+        status: str(s.status),
+        optional,
+      })
       const student: NewStudent & { id: string } = {
         id: m.existingId ?? crypto.randomUUID(),
-        name, rollNo, class: cls, section: m.section, program, batch, parentContact,
-        status, isActive: status.toLowerCase() !== 'inactive',
-        batchId: matchedBatch?.id ?? null,
+        name: merged.name, rollNo: merged.rollNo, class: merged.class, section: merged.section,
+        program: merged.program, batch: merged.batch, batchId: merged.batchId,
+        parentContact: merged.parentContact, status: merged.status, isActive: merged.isActive,
+        ...merged.optional,
         schoolId,
       }
-      for (const f of STUDENT_ROW_FIELDS) {
-        const v = s[f]
-        if (typeof v === 'string' && v.trim()) (student as any)[f] = v.trim()
+      const tooLong = findTooLongField(student as Record<string, unknown>)
+      if (tooLong) {
+        errors.push({ index, row: label, field: 'general', value: String((student as any)[tooLong.field]).slice(0, 40), message: `${tooLong.field} is longer than ${tooLong.limit} characters.` })
+        return
       }
 
       const guardianName = s.guardianName?.trim()
@@ -205,23 +232,49 @@ export async function POST(req: NextRequest) {
       planned.push(row)
     })
 
+    // Rows whose roll number would collide with another student are reported
+    // individually up front instead of failing their whole chunk.
+    const conflicts = findRollKeyConflicts(
+      planned.map((r) => ({ index: r.index, id: r.student.id, rollNo: r.student.rollNo ?? '', class: r.student.class ?? '', section: r.student.section ?? '' })),
+      existing,
+    )
+    const writable = planned.filter((r) => {
+      const reason = conflicts.get(r.index)
+      if (!reason) return true
+      for (const index of [...r.folded, r.index]) errors.push({ index, row: r.label, field: 'general', value: r.student.rollNo ?? '', message: reason })
+      return false
+    })
+
     // Write in chunks of 100, 3 at a time. Each chunk's student rows are
-    // written by at most two multi-row upserts inside one transaction.
-    const chunks = chunk(planned, CHUNK_SIZE)
+    // written by at most two multi-row upserts inside one transaction. If a
+    // chunk still fails (e.g. a concurrent edit), its rows are retried one by
+    // one so only the bad rows fail.
+    const chunks = chunk(writable, CHUNK_SIZE)
     const results = await mapWithConcurrency(chunks, CONCURRENCY, writeChunk)
 
     let succeeded = 0
-    results.forEach((result, i) => {
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i]
       if (result.status === 'fulfilled') {
         succeeded += result.value.saved
         for (const g of result.value.guardianErrors) errors.push(g)
-        return
+        continue
       }
-      console.error('[students bulk import] chunk failed', result.reason)
-      for (const r of chunks[i]) for (const index of [...r.folded, r.index]) {
-        errors.push({ index, row: r.label, field: 'general', value: '', message: 'Could not be saved (it may conflict with another student). Please check the row and try again.' })
-      }
-    })
+      console.error('[students bulk import] chunk failed, retrying row by row', result.reason)
+      const single = await mapWithConcurrency(chunks[i], CONCURRENCY, (r) => writeChunk([r]))
+      single.forEach((res, j) => {
+        const r = chunks[i][j]
+        if (res.status === 'fulfilled') {
+          succeeded += res.value.saved
+          for (const g of res.value.guardianErrors) errors.push(g)
+          return
+        }
+        const message = isUniqueViolation(res.reason)
+          ? 'Another student already has this roll number in this class/section.'
+          : 'Could not be saved. Please check the row and try again.'
+        for (const index of [...r.folded, r.index]) errors.push({ index, row: r.label, field: 'general', value: '', message })
+      })
+    }
 
     errors.sort((a, b) => a.index - b.index)
     const publicErrors: FieldError[] = errors.map((e) => ({ row: e.row, field: e.field, value: e.value, message: e.message }))
@@ -246,7 +299,7 @@ async function writeChunk(part: PlannedRow[]) {
       db.insert(studentsTable).values(byId.map(r => r.student))
         .onConflictDoUpdate({
           target: studentsTable.id,
-          set: upsertSet(),
+          set: mergedSet(),
           setWhere: sql`"students"."school_id" = excluded.school_id`,
         })
         .returning(returningCols),
@@ -260,7 +313,7 @@ async function writeChunk(part: PlannedRow[]) {
         .onConflictDoUpdate({
           target: [studentsTable.schoolId, studentsTable.rollNo, studentsTable.class, studentsTable.section],
           targetWhere: ROLL_KEY_PREDICATE,
-          set: upsertSet(),
+          set: keyedConflictSet(),
         })
         .returning(returningCols),
     )
