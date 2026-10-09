@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { academicMetrics, academicMilestones, academicPlanningLogs } from '@/lib/db/schema'
 import { isUuid, requireSchool } from '@/lib/tenant'
 import { errorResponse, HttpError } from '@/lib/api/http'
+import { parseMetricInput } from '@/lib/academicPlanning/metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,8 @@ export const dynamic = 'force-dynamic'
 // MongoDB to Postgres (migration 0052). Response shapes are unchanged:
 // GET -> { milestones, logs, metrics }, items carry `_id` as before.
 // Differences: requires a signed-in staff user, data is per school, and an
-// empty board stays empty (the old GET seeded demo rows into the database).
+// empty board stays empty (the old GET seeded demo rows into the database);
+// stat tiles (metrics) are created explicitly via POST modelType 'metric'.
 
 type BoardRole = 'management' | 'teacher'
 type ModelType = 'milestone' | 'log' | 'metric'
@@ -69,16 +71,10 @@ function logFields(body: Record<string, unknown>, partial: boolean) {
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined))
 }
 
-function metricFields(body: Record<string, unknown>) {
-  const out: Record<string, unknown> = {
-    label: str(body, 'label', 255, false),
-    value: str(body, 'value', 50, false),
-    trend: str(body, 'trend', 50, false),
-  }
-  if (Array.isArray(body.chartData)) {
-    out.chartData = body.chartData.map(Number).filter((n) => Number.isFinite(n)).slice(0, 50)
-  }
-  return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined))
+function metricFields(body: Record<string, unknown>, partial: boolean) {
+  const parsed = parseMetricInput(body, partial)
+  if (!parsed.ok) throw new HttpError(400, parsed.error)
+  return parsed.value
 }
 
 export async function GET(request: Request) {
@@ -118,7 +114,7 @@ export async function POST(request: Request) {
     const { session, role } = await requireStaff()
     const body = (await request.json()) as Record<string, unknown>
     const modelType = body.modelType as ModelType
-    if (modelType !== 'milestone' && modelType !== 'log') {
+    if (modelType !== 'milestone' && modelType !== 'log' && modelType !== 'metric') {
       return NextResponse.json({ error: 'Invalid modelType' }, { status: 400 })
     }
     const board = checkBoard(role, body.role)
@@ -128,6 +124,16 @@ export async function POST(request: Request) {
     if (modelType === 'milestone') {
       const [row] = await db.insert(academicMilestones)
         .values({ ...(milestoneFields(body, false) as any), role: board, schoolId, createdBy })
+        .returning()
+      return NextResponse.json(withMongoId(row))
+    }
+    if (modelType === 'metric') {
+      const fields = metricFields(body, false)
+      const [row] = await db.insert(academicMetrics)
+        .values({
+          label: fields.label!, value: fields.value!, trend: fields.trend!, category: fields.category!,
+          chartData: fields.chartData ?? [], role: board, schoolId,
+        })
         .returning()
       return NextResponse.json(withMongoId(row))
     }
@@ -165,7 +171,7 @@ export async function PATCH(request: Request) {
         .where(and(eq(academicPlanningLogs.id, id), eq(academicPlanningLogs.schoolId, schoolId), inArray(academicPlanningLogs.role, boards)))
         .returning()
     } else {
-      const fields = metricFields(body)
+      const fields = metricFields(body, true)
       ;[updated] = await db.update(academicMetrics).set({ ...fields, updatedAt: new Date() })
         .where(and(eq(academicMetrics.id, id), eq(academicMetrics.schoolId, schoolId), inArray(academicMetrics.role, boards)))
         .returning()
@@ -193,6 +199,10 @@ export async function DELETE(request: Request) {
       await db.delete(academicMilestones).where(and(eq(academicMilestones.id, id), eq(academicMilestones.schoolId, schoolId), inArray(academicMilestones.role, boards)))
     } else if (type === 'log') {
       await db.delete(academicPlanningLogs).where(and(eq(academicPlanningLogs.id, id), eq(academicPlanningLogs.schoolId, schoolId), inArray(academicPlanningLogs.role, boards)))
+    } else if (type === 'metric') {
+      await db.delete(academicMetrics).where(and(eq(academicMetrics.id, id), eq(academicMetrics.schoolId, schoolId), inArray(academicMetrics.role, boards)))
+    } else {
+      return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
     }
 
     return NextResponse.json({ success: true })

@@ -37,6 +37,11 @@ export default function AcademicPlanning({ role }: { role: 'management' | 'teach
   // Modal State
   const [modalType, setModalType] = useState<'milestone' | 'log' | 'metric' | null>(null)
   const [editingItem, setEditingItem] = useState<any>(null)
+  // category of a new stat tile (header stats vs. quality stats)
+  const [metricCategory, setMetricCategory] = useState<'header_stat' | 'quality_stat'>('header_stat')
+  const openNewMetric = (category: 'header_stat' | 'quality_stat') => {
+    setMetricCategory(category); setEditingItem(null); setModalType('metric')
+  }
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -218,6 +223,11 @@ export default function AcademicPlanning({ role }: { role: 'management' | 'teach
                 )}
                 {modalType === 'metric' && (
                    <>
+                    <input type="hidden" name="category" value={editingItem?.category ?? metricCategory} />
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Label</label>
+                      <input name="label" defaultValue={editingItem?.label} required maxLength={255} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+                    </div>
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Value</label>
                       <input name="value" defaultValue={editingItem?.value} required className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
@@ -291,6 +301,14 @@ export default function AcademicPlanning({ role }: { role: 'management' | 'teach
         <div className="col-span-12 lg:col-span-8 space-y-6">
           
           {/* Admin Specific Stats (Management only) */}
+          {headerStats.length === 0 && (
+            <motion.div {...fadeUp(0.02)} className="border border-dashed border-gray-200 rounded-2xl p-5 flex items-center justify-between bg-white">
+              <p className="text-sm text-gray-500">No headline stats yet. Add the figures you want to track here.</p>
+              <button onClick={() => openNewMetric('header_stat')} className="flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-700">
+                <Plus className="w-4 h-4" /> Add stat
+              </button>
+            </motion.div>
+          )}
           {headerStats.length > 0 && (
             <motion.div {...fadeUp(0.02)} className="grid grid-cols-3 gap-4">
               {headerStats.map((stat, i) => (
@@ -564,6 +582,14 @@ export default function AcademicPlanning({ role }: { role: 'management' | 'teach
             </div>
             
             <div className="space-y-4">
+              {qualityStats.length === 0 && (
+                <div className="border border-dashed border-gray-200 rounded-xl p-4 text-center">
+                  <p className="text-sm text-gray-500 mb-2">No quality metrics yet.</p>
+                  <button onClick={() => openNewMetric('quality_stat')} className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-700">
+                    <Plus className="w-4 h-4" /> Add metric
+                  </button>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 {qualityStats.slice(0, 2).map((stat, i) => (
                   <div key={i} className="bg-gray-50 rounded-xl p-4 border border-gray-100 relative group">
