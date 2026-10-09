@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { requireSchool } from '@/lib/tenant'
+import { isUuid, requireSchool } from '@/lib/tenant'
 import { errorResponse } from '@/lib/api/http'
 import { db } from '@/lib/db'
 import { batches, students, programs, faculty, teacherBatches, schools, type NewBatch } from '@/lib/db/schema'
 import { eq, and, asc, inArray, count } from 'drizzle-orm'
 import { batchClassLevelOptions } from '@/lib/schoolClasses'
+import { foreignRef, malformedRef, requestedRefs } from '@/lib/batches/refs'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,27 @@ function pickFields(body: any): Partial<NewBatch> {
   // map back to '', not null, or the update/insert violates that constraint.
   if (data.classLevel === null) data.classLevel = ''
   return data
+}
+
+// teacherId / programId must be UUIDs of a faculty row / program of the
+// caller's school; otherwise a batch could point at another tenant's records
+// (and mirrorTeacherAssignment would add it to that teacher's list).
+async function checkRefs(data: Partial<NewBatch>, schoolId: string): Promise<string | null> {
+  const refs = requestedRefs(data)
+  const malformed = malformedRef(refs)
+  if (malformed) return malformed
+  const [teacherRows, programRows] = await Promise.all([
+    refs.teacherId
+      ? db.select({ id: faculty.id }).from(faculty).where(and(eq(faculty.id, refs.teacherId), eq(faculty.schoolId, schoolId)))
+      : Promise.resolve([]),
+    refs.programId
+      ? db.select({ id: programs.id }).from(programs).where(and(eq(programs.id, refs.programId), eq(programs.schoolId, schoolId)))
+      : Promise.resolve([]),
+  ])
+  return foreignRef(refs, {
+    teacherId: new Set(teacherRows.map(r => r.id)),
+    programId: new Set(programRows.map(r => r.id)),
+  })
 }
 
 function schoolCondition(schoolId: string) {
@@ -75,6 +97,9 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const programIdFilter = searchParams.get('programId')
+    if (programIdFilter && !isUuid(programIdFilter)) {
+      return NextResponse.json({ error: 'programId is not valid' }, { status: 400 })
+    }
 
     const condition = programIdFilter
       ? and(schoolCondition(schoolId), eq(batches.programId, programIdFilter))
@@ -171,6 +196,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'End date cannot be before start date' }, { status: 400 })
     }
     const schoolId = requireSchool(session)
+    const refError = await checkRefs(data, schoolId)
+    if (refError) return NextResponse.json({ error: refError }, { status: 400 })
     if (data.classLevel) {
       const allowed = await allowedClassLevels(schoolId)
       if (!allowed.includes(data.classLevel)) {
@@ -208,6 +235,7 @@ export async function PATCH(req: NextRequest) {
 
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    if (!isUuid(id)) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
     const schoolId = requireSchool(session)
 
     const [existing] = await db.select().from(batches).where(and(eq(batches.id, id), schoolCondition(schoolId)))
@@ -218,6 +246,8 @@ export async function PATCH(req: NextRequest) {
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
     }
+    const refError = await checkRefs(data, schoolId)
+    if (refError) return NextResponse.json({ error: refError }, { status: 400 })
     const effectiveStartDate = data.startDate !== undefined ? data.startDate : existing.startDate
     const effectiveEndDate = data.endDate !== undefined ? data.endDate : existing.endDate
     if (!effectiveStartDate) return NextResponse.json({ error: 'Start date is required' }, { status: 400 })
@@ -280,6 +310,7 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    if (!isUuid(id)) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
     const schoolId = requireSchool(session)
 
     const [existing] = await db.select().from(batches).where(and(eq(batches.id, id), schoolCondition(schoolId)))
