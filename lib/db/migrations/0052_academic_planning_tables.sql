@@ -3,7 +3,9 @@
 -- (models/AcademicPlanning.ts). Every row belongs to one school and to the
 -- role board it is shown on ('management' | 'teacher').
 --
--- Also adds nullable per-batch override columns to batch_syllabus (teacher
+-- Also creates teacher_schedule_items (the old Mongo TeacherSchedule
+-- collection: a teacher's own day items, not linked to real classes) and adds
+-- nullable per-batch override columns to batch_syllabus (teacher
 -- edits of a shared chapter's notes/title/hours no longer change it for every
 -- batch); see the end of this file.
 --
@@ -66,3 +68,20 @@ ALTER TABLE "batch_syllabus" ADD COLUMN IF NOT EXISTS "notes" text;
 ALTER TABLE "batch_syllabus" ADD COLUMN IF NOT EXISTS "title_override" varchar(255);
 --> statement-breakpoint
 ALTER TABLE "batch_syllabus" ADD COLUMN IF NOT EXISTS "expected_hours_override" integer;
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "teacher_schedule_items" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "school_id" uuid NOT NULL REFERENCES "schools"("id") ON DELETE CASCADE,
+  "owner_email" varchar(255) NOT NULL,
+  "owner_name" varchar(255) NOT NULL DEFAULT '',
+  "date" varchar(10) NOT NULL,
+  "time" varchar(20) NOT NULL,
+  "activity" varchar(255) NOT NULL,
+  "batch" varchar(255) NOT NULL DEFAULT '',
+  "location" varchar(100) NOT NULL DEFAULT '',
+  "status" varchar(20),
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "teacher_schedule_items_school_owner_date_idx" ON "teacher_schedule_items" ("school_id", "owner_email", "date");

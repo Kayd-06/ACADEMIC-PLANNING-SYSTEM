@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { classSchedules, counselingSessions, feedback, specialClasses, studyMaterials } from '@/lib/db/schema'
+import { classSchedules, counselingSessions, feedback, specialClasses, studyMaterials, teacherScheduleItems } from '@/lib/db/schema'
 import { requireSchool } from '@/lib/tenant'
 import { errorResponse, HttpError } from '@/lib/api/http'
-import { todayIST, toTeacherSchedule } from '@/lib/legacyPortal'
+import { todayIST, toScheduleItem, toTeacherSchedule } from '@/lib/legacyPortal'
 import { splitTeacherFeedback } from '@/lib/feedback/scope'
 
 export const dynamic = 'force-dynamic'
@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic'
 // Postgres tables the rest of the app already uses. Same response shape as
 // before: { schedule, counseling, materials, feedback } with `_id` on items.
 //   schedule   today's recurring classes (class_schedules) + one-off classes (special_classes)
+//              + the teacher's own schedule items (teacher_schedule_items)
 //   counseling recent counseling_sessions
 //   materials  study_materials grouped by provider
 //   feedback   recent management -> teacher feedback (for a teacher: only
@@ -40,13 +41,15 @@ export async function GET() {
     const recurringWhere = [eq(classSchedules.schoolId, schoolId), eq(classSchedules.dayOfWeek, dayOfWeek), eq(classSchedules.isActive, true)]
     const specialWhere = [eq(specialClasses.schoolId, schoolId), eq(specialClasses.date, today)]
     const counselingWhere = [eq(counselingSessions.schoolId, schoolId)]
+    const itemWhere = [eq(teacherScheduleItems.schoolId, schoolId), eq(teacherScheduleItems.date, today)]
     if (isTeacher) {
+      itemWhere.push(eq(teacherScheduleItems.ownerEmail, email.trim().toLowerCase()))
       recurringWhere.push(eq(classSchedules.teacherEmail, email))
       specialWhere.push(eq(specialClasses.teacherEmail, email))
       if (userId) counselingWhere.push(eq(counselingSessions.counselorId, userId))
     }
 
-    const [recurring, specials, counseling, materials, feedbackRows] = await Promise.all([
+    const [recurring, specials, counseling, materials, feedbackRows, items] = await Promise.all([
       db.select().from(classSchedules).where(and(...recurringWhere)).orderBy(asc(classSchedules.startTime)),
       db.select().from(specialClasses).where(and(...specialWhere)).orderBy(asc(specialClasses.startTime)),
       db.select().from(counselingSessions).where(and(...counselingWhere)).orderBy(desc(counselingSessions.createdAt)).limit(20),
@@ -60,6 +63,7 @@ export async function GET() {
       db.select().from(feedback)
         .where(and(eq(feedback.schoolId, schoolId), eq(feedback.type, 'Management -> Teacher')))
         .orderBy(desc(feedback.createdAt)).limit(200),
+      db.select().from(teacherScheduleItems).where(and(...itemWhere)).orderBy(asc(teacherScheduleItems.time)),
     ])
 
     const visibleFeedback = (isTeacher
@@ -81,6 +85,7 @@ export async function GET() {
         updatedAt: r.updatedAt,
       })),
       ...specials.map(r => toTeacherSchedule(r, today)),
+      ...items.map(r => toScheduleItem(r, today)),
     ]
 
     return NextResponse.json({

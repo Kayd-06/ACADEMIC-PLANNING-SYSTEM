@@ -1,4 +1,4 @@
-import type { SpecialClass } from '@/lib/db/schema'
+import type { SpecialClass, TeacherScheduleItem } from '@/lib/db/schema'
 
 // Helpers for the routes that used to read MongoDB "TeacherSchedule" /
 // "Orientation" documents and now read Postgres special_classes. They keep
@@ -24,6 +24,22 @@ export function toTeacherSchedule(row: SpecialClass, today = todayIST()) {
     batch: row.batch,
     location: row.room,
     status: scheduleStatus(row.date, today),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+/** teacher_schedule_items row -> the old TeacherSchedule JSON shape. */
+export function toScheduleItem(row: TeacherScheduleItem, today = todayIST()) {
+  return {
+    _id: row.id,
+    id: row.id,
+    date: row.date,
+    time: row.time,
+    activity: row.activity,
+    batch: row.batch,
+    location: row.location,
+    status: row.status || scheduleStatus(row.date, today),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }

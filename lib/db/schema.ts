@@ -1446,3 +1446,28 @@ export const academicMetrics = pgTable('academic_metrics', {
 }, (table) => ({
   schoolRoleIdx: index('academic_metrics_school_role_idx').on(table.schoolId, table.role),
 }))
+
+// Migration 0052: a teacher's personal "today's schedule" items (duties,
+// visits, doubt sessions...) — the Postgres home of the old Mongo
+// TeacherSchedule collection. Deliberately NOT special_classes: these are
+// notes on a teacher's own day, nothing (attendance, reports) links to them,
+// and editing/deleting one can never touch a real scheduled class.
+export const teacherScheduleItems = pgTable('teacher_schedule_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  schoolId: uuid('school_id').notNull().references(() => schools.id, { onDelete: 'cascade' }),
+  ownerEmail: varchar('owner_email', { length: 255 }).notNull(),
+  ownerName: varchar('owner_name', { length: 255 }).notNull().default(''),
+  date: varchar('date', { length: 10 }).notNull(),
+  time: varchar('time', { length: 20 }).notNull(),
+  activity: varchar('activity', { length: 255 }).notNull(),
+  batch: varchar('batch', { length: 255 }).notNull().default(''),
+  location: varchar('location', { length: 100 }).notNull().default(''),
+  // NULL = derived from the date (Upcoming / Completed)
+  status: varchar('status', { length: 20 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schoolOwnerDateIdx: index('teacher_schedule_items_school_owner_date_idx').on(table.schoolId, table.ownerEmail, table.date),
+}))
+
+export type TeacherScheduleItem = typeof teacherScheduleItems.$inferSelect
