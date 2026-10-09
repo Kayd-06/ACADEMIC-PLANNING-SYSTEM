@@ -20,6 +20,16 @@ export function isUniqueViolation(error: unknown): boolean {
   return e?.code === '23505' || e?.cause?.code === '23505'
 }
 
+function pgCode(error: unknown): string | undefined {
+  const e = error as { code?: string; cause?: { code?: string } } | null | undefined
+  return e?.code ?? e?.cause?.code
+}
+
+/** 22P02: a malformed value (typically a non-UUID id) reached Postgres. */
+export function isInvalidTextRepresentation(error: unknown): boolean {
+  return pgCode(error) === '22P02'
+}
+
 interface ErrorResponseOptions {
   /** Message returned for unique-constraint violations (HTTP 409). */
   conflictMessage?: string
@@ -40,6 +50,10 @@ export function errorResponse(error: unknown, context: string, options: ErrorRes
       { error: options.conflictMessage ?? 'A record with these details already exists.' },
       { status: 409 },
     )
+  }
+  if (isInvalidTextRepresentation(error)) {
+    // A malformed id/value is a client error, not a 500.
+    return NextResponse.json({ error: 'Invalid id or value in request.' }, { status: 400 })
   }
   console.error(`[${context}]`, error)
   return NextResponse.json(

@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { chapters, concepts, type NewChapter, type NewConcept } from '@/lib/db/schema'
 import { chunk, mapWithConcurrency } from '@/lib/concurrency'
@@ -90,10 +90,12 @@ export async function importChaptersAndConcepts(opts: CurriculumImportOptions) {
     }
   })
 
-  // Pass 2 — chapters, matched by name within the subject + school.
+  // Pass 2 — chapters, matched by name within the subject + school. Only
+  // shared (curriculum) chapters: a batch-specific chapter with the same name
+  // belongs to that batch and must never be overwritten by a curriculum import.
   const existingChapters = await db.select({ id: chapters.id, name: chapters.name })
     .from(chapters)
-    .where(and(eq(chapters.subjectId, subjectId), eq(chapters.schoolId, schoolId)))
+    .where(and(eq(chapters.subjectId, subjectId), eq(chapters.schoolId, schoolId), isNull(chapters.batchId)))
   const existingChapterId = new Map<string, string>()
   for (const c of existingChapters) {
     const k = c.name.trim().toLowerCase()

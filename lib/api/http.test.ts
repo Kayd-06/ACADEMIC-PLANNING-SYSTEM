@@ -16,6 +16,12 @@ describe('errorResponse', () => {
     expect(isUniqueViolation({ cause: { code: '23505' } })).toBe(true)
   })
 
+  it('maps malformed ids (22P02) to 400 without leaking the driver message', async () => {
+    const res = errorResponse({ cause: { code: '22P02', message: 'invalid input syntax for type uuid: "abc"' } }, 'test')
+    expect(res.status).toBe(400)
+    expect(JSON.stringify(await res.json())).not.toContain('uuid')
+  })
+
   it('hides raw messages of unexpected errors', async () => {
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {})
     const res = errorResponse(new Error('relation "students" does not exist'), 'test')
