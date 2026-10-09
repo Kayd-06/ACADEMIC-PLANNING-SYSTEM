@@ -8,6 +8,7 @@ import { listStudents } from '@/lib/db/queries/students'
 import { requireSchool } from '@/lib/tenant'
 import { errorResponse } from '@/lib/api/http'
 import { chunk, mapWithConcurrency } from '@/lib/concurrency'
+import { buildFeeStudentMatcher, importReceiptNumber, occurrenceCounter } from '@/lib/fees/importMatch'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -15,26 +16,39 @@ export const maxDuration = 60
 const CHUNK_SIZE = 100
 const CONCURRENCY = 3
 
-/** Insert parsed rows in chunks of 100 (3 at a time), one statement per chunk. */
-async function insertChunks<T extends { row: number }>(
-  items: T[],
-  write: (part: T[]) => Promise<number>,
+type Parsed<V> = { row: number; value: V }
+
+/**
+ * Write parsed rows in chunks of 100 (3 at a time), one statement per chunk.
+ * `write` returns the rows it could not save together with the reason; a
+ * chunk that throws is retried row by row so only the bad rows fail.
+ */
+async function writeChunks<V>(
+  items: Parsed<V>[],
+  write: (part: Parsed<V>[]) => Promise<Array<{ item: Parsed<V>; reason: string }>>,
   errors: string[],
 ): Promise<number> {
   const parts = chunk(items, CHUNK_SIZE)
   const results = await mapWithConcurrency(parts, CONCURRENCY, write)
   let saved = 0
-  results.forEach((r, i) => {
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i]
     if (r.status === 'fulfilled') {
-      saved += r.value
-      const missing = parts[i].length - r.value
-      if (missing > 0) errors.push(`${missing} row(s) were skipped because their receipt number belongs to another school`)
-      return
+      saved += parts[i].length - r.value.length
+      for (const m of r.value) errors.push(`Row ${m.item.row}: ${m.reason}`)
+      continue
     }
-    console.error('[fees bulk import] chunk failed', r.reason)
-    const rows = parts[i].map(p => p.row)
-    errors.push(`Rows ${rows[0]}–${rows[rows.length - 1]}: could not be saved (duplicate or invalid data)`)
-  })
+    console.error('[fees bulk import] chunk failed, retrying row by row', r.reason)
+    const single = await mapWithConcurrency(parts[i], CONCURRENCY, (item) => write([item]))
+    single.forEach((res, j) => {
+      if (res.status === 'fulfilled') {
+        saved += 1 - res.value.length
+        for (const m of res.value) errors.push(`Row ${m.item.row}: ${m.reason}`)
+      } else {
+        errors.push(`Row ${parts[i][j].row}: could not be saved (check amounts, dates and text lengths)`)
+      }
+    })
+  }
   return saved
 }
 
@@ -107,35 +121,32 @@ export async function POST(req: NextRequest) {
         }
       }
       // fee_structures has no natural unique key, so this is a plain multi-row insert.
-      successCount = await insertChunks(parsed, async (part) => {
-        const rows = await db.insert(feeStructures).values(part.map(p => p.value)).returning({ id: feeStructures.id })
-        return rows.length
+      successCount = await writeChunks(parsed, async (part) => {
+        await db.insert(feeStructures).values(part.map(p => p.value))
+        return []
       }, errors)
       failedCount += parsed.length - successCount
     } else if (type === 'payments') {
       // Pre-fetch students & fee structures for fast matching
       const allStudents = await listStudents({ schoolId: targetSchoolId })
       const allStructures = await listFeeStructures({ schoolId: targetSchoolId })
-      const studentByRoll = new Map<string, (typeof allStudents)[number]>()
-      const studentByName = new Map<string, (typeof allStudents)[number]>()
-      for (const st of allStudents) {
-        if (st.rollNo && !studentByRoll.has(st.rollNo.toLowerCase())) studentByRoll.set(st.rollNo.toLowerCase(), st)
-        const n = st.name?.toLowerCase().trim()
-        if (n && !studentByName.has(n)) studentByName.set(n, st)
-      }
+      const matchStudent = buildFeeStudentMatcher(allStudents)
       const structureByName = new Map(allStructures.map(f => [f.name.toLowerCase().trim(), f]))
 
-      // Rows with a receipt number from the file are upserted on the unique
-      // receipt_number (re-importing a sheet updates instead of failing);
-      // rows without one get a generated, collision-resistant receipt.
-      const withReceipt = new Map<string, { row: number; value: NewFeePayment }>()
-      const generated: Array<{ row: number; value: NewFeePayment }> = []
-      const year = new Date().getFullYear()
+      // Every row is upserted on the unique receipt_number, so re-importing a
+      // sheet updates instead of duplicating. Rows without a receipt number
+      // get a deterministic one (school + student + fee + dates + amounts +
+      // n-th identical row in the file), not a random one.
+      const byReceipt = new Map<string, Parsed<NewFeePayment>>()
+      const nextOccurrence = occurrenceCounter()
 
       for (let i = 0; i < records.length; i++) {
         const row = records[i]
         try {
           const rollNo = (row['Student Roll No'] || row['Roll No'] || row.rollNo || '').toString().trim()
+          const admissionNumber = (row['Admission Number'] || row['Admission No'] || row.admissionNumber || '').toString().trim()
+          const classCell = (row['Class'] || row.class || '').toString().trim()
+          const sectionCell = (row['Section'] || row.section || '').toString().trim()
           const studentNameRaw = (row['Student Name'] || row.studentName || '').toString().trim()
           const feeStructureName = (row['Fee Structure Name'] || row['Fee Name'] || row.feeName || '').toString().trim()
           const amountDueStr = row['Amount Due'] ?? row.amountDue ?? 0
@@ -143,8 +154,8 @@ export async function POST(req: NextRequest) {
           const amountDue = Math.round(Number(amountDueStr))
           const amountPaid = Math.round(Number(amountPaidStr))
 
-          if (!studentNameRaw && !rollNo) {
-            errors.push(`Row ${i + 1}: Missing Student Roll No and Student Name`)
+          if (!studentNameRaw && !rollNo && !admissionNumber) {
+            errors.push(`Row ${i + 1}: Missing Admission Number, Student Roll No and Student Name`)
             failedCount++
             continue
           }
@@ -154,11 +165,15 @@ export async function POST(req: NextRequest) {
             continue
           }
 
-          // Match student by Roll No or Name
-          let matchedStudent = rollNo ? studentByRoll.get(rollNo.toLowerCase()) : undefined
-          if (!matchedStudent && studentNameRaw) {
-            matchedStudent = studentByName.get(studentNameRaw.toLowerCase())
+          // Admission number, then roll + class (+ section); a bare roll number
+          // or name only when unique in the school (roll numbers repeat across classes).
+          const match = matchStudent({ admissionNumber, rollNo, class: classCell, section: sectionCell, name: studentNameRaw })
+          if (match.kind === 'ambiguous') {
+            errors.push(`Row ${i + 1}: ${match.message}`)
+            failedCount++
+            continue
           }
+          const matchedStudent = match.kind === 'matched' ? match.student : undefined
 
           const resolvedStudentId = matchedStudent ? matchedStudent.id : null
           const resolvedStudentName = matchedStudent ? matchedStudent.name : (studentNameRaw || `Student (${rollNo})`)
@@ -174,13 +189,26 @@ export async function POST(req: NextRequest) {
           const paymentMethod = (row['Payment Method'] || row.paymentMethod || 'UPI').toString().trim()
           const transactionId = (row['Transaction ID'] || row.transactionId || '').toString().trim()
           
-          const suppliedReceipt = (row['Receipt Number'] || row.receiptNumber || '').toString().trim()
-          const receiptNumber = suppliedReceipt
-            || `REC-${year}-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`
-
           const nowStr = new Date().toISOString().split('T')[0]
-          const dueDate = (row['Due Date'] || row.dueDate || nowStr).toString().trim()
-          const paidDate = (row['Paid Date'] || row.paidDate || (amountPaid > 0 ? nowStr : '')).toString().trim()
+          const dueDateCell = (row['Due Date'] || row.dueDate || '').toString().trim()
+          const paidDateCell = (row['Paid Date'] || row.paidDate || '').toString().trim()
+          const dueDate = dueDateCell || nowStr
+          const paidDate = paidDateCell || (amountPaid > 0 ? nowStr : '')
+
+          const suppliedReceipt = (row['Receipt Number'] || row.receiptNumber || '').toString().trim()
+          let receiptNumber = suppliedReceipt
+          if (!receiptNumber) {
+            const parts = {
+              schoolId: targetSchoolId,
+              student: matchedStudent ? matchedStudent.id : `${studentNameRaw}|${rollNo}|${admissionNumber}`,
+              fee: resolvedStructureId ?? feeStructureName,
+              dueDate: dueDateCell,
+              paidDate: paidDateCell,
+              amountDue: isNaN(amountDue) ? -1 : amountDue,
+              amountPaid: isNaN(amountPaid) ? 0 : amountPaid,
+            }
+            receiptNumber = importReceiptNumber(parts, nextOccurrence(parts))
+          }
 
           let status = (row['Status'] || row.status || '').toString().trim()
           if (!status) {
@@ -216,23 +244,20 @@ export async function POST(req: NextRequest) {
             status,
             notes
           }
-          if (suppliedReceipt) {
-            const earlier = withReceipt.get(suppliedReceipt)
-            if (earlier) {
-              errors.push(`Row ${earlier.row}: duplicate Receipt Number ${suppliedReceipt} in this file; row ${i + 1} was used`)
-              failedCount++
-            }
-            withReceipt.set(suppliedReceipt, { row: i + 1, value })
-          } else {
-            generated.push({ row: i + 1, value })
+          const earlier = byReceipt.get(receiptNumber)
+          if (earlier) {
+            errors.push(`Row ${earlier.row}: duplicate Receipt Number ${receiptNumber} in this file; row ${i + 1} was used`)
+            failedCount++
           }
+          byReceipt.set(receiptNumber, { row: i + 1, value })
         } catch {
           errors.push(`Row ${i + 1}: invalid data`)
           failedCount++
         }
       }
 
-      const upserted = await insertChunks([...withReceipt.values()], async (part) => {
+      const rowsToWrite = [...byReceipt.values()]
+      successCount = await writeChunks(rowsToWrite, async (part) => {
         const rows = await db.insert(feePayments).values(part.map(p => p.value))
           .onConflictDoUpdate({
             target: feePayments.receiptNumber,
@@ -260,15 +285,15 @@ export async function POST(req: NextRequest) {
             // never overwrite another school's payment that happens to share a receipt number
             setWhere: sql`"fee_payments"."school_id" = excluded.school_id`,
           })
-          .returning({ id: feePayments.id })
-        return rows.length
+          .returning({ receiptNumber: feePayments.receiptNumber })
+        // A row missing from RETURNING was skipped by setWhere: its receipt
+        // number is already used by another school's payment.
+        const saved = new Set(rows.map(r => r.receiptNumber))
+        return part
+          .filter(p => !saved.has(p.value.receiptNumber))
+          .map(item => ({ item, reason: `Receipt Number ${item.value.receiptNumber} is already used by another school's record` }))
       }, errors)
-      const inserted = await insertChunks(generated, async (part) => {
-        const rows = await db.insert(feePayments).values(part.map(p => p.value)).returning({ id: feePayments.id })
-        return rows.length
-      }, errors)
-      successCount = upserted + inserted
-      failedCount += withReceipt.size + generated.length - successCount
+      failedCount += rowsToWrite.length - successCount
     }
 
     return NextResponse.json({
