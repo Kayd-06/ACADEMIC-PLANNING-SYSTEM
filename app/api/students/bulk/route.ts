@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
       }
       const tooLong = findTooLongField(student as Record<string, unknown>)
       if (tooLong) {
-        errors.push({ index, row: label, field: 'general', value: String((student as any)[tooLong.field]).slice(0, 40), message: `${tooLong.field} is longer than ${tooLong.limit} characters.` })
+        errors.push({ index, row: label, field: 'general', value: String((student as Record<string, unknown>)[tooLong.field]).slice(0, 40), message: `${tooLong.field} is longer than ${tooLong.limit} characters.` })
         return
       }
 
